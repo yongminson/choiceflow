@@ -1,0 +1,142 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer base {
+  .theme {
+    --font-heading: var(--font-sans);
+    --font-sans: var(--font-sans);
+  }
+  :root {
+    --background: oklch(0.985 0.012 252);
+    --foreground: oklch(0.275 0.045 258);
+    --card: oklch(0.995 0.01 252);
+    --card-foreground: oklch(0.275 0.045 258);
+    --popover: oklch(0.995 0.01 252);
+    --popover-foreground: oklch(0.275 0.045 258);
+    --primary: oklch(0.5 0.17 252);
+    --primary-foreground: oklch(0.99 0.01 252);
+    --secondary: oklch(0.955 0.025 252);
+    --secondary-foreground: oklch(0.32 0.06 258);
+    --muted: oklch(0.96 0.02 252);
+    --muted-foreground: oklch(0.48 0.04 258);
+    --accent: oklch(0.94 0.04 252);
+    --accent-foreground: oklch(0.32 0.06 258);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.91 0.02 252);
+    --input: oklch(0.91 0.02 252);
+    --ring: oklch(0.52 0.14 252);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.75rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+    --glass-border: oklch(1 0 0 / 0.45);
+    --glass-surface: oklch(1 0 0 / 0.42);
+  }
+  .dark {
+    --background: oklch(0.17 0.035 260);
+    --foreground: oklch(0.97 0.02 252);
+    --card: oklch(0.21 0.04 258);
+    --card-foreground: oklch(0.97 0.02 252);
+    --popover: oklch(0.21 0.04 258);
+    --popover-foreground: oklch(0.97 0.02 252);
+    --primary: oklch(0.68 0.14 252);
+    --primary-foreground: oklch(0.16 0.04 260);
+    --secondary: oklch(0.28 0.04 258);
+    --secondary-foreground: oklch(0.97 0.02 252);
+    --muted: oklch(0.28 0.035 258);
+    --muted-foreground: oklch(0.72 0.03 252);
+    --accent: oklch(0.3 0.05 258);
+    --accent-foreground: oklch(0.97 0.02 252);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 14%);
+    --ring: oklch(0.6 0.12 252);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+    --glass-border: oklch(1 0 0 / 0.12);
+    --glass-surface: oklch(0.2 0.03 260 / 0.45);
+  }
+  * {
+    @apply border-border outline-none;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply relative min-h-screen text-foreground;
+    background-color: transparent;
+  }
+}
+
+@layer components {
+  .mesh-bg {
+    @apply pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[oklch(0.97_0.008_252)] dark:bg-[oklch(0.14_0.035_260)];
+  }
+  .mesh-bg__layer {
+    @apply absolute inset-[-20%] animate-mesh-drift bg-mesh-1 bg-no-repeat opacity-90;
+    background-size: 120% 120%;
+    background-position: 30% 20%;
+  }
+  .mesh-bg__layer--2 {
+    @apply absolute inset-[-15%] animate-mesh-drift bg-mesh-2 bg-no-repeat opacity-80 [animation-delay:-9s];
+    background-size: 110% 110%;
+    background-position: 70% 0%;
+  }
+  .mesh-bg__layer--3 {
+    @apply absolute inset-[-10%] animate-mesh-drift bg-mesh-3 bg-no-repeat opacity-75 [animation-delay:-18s];
+    background-size: 100% 100%;
+    background-position: 50% 100%;
+  }
+  .mesh-bg__layer--4 {
+    @apply absolute inset-0 bg-mesh-4 bg-no-repeat opacity-60 mix-blend-soft-light [animation-delay:-6s];
+    background-size: cover;
+    background-position: center;
+  }
+
+  .glass {
+    @apply border border-[var(--glass-border)] bg-[var(--glass-surface)] shadow-glass-sm backdrop-blur-2xl backdrop-saturate-150 dark:shadow-none;
+  }
+  .glass-strong {
+    @apply border border-white/30 bg-white/55 shadow-glass backdrop-blur-3xl backdrop-saturate-150 dark:border-white/10 dark:bg-white/10;
+  }
+  .glass-nav {
+    @apply border-b border-white/10 bg-white/35 shadow-glass-sm backdrop-blur-2xl backdrop-saturate-150 dark:border-white/5 dark:bg-black/20;
+  }
+}
