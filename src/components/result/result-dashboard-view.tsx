@@ -326,7 +326,7 @@ export function ResultDashboardView() {
                   🗺️ 내 주변 · 지역 추천 검색
                 </h3>
               </div>
-              <p className="mb-3 text-xl font-bold text-foreground">'{m.searchKeyword || m.winnerName}' 바로 검색하기</p>
+              <p className="mb-3 text-xl font-bold text-foreground">&apos;{m.searchKeyword || m.winnerName}&apos; 바로 검색하기 바로 검색하기</p>
               <p className="mb-6 text-[15px] leading-relaxed text-foreground/80">
                 선택된 결과를 네이버 지도에서 바로 확인해 보세요!
               </p>
