@@ -9,11 +9,12 @@ import { getRequiredCreditsForAnalyze } from "@/lib/analyze/category-credits";
 import { getCategoryDisplayLabel } from "@/lib/category/display-label";
 import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs";
+// 🔥 1. 초고속 엔진 장착: nodejs -> edge 로 변경하여 서버 예열 시간 삭제!
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// 🔥 킬 스위치 장착: AI가 딴짓 못하게 0순위로 에러 먼저 검사하게 만듦!
+// 🔥 대표님이 고생해서 깎으신 완벽한 프롬프트 그대로 유지!
 const SYSTEM_PROMPT = `당신은 엄격한 데이터 검증관이자 분석 전문가입니다.
 응답은 반드시 JSON 형식이어야 합니다.
 
@@ -190,8 +191,11 @@ export async function POST(request: Request) {
       myeongunDeepDataEnabled: !!body.myeongunDeepDataEnabled,
     };
 
-    await supabase.from("profiles").update({ credits: (profile?.credits || 0) - required }).eq("id", user.id);
-    await supabase.from("analysis_history").insert({ user_id: user.id, category: getCategoryDisplayLabel(categoryId), input_data: body, result_data: out, spent_credits: required });
+    // 🔥 2. DB 저장 병렬 처리 (기존에 2번 기다리던 걸 1번으로 단축)
+    await Promise.all([
+      supabase.from("profiles").update({ credits: (profile?.credits || 0) - required }).eq("id", user.id),
+      supabase.from("analysis_history").insert({ user_id: user.id, category: getCategoryDisplayLabel(categoryId), input_data: body, result_data: out, spent_credits: required })
+    ]);
 
     return NextResponse.json({ ok: true, ...out });
   } catch (error) {

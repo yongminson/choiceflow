@@ -281,9 +281,9 @@ export function CategoryDashboard() {
           className="font-display max-w-4xl text-balance text-[1.65rem] font-semibold leading-[1.12] tracking-[-0.045em] text-foreground sm:text-4xl md:text-5xl md:leading-[1.08]"
         >
           어떤 선택이
-          <span className="mt-1.5 block bg-gradient-to-br from-primary via-primary to-foreground/65 bg-clip-text text-transparent sm:mt-2.5">
-            고민이신가요?
-          </span>
+          <span className="mt-1.5 block bg-gradient-to-br from-primary to-blue-600 dark:from-blue-300 dark:to-indigo-300 bg-clip-text text-transparent sm:mt-2.5">
+  고민이신가요?
+</span>
         </h1>
 
         <div

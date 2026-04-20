@@ -200,7 +200,7 @@ export function ResultDashboardView() {
                   <div className="flex flex-1 justify-end">
                     <div className="flex w-full items-center justify-end gap-2 sm:gap-3">
                       <span className="text-[12px] font-bold tabular-nums text-indigo-500">{metric.a}</span>
-                      <div className="flex h-3 w-[100px] justify-end overflow-hidden rounded-l-full bg-black/5 shadow-inner dark:bg-white/5 sm:w-[150px]">
+                      <div className="flex h-3 w-[60px] min-w-[60px] justify-end overflow-hidden rounded-l-full bg-black/5 shadow-inner dark:bg-white/5 sm:w-[150px]">
                          <div className="h-full rounded-l-full bg-gradient-to-l from-indigo-400 to-indigo-600 transition-all duration-1000" style={{ width: `${metric.a}%` }} />
                       </div>
                     </div>
@@ -212,7 +212,7 @@ export function ResultDashboardView() {
 
                   <div className="flex flex-1 justify-start">
                     <div className="flex w-full items-center justify-start gap-2 sm:gap-3">
-                      <div className="h-3 w-[100px] overflow-hidden rounded-r-full bg-black/5 shadow-inner dark:bg-white/5 sm:w-[150px]">
+                    <div className="h-3 w-[60px] min-w-[60px] overflow-hidden rounded-r-full bg-black/5 shadow-inner dark:bg-white/5 sm:w-[150px]">
                          <div className="h-full rounded-r-full bg-gradient-to-r from-sky-400 to-sky-500 transition-all duration-1000" style={{ width: `${metric.b}%` }} />
                       </div>
                       <span className="text-[12px] font-bold tabular-nums text-sky-500">{metric.b}</span>
