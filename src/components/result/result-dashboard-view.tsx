@@ -102,23 +102,25 @@ export function ResultDashboardView() {
     const el = captureRef.current;
     if (!el) return;
     setSavingImage(true);
+    
     try {
+      // 명운/타로 때 썼던 가장 단순한 기본 형태 (잡다한 옵션 모두 제거)
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(el, { 
+        scale: 2, 
         useCORS: true, 
-        scale: 2,
-        backgroundColor: "#ffffff",
-        logging: false
+        backgroundColor: "#ffffff"
       });
+      
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
-      a.download = `choiceflow-${Date.now()}.png`;
+      a.download = `choiceflow-result-${Date.now()}.png`;
       a.click();
-      toast.success("사진으로 저장되었습니다.");
+      toast.success("결과 화면이 사진으로 저장되었습니다! 📸");
     } catch (e) {
       console.error(e);
-      toast.error("이미지 저장 실패. 크롬 브라우저를 사용해 주세요.");
+      toast.error("이미지 저장에 실패했습니다.");
     } finally {
       setSavingImage(false);
     }
