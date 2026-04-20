@@ -16,23 +16,20 @@ export const maxDuration = 60;
 const SYSTEM_PROMPT = `당신은 최고 권위의 분석 전문가입니다.
 반드시 아래 규칙에 따라 판단하고 오직 JSON으로만 응답하세요.
 
-[🚨 1순위: 에러 검증 (즉각 차단 조건 - 매우 관대하게!)]
-- 무의미한 자음/모음 남발(예: asdf, ㅇㅇ)이거나, 업로드한 사진과 텍스트가 180도 다른 경우에만 FAIL 처리해라.
-- '스파', '해변', '가방', '노래방' 같은 일반 명사나 장소도 훌륭한 비교 대상이다! 절대 튕겨내지 말고 분석해라.
+[🚨 1순위: 에러 검증 (이미지/텍스트 불일치 엄격 차단!)]
+- 입력된 텍스트와 사진이 명백하게 다를 경우(예: '삼성' 입력 후 'LG' 로고 사진 업로드, '가방' 입력 후 '신발' 사진 업로드) 무조건 FAIL 처리해라.
+- 단, '스파', '해변', '노래방', '선글라스' 같은 일반 명사나 장소는 명확한 브랜드가 없어도 절대 튕겨내지 말고 정상 분석해라.
 
 [🚨 2순위: 팩트 체크 및 절대 승패 기준]
 - "item_a_name"과 "item_b_name"은 유저가 입력한 텍스트를 100% 똑같이 복사해라.
-- 두 옵션이 비슷해도 승자가 매번 바뀌지 않게, [가성비], [편의성], [만족도] 중 하나를 기준으로 단호하게 한쪽의 손을 들어라.
+- 두 옵션이 비슷해도 승자가 매번 바뀌지 않게, [가성비], [편의성] 중 하나를 기준으로 단호하게 한쪽의 손을 들어라.
 
 [🚨 3순위: 장단점 구조화]
 - "table": 단어 1~2개가 아니라, 특징이 포함된 15~20자 내외의 핵심 요약 문구로 작성해라.
-- "killerInsight": 누구나 할 수 있는 뻔한 칭찬 절대 금지. 구체적 근거로 작성해라.
 
-[🚨 4순위: 검색어(search_keyword) 스마트 정제 규칙 - 매우 중요!!!]
-- 메인 승자의 "search_keyword" 작성 규칙:
-  ▶️ 음식/데이트 카테고리: 유저 상황에 있는 [지역명] + [승리한 옵션 이름(winnerName)] 딱 2개만 조합해라. (예: "둔포 노래방"). ⚠️ 절대 '술안주', '회식', '데이트' 같은 상황/수식어 단어를 검색어에 포함하지 마라! 검색이 망가진다.
-  ▶️ 그 외 카테고리: 쿠팡이나 네이버에서 실제 검색 가능한 [핵심 브랜드+상품명]으로 깔끔하게 교정해라.
-- 대안(option_c): 즉시 구매/검색 가능한 정확한 실물 상품명이나 구체적 장소 1개 제안.
+[🚨 4순위: 검색어(search_keyword) 똑똑하게 추출]
+- 메인 승자의 "search_keyword": 쿠팡이나 네이버에서 실제 검색 가능한 [핵심 브랜드 + 정확한 상품명]으로 깔끔하게 교정해라. (예: "가방" -> "여성 숄더백", "삼성냉장고" -> "삼성 비스포크 냉장고")
+- 대안(option_c): 즉시 구매/검색 가능한 정확한 실물 상품명 1개 제안.
 
 [출력 양식 - JSON]
 {
@@ -41,7 +38,7 @@ const SYSTEM_PROMPT = `당신은 최고 권위의 분석 전문가입니다.
   "item_b_name": "유저입력 B",
   "winnerName": "승자 이름",
   "score": 85,
-  "search_keyword": "상황 단어가 싹 빠진 깔끔한 지역+검색어",
+  "search_keyword": "스마트하게 정제된 쇼핑 검색어",
   "win_percentage": 85,
   "regret_probability": 15,
   "real_reviews_summary": ["리뷰1", "리뷰2", "리뷰3"],
@@ -142,15 +139,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, status: "REJECTED", reason: compact.rejection_reason || "잘못된 입력입니다." });
     }
 
+    const winner = inferWinner(optionA, optionB, compact.winnerName || "추천 상품", compact.item_a_name || "", compact.item_b_name || "");
     const winnerName = compact.winnerName || "추천 상품";
+    
+    // 🔥 [핵심 로직] AI가 만든 검색어 받아오기
     let finalSearchKeyword = compact.search_keyword || winnerName;
 
-    if (categoryId === "food" && compact.search_keyword) {
-      finalSearchKeyword = compact.search_keyword;
+    // 🔥 [강제 덮어쓰기] "뭐 먹을까(food)" 카테고리일 때만, 무조건 유저가 입력한 글자 100% 그대로 적용!
+    if (categoryId === "food") {
+      finalSearchKeyword = winner === "A" ? optionA : optionB;
     }
 
     const out: AnalyzeApiResult = {
-      winner: inferWinner(optionA, optionB, winnerName, compact.item_a_name || "", compact.item_b_name || ""),
+      winner: winner,
       winnerName: winnerName,
       score: compact.score || 80,
       winPercentage: compact.win_percentage || 80,

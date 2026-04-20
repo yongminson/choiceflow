@@ -104,22 +104,24 @@ export function ResultDashboardView() {
     setSavingImage(true);
     
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300)); // 렌더링 대기
+      
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(el, { 
         scale: 2, 
         useCORS: true, 
-        allowTaint: false, // 🔥 무조건 false여야 이미지 다운로드가 안 막힙니다!
-        backgroundColor: null,
-        ignoreElements: (node) => {
-          // 🔥 외부 이미지(쿠팡 등)가 캡처를 터뜨리는 걸 막기 위해, 외부 이미지만 캡처에서 제외
-          if (node.tagName && node.tagName.toLowerCase() === "img") {
-            const src = (node as HTMLImageElement).src;
-            if (src && src.startsWith("http") && !src.includes(window.location.hostname)) {
-              return true; 
+        allowTaint: false, // 🚨 무조건 false여야 저장이 막히지 않습니다!
+        backgroundColor: "#ffffff",
+        // 🔥 스텔스 모드: 캡처 화면을 복사할 때, 에러를 유발하는 외부 이미지를 강제로 숨깁니다.
+        onclone: (clonedDoc) => {
+          const images = clonedDoc.getElementsByTagName("img");
+          for (let i = 0; i < images.length; i++) {
+            const img = images[i];
+            // 우리가 올린 파일(data:)이나 내 사이트 이미지가 아닌 '외부 웹사이트 이미지'면 캡처에서 뺌!
+            if (img.src && !img.src.startsWith("data:") && !img.src.includes(window.location.hostname)) {
+              img.style.display = "none";
             }
           }
-          return false;
         }
       });
 
@@ -128,10 +130,10 @@ export function ResultDashboardView() {
       a.href = url;
       a.download = `choiceflow-result-${Date.now()}.png`;
       a.click();
-      toast.success("결과 화면을 이미지로 저장했습니다! 📸");
+      toast.success("결과 화면이 사진으로 저장되었습니다! 📸");
     } catch (e) {
       console.error("캡처 에러 상세:", e);
-      toast.error("이미지 저장에 실패했습니다. (브라우저 보안 차단)");
+      toast.error("이미지 저장에 실패했습니다. 다른 브라우저를 이용해주세요.");
     } finally {
       setSavingImage(false);
     }
@@ -347,7 +349,7 @@ export function ResultDashboardView() {
                   🗺️ 내 주변 · 지역 추천 검색
                 </h3>
               </div>
-              <p className="mb-3 text-xl font-bold text-foreground">&apos;{m.searchKeyword || m.winnerName}&apos; 바로 검색하기 바로 검색하기</p>
+              <p className="mb-3 text-xl font-bold text-foreground">&apos;{m.searchKeyword || m.winnerName}&apos; 바로 검색하기</p>
               <p className="mb-6 text-[15px] leading-relaxed text-foreground/80">
                 선택된 결과를 네이버 지도에서 바로 확인해 보세요!
               </p>
