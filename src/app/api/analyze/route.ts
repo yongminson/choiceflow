@@ -16,19 +16,21 @@ export const maxDuration = 60;
 const SYSTEM_PROMPT = `당신은 최고 권위의 분석 전문가입니다.
 반드시 아래 규칙에 따라 판단하고 오직 JSON으로만 응답하세요.
 
-[🚨 1순위: 에러 검증 (즉각 차단 조건)]
-- 무의미한 텍스트, 완전히 동일한 이미지, 텍스트와 사진/링크 불일치 시 무조건 FAIL 처리.
+[🚨 1순위: 에러 검증 (즉각 차단 조건 - 무관용)]
+- 브랜드/모델 불일치 (가장 중요!): 유저 입력 텍스트의 브랜드(예: 삼성)와 첨부된 이미지의 브랜드(예: LG)가 명백히 다를 경우, 무조건 FAIL 처리하고 사유를 반환해라. (같은 제품군이라도 브랜드가 다르면 절대 안 됨!)
+- 무의미한 텍스트, 완전히 동일한 사진 2장 업로드 시 FAIL.
 
-[🚨 2순위: 팩트 체크 및 절대 승패 기준 (오락가락 금지!!!)]
+[🚨 2순위: 팩트 체크 및 절대 승패 기준 (오락가락 금지!)]
 - "item_a_name"과 "item_b_name"은 유저가 입력한 텍스트를 100% 똑같이 복사해라.
-- 제품 스펙(필터 유무, 소음, 유지비 등)에 대해 객관적인 Fact만 사용해라. 절대 없는 단점을 상상해서 지어내지 마라!
-- (핵심) 두 제품의 성능이 비슷하여 우열을 가리기 힘들 경우, 무조건 [유지관리의 편의성]이나 [가성비] 중 하나를 명확한 기준으로 삼아 단호하게 한쪽의 손을 들어줘라. 똑같은 옵션에 대해 승자가 계속 바뀌는 '선택 장애'를 절대 보이지 마라.
+- 두 제품의 성능이 비슷해도 승자가 매번 바뀌는 '선택 장애'를 보이지 마라. [구체적인 스펙 우위], [가성비], [유지관리] 중 하나를 명확한 기준으로 삼아 단호하게 한쪽의 손을 들어라.
 
-[🚨 3순위: 찐 리뷰 작성 및 표 초압축 구조화]
-- "real_reviews_summary": 승리한 제품의 객관적이고 대표적인 실제 평가 3개를 적어라.
-- "table": 무조건 15자 이내의 짧고 강력한 '단답형(명사형)'으로 요약해라. (문장형 절대 금지)
-  - pros: ["장점: 짧은명사", "우위: 짧은명사"]
-  - cons: ["단점: 짧은명사", "불만: 짧은명사"]
+[🚨 3순위: 깊이 있는 분석 및 장단점 구조화 (뻔한 소리 금지!)]
+- "real_reviews_summary": 승리한 제품의 객관적인 실제 평가 3개를 적어라.
+- "table": 단어 1~2개의 단순한 명사가 아니라, **스펙이나 기능 정보가 포함된 20자 내외의 핵심 요약 문구**로 작성해라.
+  - (예시) "다용도 활용" (X) -> "다양한 맞춤 보관 모드로 활용성 우수" (O)
+  - pros: ["스펙/기능이 포함된 구체적 장점", "스펙/기능이 포함된 구체적 장점"]
+  - cons: ["스펙/기능이 포함된 구체적 단점", "스펙/기능이 포함된 구체적 단점"]
+- "killerInsight" 및 "summary": "본연의 기능에 충실합니다" 같은 누구나 할 수 있는 뻔한 칭찬을 절대 금지한다. 실제 용량, 특허 기술, 가격 대비 성능 등 [구체적인 팩트와 근거]를 바탕으로 전문가다운 날카로운 분석을 제공해라.
 
 [🚨 4순위: 검색어(search_keyword) 규칙]
 - 메인 승자의 "search_keyword": 유저 입력 텍스트 그대로 작성. (음식 카테고리일 경우에만 지역명 + 음식명)
@@ -49,11 +51,11 @@ const SYSTEM_PROMPT = `당신은 최고 권위의 분석 전문가입니다.
   "option_c": {"name": "대안 상품명", "reason": "이유", "search_keyword": "정확한 실물 상품명"},
   "analysis_text": "비교 요약",
   "table": {
-    "A": { "pros": ["명사형", "명사형"], "cons": ["명사형", "명사형"] },
-    "B": { "pros": ["명사형", "명사형"], "cons": ["명사형", "명사형"] }
+    "A": { "pros": ["구체적 장점", "구체적 장점"], "cons": ["구체적 단점", "구체적 단점"] },
+    "B": { "pros": ["구체적 장점", "구체적 장점"], "cons": ["구체적 단점", "구체적 단점"] }
   },
-  "killerInsight": "강력한 일침",
-  "summary": "한 줄 요약"
+  "killerInsight": "스펙 근거가 포함된 강력한 일침",
+  "summary": "구체적인 한 줄 요약"
 }`;
 
 function parseRequestImages(body: AnalyzeRequestBody): string[] {
@@ -145,8 +147,6 @@ export async function POST(request: Request) {
     const winnerName = compact.winnerName || "추천 상품";
     let finalSearchKeyword = compact.search_keyword || winnerName;
 
-    // 🔥 AI가 헛소리 못하게 하는 절대 강제 로직!
-    // 카테고리가 '음식(food)'이 아니면 무조건 AI가 만든 검색어 버리고 유저 입력값(winnerName)을 꽂아버립니다.
     if (categoryId !== "food") {
       finalSearchKeyword = winnerName;
     }
@@ -164,7 +164,7 @@ export async function POST(request: Request) {
       table: compact.table || { A: { pros: [], cons: [] }, B: { pros: [], cons: [] } },
       killerInsight: compact.killerInsight || "",
       summary: compact.summary || "",
-      searchKeyword: finalSearchKeyword, // 🔥 강제로 고정된 검색어 탑재
+      searchKeyword: finalSearchKeyword,
       optionALabel: compact.item_a_name || optionA,
       optionBLabel: compact.item_b_name || optionB,
       priceAManwon: priceAManwon || 0,
