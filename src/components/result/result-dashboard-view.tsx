@@ -102,24 +102,34 @@ export function ResultDashboardView() {
     const el = captureRef.current;
     if (!el) return;
     setSavingImage(true);
-    
+
     try {
-      // 명운/타로 때 썼던 가장 단순한 기본 형태 (잡다한 옵션 모두 제거)
-      const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(el, { 
-        scale: 2, 
-        useCORS: true, 
-        backgroundColor: "#ffffff"
-      });
+      // 클로드가 제안한 최신 라이브러리 사용
+      const { toPng } = await import("html-to-image");
       
-      const url = canvas.toDataURL("image/png");
+      // 폰트와 이미지가 로드될 아주 잠깐의 시간(0.1초) 대기
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const dataUrl = await toPng(el, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        // 'no-capture' 클래스가 붙은 요소(버튼 등)는 캡처에서 제외
+        filter: (node) => {
+          if (node instanceof HTMLElement && node.classList.contains("no-capture")) {
+            return false;
+          }
+          return true;
+        },
+      });
+
       const a = document.createElement("a");
-      a.href = url;
+      a.href = dataUrl;
       a.download = `choiceflow-result-${Date.now()}.png`;
       a.click();
       toast.success("결과 화면이 사진으로 저장되었습니다! 📸");
     } catch (e) {
-      console.error(e);
+      console.error("캡처 에러:", e);
       toast.error("이미지 저장에 실패했습니다.");
     } finally {
       setSavingImage(false);
@@ -402,7 +412,8 @@ export function ResultDashboardView() {
           </div>
         )}
 
-        <div className="mt-10 flex flex-col items-stretch gap-3 border-t border-white/15 pt-10 dark:border-white/10 sm:items-center">
+        {/* 👇 여기 맨 끝에 no-capture 가 추가되었습니다! */}
+        <div className="mt-10 flex flex-col items-stretch gap-3 border-t border-white/15 pt-10 dark:border-white/10 sm:items-center no-capture">
           <div className="flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:justify-center">
             <Link href="/" className={cn(buttonVariants({ variant: "default" }), "inline-flex min-h-[52px] min-w-[200px] flex-1 items-center justify-center rounded-full px-8 text-[15px] font-semibold shadow-glass-sm sm:min-w-[240px] sm:flex-none sm:px-10")}>다시 분석하기</Link>
             <Button type="button" variant="outline" size="lg" disabled={savingImage} className="min-h-[52px] flex-1 rounded-full px-6 text-[15px] font-semibold sm:flex-none" onClick={() => void handleSaveImage()}>
