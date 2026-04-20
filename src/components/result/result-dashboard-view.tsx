@@ -248,17 +248,17 @@ export function ResultDashboardView() {
               <tbody className="divide-y divide-white/15 text-[13px] leading-relaxed sm:text-sm">
                 {Array.from({ length: prosRows }, (_, i) => (
                   <tr key={`pro-${i}`}>
-                    <td className="px-4 py-3.5 font-medium text-muted-foreground dark:text-slate-300 sm:px-6">장점 {i + 1}</td>
-                    <td className="px-4 py-3.5 text-foreground dark:text-slate-100 sm:px-6">{m.table?.A?.pros?.[i] ?? "—"}</td>
-                    <td className="px-4 py-3.5 text-foreground dark:text-slate-100 sm:px-6">{m.table?.B?.pros?.[i] ?? "—"}</td>
+                    <td className="px-4 py-3.5 font-medium text-slate-600 dark:text-slate-300 sm:px-6">장점 {i + 1}</td>
+                    <td className="px-4 py-3.5 text-slate-800 dark:text-white sm:px-6">{m.table?.A?.pros?.[i] ?? "—"}</td>
+                    <td className="px-4 py-3.5 text-slate-800 dark:text-white sm:px-6">{m.table?.B?.pros?.[i] ?? "—"}</td>
                   </tr>
                 ))}
-                <tr className="bg-rose-500/[0.06] dark:bg-rose-500/[0.08]">
-                  <td className="px-4 py-3.5 font-semibold text-rose-800/90 dark:text-rose-200/90 sm:px-6">단점·우려</td>
-                  <td className="px-4 py-3.5 align-top text-foreground dark:text-slate-100 sm:px-6">
+                <tr className="bg-rose-500/[0.06] dark:bg-rose-500/[0.15]">
+                  <td className="px-4 py-3.5 font-bold text-rose-600 dark:text-rose-300 sm:px-6">단점·우려</td>
+                  <td className="px-4 py-3.5 align-top text-slate-800 dark:text-white sm:px-6">
                     <ul className="list-inside list-disc space-y-1.5">{m.table?.A?.cons?.map((c, idx) => <li key={`a-con-${idx}`}>{c}</li>)}</ul>
                   </td>
-                  <td className="px-4 py-3.5 align-top text-foreground dark:text-slate-100 sm:px-6">
+                  <td className="px-4 py-3.5 align-top text-slate-800 dark:text-white sm:px-6">
                     <ul className="list-inside list-disc space-y-1.5">{m.table?.B?.cons?.map((c, idx) => <li key={`b-con-${idx}`}>{c}</li>)}</ul>
                   </td>
                 </tr>
