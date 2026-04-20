@@ -102,32 +102,36 @@ export function ResultDashboardView() {
     const el = captureRef.current;
     if (!el) return;
     setSavingImage(true);
+    
     try {
+      // 1. 화면이 완전히 렌더링될 시간을 조금 줍니다 (이미지 로딩 대기)
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(el, { 
         scale: 2, 
         useCORS: true, 
+        allowTaint: true, // 외부 이미지 강제 허용
         backgroundColor: null,
-        // 🔥 무적 방어막: 외부 이미지(쿠팡 등) 때문에 캡처가 터지는 걸 방지합니다!
-        ignoreElements: (node) => {
-          if (node.tagName && node.tagName.toLowerCase() === "img") {
-            const src = (node as HTMLImageElement).src;
-            if (src && !src.startsWith("data:") && !src.startsWith(window.location.origin)) {
-              return true; // 외부 이미지는 캡처에서 쏙 뺌
-            }
+        // 🔥 아주 강력한 무적 방어: 쿠팡, 네이버 등 외부 링크가 달린 모든 요소를 캡처에서 아예 제외시켜버림
+        ignoreElements: (element) => {
+          // 쿠팡이나 네이버로 가는 a 태그(버튼) 전체를 캡처에서 뺍니다.
+          if (element.tagName === "A" && element.getAttribute("href")?.startsWith("http")) {
+            return true; 
           }
           return false;
         }
       });
+
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
       a.download = `choiceflow-result-${Date.now()}.png`;
       a.click();
-      toast.success("이미지로 저장했습니다.");
+      toast.success("결과 화면을 이미지로 저장했습니다! 📸");
     } catch (e) {
-      console.error(e);
-      toast.error("이미지 저장에 실패했습니다. 크롬 브라우저를 권장합니다.");
+      console.error("캡처 에러 상세:", e);
+      toast.error("이미지 저장에 실패했습니다. (외부 이미지 보안 정책 차단)");
     } finally {
       setSavingImage(false);
     }
