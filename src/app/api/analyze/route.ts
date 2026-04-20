@@ -9,12 +9,13 @@ import { getRequiredCreditsForAnalyze } from "@/lib/analyze/category-credits";
 import { getCategoryDisplayLabel } from "@/lib/category/display-label";
 import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 
-// 🔥 1. 초고속 엔진 장착: nodejs -> edge 로 변경하여 서버 예열 시간 삭제!
-export const runtime = "edge";
+// 🔥 1. 안정성 최우선: 원래의 가장 안정적인 nodejs 환경으로 복구
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+// 🔥 2. Vercel이 중간에 맘대로 통신을 끊어서 에러 나는 것을 방지 (최대 60초 허용)
+export const maxDuration = 60; 
 
-// 🔥 대표님이 고생해서 깎으신 완벽한 프롬프트 그대로 유지!
 const SYSTEM_PROMPT = `당신은 엄격한 데이터 검증관이자 분석 전문가입니다.
 응답은 반드시 JSON 형식이어야 합니다.
 
@@ -191,7 +192,7 @@ export async function POST(request: Request) {
       myeongunDeepDataEnabled: !!body.myeongunDeepDataEnabled,
     };
 
-    // 🔥 2. DB 저장 병렬 처리 (기존에 2번 기다리던 걸 1번으로 단축)
+    // 🔥 3. 안전하게 보장된 병렬 저장 (DB 저장 속도 단축은 그대로 살려둠)
     await Promise.all([
       supabase.from("profiles").update({ credits: (profile?.credits || 0) - required }).eq("id", user.id),
       supabase.from("analysis_history").insert({ user_id: user.id, category: getCategoryDisplayLabel(categoryId), input_data: body, result_data: out, spent_credits: required })
