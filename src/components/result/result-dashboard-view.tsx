@@ -104,7 +104,13 @@ export function ResultDashboardView() {
     setSavingImage(true);
     try {
       const html2canvas = (await import("html2canvas")).default;
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: null });
+      const canvas = await html2canvas(el, { 
+        scale: 2, 
+        useCORS: true,       // 외부 이미지 허용
+        allowTaint: false,   // 보안 오염 방지 (안전하게 설정)
+        backgroundColor: null,
+        logging: false       // 로그 끄기
+      });
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
@@ -112,7 +118,8 @@ export function ResultDashboardView() {
       a.click();
       toast.success("이미지로 저장했습니다.");
     } catch (e) {
-      toast.error("이미지 저장에 실패했습니다.");
+      console.error(e);
+      toast.error("이미지 저장에 실패했습니다. 크롬 브라우저 사용을 권장합니다.");
     } finally {
       setSavingImage(false);
     }
