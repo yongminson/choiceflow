@@ -104,20 +104,20 @@ export function ResultDashboardView() {
     setSavingImage(true);
     
     try {
-      // 1. 화면이 완전히 렌더링될 시간을 조금 줍니다 (이미지 로딩 대기)
       await new Promise((resolve) => setTimeout(resolve, 300));
-      
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(el, { 
         scale: 2, 
         useCORS: true, 
-        allowTaint: true, // 외부 이미지 강제 허용
+        allowTaint: false, // 🔥 무조건 false여야 이미지 다운로드가 안 막힙니다!
         backgroundColor: null,
-        // 🔥 아주 강력한 무적 방어: 쿠팡, 네이버 등 외부 링크가 달린 모든 요소를 캡처에서 아예 제외시켜버림
-        ignoreElements: (element) => {
-          // 쿠팡이나 네이버로 가는 a 태그(버튼) 전체를 캡처에서 뺍니다.
-          if (element.tagName === "A" && element.getAttribute("href")?.startsWith("http")) {
-            return true; 
+        ignoreElements: (node) => {
+          // 🔥 외부 이미지(쿠팡 등)가 캡처를 터뜨리는 걸 막기 위해, 외부 이미지만 캡처에서 제외
+          if (node.tagName && node.tagName.toLowerCase() === "img") {
+            const src = (node as HTMLImageElement).src;
+            if (src && src.startsWith("http") && !src.includes(window.location.hostname)) {
+              return true; 
+            }
           }
           return false;
         }
@@ -131,7 +131,7 @@ export function ResultDashboardView() {
       toast.success("결과 화면을 이미지로 저장했습니다! 📸");
     } catch (e) {
       console.error("캡처 에러 상세:", e);
-      toast.error("이미지 저장에 실패했습니다. (외부 이미지 보안 정책 차단)");
+      toast.error("이미지 저장에 실패했습니다. (브라우저 보안 차단)");
     } finally {
       setSavingImage(false);
     }
