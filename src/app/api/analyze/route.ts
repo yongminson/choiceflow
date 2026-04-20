@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type {
   AnalyzeApiResult,
   AnalyzeRequestBody,
+  AnalyzeResponse,
 } from "@/lib/types/analyze";
 import { getRequiredCreditsForAnalyze } from "@/lib/analyze/category-credits";
 import { getCategoryDisplayLabel } from "@/lib/category/display-label";
@@ -11,38 +12,44 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-export const maxDuration = 60; 
+export const maxDuration = 60;
 
-// 🔥 잃어버렸던 대표님의 완벽한 프롬프트(이름유지, 명사형 단답 요약) 100% 복구!
+// 🔥 대표님의 완벽했던 '명사형 15자' 원본 프롬프트 100% 롤백
 const SYSTEM_PROMPT = `당신은 최고 권위의 분석 전문가입니다.
 반드시 아래 규칙에 따라 판단하고 오직 JSON으로만 응답하세요.
 
-[🚨 1순위: 킬 스위치 및 에러 검증 (즉각 차단 조건)]
-- 의미를 알 수 없는 텍스트, 완전히 동일한 이미지 업로드, 텍스트와 사진/링크 정보가 불일치할 경우 무조건 FAIL 처리하고 사유를 반환해라.
+[🚨 1순위: 에러 검증 및 정확한 사유 (텍스트/이미지/링크 크로스체크!)]
+- 무의미한 텍스트(예: dugod) -> rejection_reason: "의미를 알 수 없는 텍스트가 입력되었습니다."
+- 완전히 똑같은 이미지 -> rejection_reason: "두 옵션에 완전히 동일한 이미지가 업로드되었습니다."
+- 사진 뒤바뀜(크로스) -> rejection_reason: "입력하신 옵션 이름과 사진이 서로 뒤바뀌어 업로드되었습니다."
+- 텍스트, 사진, 링크(URL) 용도 불일치 -> rejection_reason: "입력하신 이름, 사진, 링크의 제품 정보가 서로 일치하지 않습니다."
+  ⚠️ (핵심: A옵션 이름은 '냉장고'인데, 첨부된 A링크(URL) 주소 문자열 안에 '선풍기'나 'fan' 등 명백히 다른 제품을 암시하는 단어가 있다면 무조건 FAIL 처리해라!)
 
-[🚨 2순위: 이름 절대 유지 (창조 금지!) 및 팩트 엄수]
+[🚨 2순위: 이름 절대 유지 및 팩트 체크 (창조/상상 금지!)]
 - "item_a_name"과 "item_b_name"은 내가 [분석 요청]에서 준 유저입력 텍스트를 글자 하나 바꾸지 말고 100% 똑같이 복사해서 넣어라.
-- 제품에 존재하지 않는 스펙(예: 필터가 없는 제품에 필터 교체 단점 지적 등)을 절대 상상해서 지어내지 마라. 객관적 팩트만 적어라.
+- "winnerName"은 A나 B의 이름과 100% 일치해야 한다.
+- 제품에 원래 없는 스펙이나 단점(예: 필터가 없는데 필터 교체 언급)을 절대 지어내지 마라. 확실한 팩트만 적어라.
 
-[🚨 3순위: 찐 리뷰 작성 및 표 초압축 구조화 (절대 규칙)]
-- "real_reviews_summary": 승리한 옵션의 순수 후기만 적어라.
-- "table": 무조건 15자 이내의 짧고 강력한 '단답형(명사형)'으로 요약해라. 문장형으로 길게 쓰지 마라!!!
-  - pros: ["강력한 처리 성능", "우수한 냄새 관리", "다양한 모델 선택"] (이런 식으로 명사로 딱딱 끊어서)
-  - cons: ["필터 교체 주기", "초기 가동 시간", "설치 공간 고려"]
+[🚨 3순위: 찐 리뷰 작성 및 표 초압축 구조화]
+- "real_reviews_summary": 승리한 제품의 순수 후기만 적되, 유저 상황이나 패배한 옵션 언급을 절대 금지. 커뮤니티 찐 후기 3개.
+- "table": 무조건 15자 이내의 짧고 강력한 '단답형(명사형)'으로 요약해라.
+  - pros: ["장점: 짧은명사", "추천: 짧은명사", "우위: 짧은명사"]
+  - cons: ["단점: 짧은명사", "불만: 짧은명사"]
 
-[🚨 4순위: 검색어(search_keyword) 최적화 규칙]
-- 음식(food) 카테고리: 유저 상황에 있는 [지역] 정보와 승자 이름을 합쳐라. (예: "강남역 삼겹살"). 절대 뒤에 '맛집'을 붙이지 마라.
-- 그 외 카테고리: 메인 승자의 "search_keyword"는 유저가 입력한 텍스트(winnerName)를 100% 그대로 똑같이 적어라.
-- 대안(option_c): 반드시 즉시 구매/검색 가능한 "정확한 1개의 실물 상품명(브랜드+모델명)"으로 제안해라.
+[🚨 4순위: 검색어(search_keyword) 이원화 규칙 - 절대 엄수!!!]
+- 메인 승자의 "search_keyword"는 유저가 입력한 텍스트(winnerName)를 100% 그대로 똑같이 적어라. (단, 음식 카테고리일 경우에만 유저 상황의 '지역'을 이름 앞에 붙여라. 맛집 단어는 절대 금지)
+- 단, 대안 추천인 "option_c"의 "search_keyword"는 반드시 즉시 구매 가능한 "정확한 1개의 실물 상품명(브랜드+모델명)"으로 똑똑하게 제안해라. (추상적 단어 금지)
 
-[정상 통과 시 출력 양식 - 반드시 JSON 형식 반환]
+[출력 양식 - 반드시 JSON 형식 반환]
+- 차단 시: { "status": "FAIL", "rejection_reason": "..." }
+- 정상 시:
 {
   "status": "PASS",
   "item_a_name": "유저입력 A",
   "item_b_name": "유저입력 B",
   "winnerName": "승자 이름",
   "score": 85,
-  "search_keyword": "승리한 상품(winnerName)과 동일한 텍스트 또는 음식 지역검색어",
+  "search_keyword": "승리한 상품(winnerName)과 100% 동일한 텍스트",
   "win_percentage": 85,
   "regret_probability": 15,
   "real_reviews_summary": ["찐 리뷰1", "찐 리뷰2", "찐 리뷰3"],
@@ -50,8 +57,8 @@ const SYSTEM_PROMPT = `당신은 최고 권위의 분석 전문가입니다.
   "option_c": {"name": "대안 실물 상품명", "reason": "이유", "search_keyword": "대안과 관련된 정확한 [1개의 실물 물건명]"},
   "analysis_text": "비교 요약",
   "table": {
-    "A": { "pros": ["장점: 명사형", "추천: 명사형", "우위: 명사형"], "cons": ["단점: 명사형", "불만: 명사형"] },
-    "B": { "pros": ["장점: 명사형", "추천: 명사형", "우위: 명사형"], "cons": ["단점: 명사형", "불만: 명사형"] }
+    "A": { "pros": ["장점: ...", "추천: ...", "우위: ..."], "cons": ["단점: ...", "불만: ..."] },
+    "B": { "pros": ["장점: ...", "추천: ...", "우위: ..."], "cons": ["단점: ...", "불만: ..."] }
   },
   "killerInsight": "승자를 강력히 추천하는 전문가의 일침",
   "summary": "한 줄 요약"
@@ -100,7 +107,7 @@ async function generateGeminiJson(apiKey: string, prompt: string, base64Images: 
     contents,
     generationConfig: { 
       responseMimeType: "application/json",
-      temperature: 0.0 // 🔥 상상력 0% 고정 (무조건 팩트만!)
+      temperature: 0.0 // 🔥 상상력 완전 차단 (거짓 정보 생성 방지)
     }
   });
 

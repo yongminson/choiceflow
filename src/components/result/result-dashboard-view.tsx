@@ -269,9 +269,11 @@ export function ResultDashboardView() {
 
         <section className="mt-10 sm:mt-12">
           <div className="rounded-2xl border border-slate-200/90 bg-slate-50/95 p-6 shadow-[0_8px_40px_-12px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-white/15 dark:bg-white/[0.09] sm:p-8">
-            <h3 className="text-center font-display text-xl font-bold tracking-[-0.03em] sm:text-2xl">
-              <span className="bg-gradient-to-r from-primary via-violet-500 to-primary bg-clip-text text-transparent">💡 0.1% 전문가의 결정적 이유</span>
-            </h3>
+          <h3 className="text-center font-display text-xl font-bold tracking-[-0.03em] sm:text-2xl">
+  <span className="bg-gradient-to-r from-blue-600 via-violet-500 to-blue-600 dark:from-sky-300 dark:via-purple-300 dark:to-sky-300 bg-clip-text text-transparent">
+    💡 0.1% 전문가의 결정적 이유
+  </span>
+</h3>
             <p className="mt-6 whitespace-pre-wrap text-pretty text-[15px] leading-[1.75] text-foreground/95 sm:text-base">{m.killerInsight}</p>
             <div className="mt-8 border-t border-slate-200/90 pt-6 dark:border-white/12">
               <p className="text-center font-display text-[15px] font-bold leading-snug tracking-[-0.02em] text-foreground sm:text-lg">{m.summary}</p>
