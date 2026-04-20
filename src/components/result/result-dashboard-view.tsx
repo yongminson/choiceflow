@@ -104,17 +104,13 @@ export function ResultDashboardView() {
     setSavingImage(true);
 
     try {
-      // 클로드가 제안한 최신 라이브러리 사용
       const { toPng } = await import("html-to-image");
-      
-      // 폰트와 이미지가 로드될 아주 잠깐의 시간(0.1초) 대기
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const dataUrl = await toPng(el, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: "#ffffff",
-        // 'no-capture' 클래스가 붙은 요소(버튼 등)는 캡처에서 제외
         filter: (node) => {
           if (node instanceof HTMLElement && node.classList.contains("no-capture")) {
             return false;
@@ -123,14 +119,42 @@ export function ResultDashboardView() {
         },
       });
 
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `choiceflow-result-${Date.now()}.png`;
-      a.click();
-      toast.success("결과 화면이 사진으로 저장되었습니다! 📸");
+      // 🔥 1. 이미지를 파일 객체로 변환
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], `choiceflow-${Date.now()}.png`, { type: "image/png" });
+
+      // 🔥 다운로드용 도우미 함수 (PC이거나 공유 실패 시 사용)
+      const forceDownload = (url: string) => {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `choiceflow-${Date.now()}.png`;
+        a.click();
+        toast.success("결과 화면이 사진으로 저장되었습니다! 📸");
+      };
+
+      // 🔥 2. 모바일/공유 지원 기기인지 확인 후 공유창 띄우기
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: "ChoiceFlow AI 분석 결과",
+            files: [file],
+          });
+          // 유저가 공유를 완료했을 때
+          toast.success("공유창이 열렸습니다! 🚀");
+        } catch (shareError: any) {
+          // 유저가 공유창을 그냥 닫은 경우(취소)에는 에러 안 띄움
+          if (shareError.name !== "AbortError") {
+            forceDownload(dataUrl); // 예상치 못한 에러면 그냥 다운로드시켜버림
+          }
+        }
+      } else {
+        // PC 등 공유 기능을 지원하지 않는 브라우저면 바로 다운로드
+        forceDownload(dataUrl);
+      }
+
     } catch (e) {
       console.error("캡처 에러:", e);
-      toast.error("이미지 저장에 실패했습니다.");
+      toast.error("이미지 처리에 실패했습니다.");
     } finally {
       setSavingImage(false);
     }
