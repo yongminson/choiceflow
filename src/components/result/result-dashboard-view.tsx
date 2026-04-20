@@ -102,38 +102,23 @@ export function ResultDashboardView() {
     const el = captureRef.current;
     if (!el) return;
     setSavingImage(true);
-    
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300)); // 렌더링 대기
-      
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(el, { 
-        scale: 2, 
         useCORS: true, 
-        allowTaint: false, 
+        scale: 2,
         backgroundColor: "#ffffff",
-        // 🔥 궁극의 우회: 외부 이미지(쿠팡 등)가 캡처를 막으려고 하면, 그 이미지를 캡처 화면에서만 투명하게 지워버립니다.
-        onclone: (clonedDoc) => {
-          const images = clonedDoc.querySelectorAll('img');
-          images.forEach((img) => {
-            // 사이트 내부 이미지가 아닌 외부 이미지라면 (보안 에러 방지)
-            if (img.src && img.src.startsWith('http') && !img.src.includes(window.location.hostname)) {
-              img.crossOrigin = "anonymous"; // 마지막 발악으로 익명 요청 시도
-              img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"; // 안 되면 투명 픽셀로 교체해서 에러 방지
-            }
-          });
-        }
+        logging: false
       });
-
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
-      a.download = `choiceflow-result-${Date.now()}.png`;
+      a.download = `choiceflow-${Date.now()}.png`;
       a.click();
-      toast.success("결과 화면이 사진으로 저장되었습니다! 📸");
+      toast.success("사진으로 저장되었습니다.");
     } catch (e) {
-      console.error("캡처 에러 상세:", e);
-      toast.error("이미지 저장에 실패했습니다. 다른 브라우저를 이용해주세요.");
+      console.error(e);
+      toast.error("이미지 저장 실패. 크롬 브라우저를 사용해 주세요.");
     } finally {
       setSavingImage(false);
     }

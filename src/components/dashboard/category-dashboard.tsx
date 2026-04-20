@@ -77,24 +77,7 @@ export function CategoryDashboard() {
   const [guardrailReason, setGuardrailReason] = useState("");
   const [loadingTextIndex, setLoadingTextIndex] = useState(0);
 
-  // 🔥 [새로 추가] 유저가 입력한 폼 데이터를 실시간으로 브라우저에 자동 저장
-  useEffect(() => {
-    try {
-      localStorage.setItem("choiceflow-auto-save", JSON.stringify(forms));
-    } catch (e) {}
-  }, [forms]);
-
-  // 🔥 [새로 추가] 새로고침하거나 로그인/충전 후 돌아왔을 때 자동 저장된 데이터 복구
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("choiceflow-auto-save");
-      if (saved) {
-        setForms(JSON.parse(saved));
-      }
-    } catch (e) {}
-  }, []);
-
-  useEffect(() => {
+    useEffect(() => {
     setSelectedCategory(urlTab);
   }, [urlTab]);
 
