@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
+// 🔥 [새로 추가된 부분] 포트원 V2 브라우저 SDK 임포트
+import * as PortOne from "@portone/browser-sdk/v2";
+
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,11 +67,10 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onOpenChange]);
 
+  // 🔥 [핵심 변경] 결제 버튼 눌렀을 때 실행되는 함수!
   const handlePay = useCallback(async () => {
-    window.alert("포트원(PortOne) 결제 테스트 모듈이 실행됩니다.");
-
     if (tab === "plan") {
-      toast.info("구독 플랜은 PortOne 정식 연동 시 결제됩니다.");
+      toast.info("구독 플랜은 준비 중입니다.");
       return;
     }
 
@@ -83,59 +85,68 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/payment/fake-charge", {
+      // 1. 아까 세팅한 환경변수 가져오기
+      const storeId = process.env.NEXT_PUBLIC_PORTONE_STORE_ID;
+      const channelKey = process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
+
+      if (!storeId || !channelKey) {
+        toast.error("결제 시스템 설정 오류입니다. (관리자 문의)");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 2. 겹치지 않는 고유한 주문번호 생성
+      const paymentId = `order-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+      // 3. 🚀 포트원 결제창 호출! (에러 없애기 위해 타입 우회)
+      const response = await PortOne.requestPayment({
+        storeId,
+        channelKey,
+        paymentId,
+        orderName: `ChoiceFlow 크레딧 ${selectedPack.credits}개`,
+        totalAmount: selectedPack.priceWon,
+        currency: "CURRENCY_KRW",
+        payMethod: "CARD",
+      } as any);
+
+      // 4. 결제 취소, 실패 등 에러 발생 시
+      if (response?.code != null) {
+        toast.error(response.message || "결제가 취소되었거나 실패했습니다.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 5. 💰 결제 성공! 서버에 "진짜 결제됐는지 확인해줘!" 라고 요청
+      toast.info("결제 검증 및 크레딧 지급 중...");
+      const res = await fetch("/api/payment/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          paymentId: paymentId,
           packId: selectedPackId,
-          amount: selectedPack.credits,
-          price: selectedPack.priceWon,
         }),
-        cache: "no-store",
-        credentials: "same-origin",
       });
 
-      let data: {
-        ok?: boolean;
-        error?: string;
-        addedCredits?: number;
-      };
-      try {
-        data = (await res.json()) as typeof data;
-      } catch {
-        toast.error("응답을 해석하지 못했습니다.");
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        toast.error(data.error || "결제 검증에 실패했습니다.");
         return;
       }
 
-      if (!res.ok) {
-        toast.error(
-          typeof data.error === "string" && data.error.trim()
-            ? data.error
-            : "충전에 실패했습니다."
-        );
-        return;
-      }
-
-      if (data.ok !== true) {
-        toast.error(
-          typeof data.error === "string" && data.error.trim()
-            ? data.error
-            : "충전에 실패했습니다."
-        );
-        return;
-      }
-
+      // 6. 모든 검증 성공 후 크레딧 지급 완료
       const added = data.addedCredits ?? selectedPack.credits;
-      toast.success(`크레딧 ${added}개가 충전되었습니다.`);
+      toast.success(`🎉 크레딧 ${added}개가 성공적으로 충전되었습니다!`);
       onOpenChange(false);
       window.location.reload();
+      
     } catch (e) {
       console.error(e);
-      toast.error("요청을 처리하지 못했습니다.");
+      toast.error("결제 처리 중 예상치 못한 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
     }
-  }, [tab, user, selectedPackId, selectedPack.credits, onOpenChange]);
+  }, [tab, user, selectedPackId, selectedPack.credits, selectedPack.priceWon, onOpenChange]);
 
   if (!open) return null;
 
@@ -333,7 +344,7 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
                   </ul>
                   <span className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-primary">
                     <Check className="size-3.5" />
-                    PortOne 연동 예정
+                    PortOne 연동 준비중
                   </span>
                 </button>
               ))}
@@ -356,7 +367,7 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
             </div>
           ) : (
             <p className="mb-4 text-center text-[12px] text-muted-foreground">
-              구독 플랜은 PortOne 연동 후 결제됩니다.
+              구독 플랜은 추후 오픈됩니다.
             </p>
           )}
           <Button
@@ -368,7 +379,7 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
             {isSubmitting ? "처리 중…" : "결제하기"}
           </Button>
           <p className="mt-3 text-center text-[11px] text-muted-foreground">
-            테스트 단계에서는 PortOne 결제창 대신 안내 후 크레딧이 즉시 반영됩니다.
+            테스트 환경의 토스/카카오페이 결제창이 뜹니다. 실제 돈은 빠져나가지 않습니다!
           </p>
         </div>
       </div>
