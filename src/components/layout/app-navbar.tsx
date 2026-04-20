@@ -22,15 +22,21 @@ export function AppNavbar() {
   return (
     <header className="glass-nav fixed top-0 z-50 w-full">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-3 sm:gap-4 sm:px-6">
-        <button
+      <button
           type="button"
-          className="shrink-0 cursor-pointer font-display text-[17px] font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90 sm:text-lg"
+          className="flex shrink-0 cursor-pointer items-center gap-2 font-display text-[17px] font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90 sm:text-lg"
           aria-label="ChoiceFlow 첫 화면으로 이동"
           onClick={() => {
             window.location.href = "/";
           }}
         >
-          ChoiceFlow
+          {/* 👇 여기에 로고 이미지가 들어갑니다 */}
+          <img
+            src="/logo.png"
+            alt="ChoiceFlow 로고"
+            className="h-7 w-7 object-contain"
+          />
+          <span>ChoiceFlow</span>
         </button>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

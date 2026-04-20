@@ -106,10 +106,18 @@ export function ResultDashboardView() {
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(el, { 
         scale: 2, 
-        useCORS: true,       // 외부 이미지 허용
-        allowTaint: false,   // 보안 오염 방지 (안전하게 설정)
+        useCORS: true, 
         backgroundColor: null,
-        logging: false       // 로그 끄기
+        // 🔥 무적 방어막: 외부 이미지(쿠팡 등) 때문에 캡처가 터지는 걸 방지합니다!
+        ignoreElements: (node) => {
+          if (node.tagName && node.tagName.toLowerCase() === "img") {
+            const src = (node as HTMLImageElement).src;
+            if (src && !src.startsWith("data:") && !src.startsWith(window.location.origin)) {
+              return true; // 외부 이미지는 캡처에서 쏙 뺌
+            }
+          }
+          return false;
+        }
       });
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
@@ -119,7 +127,7 @@ export function ResultDashboardView() {
       toast.success("이미지로 저장했습니다.");
     } catch (e) {
       console.error(e);
-      toast.error("이미지 저장에 실패했습니다. 크롬 브라우저 사용을 권장합니다.");
+      toast.error("이미지 저장에 실패했습니다. 크롬 브라우저를 권장합니다.");
     } finally {
       setSavingImage(false);
     }
