@@ -85,9 +85,9 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
 
     setIsSubmitting(true);
     try {
-      // 1. 아까 세팅한 환경변수 가져오기
-      const storeId = process.env.NEXT_PUBLIC_PORTONE_STORE_ID;
-      const channelKey = process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY;
+      // 1. 베르첼 변수 인식 오류 방지를 위해 공개 키 직접 하드코딩 (안전함!)
+      const storeId = "store-dfe94d23-cfea-4a4d-a36a-0b1864b0903d";
+      const channelKey = "channel-key-ef19ec49-725c-43df-82ce-fc73870de2f1";
 
       if (!storeId || !channelKey) {
         toast.error("결제 시스템 설정 오류입니다. (관리자 문의)");
