@@ -270,7 +270,7 @@ export function ResultDashboardView() {
         <section className="mt-10 sm:mt-12">
           <div className="rounded-2xl border border-slate-200/90 bg-slate-50/95 p-6 shadow-[0_8px_40px_-12px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-white/15 dark:bg-white/[0.09] sm:p-8">
           <h3 className="text-center font-display text-xl font-bold tracking-[-0.03em] sm:text-2xl">
-  <span className="bg-gradient-to-r from-blue-600 via-violet-500 to-blue-600 dark:from-sky-300 dark:via-purple-300 dark:to-sky-300 bg-clip-text text-transparent">
+  <span className="bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent dark:bg-none dark:text-amber-300">
     💡 0.1% 전문가의 결정적 이유
   </span>
 </h3>
