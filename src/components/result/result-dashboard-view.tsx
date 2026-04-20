@@ -110,18 +110,18 @@ export function ResultDashboardView() {
       const canvas = await html2canvas(el, { 
         scale: 2, 
         useCORS: true, 
-        allowTaint: false, // 🚨 무조건 false여야 저장이 막히지 않습니다!
+        allowTaint: false, 
         backgroundColor: "#ffffff",
-        // 🔥 스텔스 모드: 캡처 화면을 복사할 때, 에러를 유발하는 외부 이미지를 강제로 숨깁니다.
+        // 🔥 궁극의 우회: 외부 이미지(쿠팡 등)가 캡처를 막으려고 하면, 그 이미지를 캡처 화면에서만 투명하게 지워버립니다.
         onclone: (clonedDoc) => {
-          const images = clonedDoc.getElementsByTagName("img");
-          for (let i = 0; i < images.length; i++) {
-            const img = images[i];
-            // 우리가 올린 파일(data:)이나 내 사이트 이미지가 아닌 '외부 웹사이트 이미지'면 캡처에서 뺌!
-            if (img.src && !img.src.startsWith("data:") && !img.src.includes(window.location.hostname)) {
-              img.style.display = "none";
+          const images = clonedDoc.querySelectorAll('img');
+          images.forEach((img) => {
+            // 사이트 내부 이미지가 아닌 외부 이미지라면 (보안 에러 방지)
+            if (img.src && img.src.startsWith('http') && !img.src.includes(window.location.hostname)) {
+              img.crossOrigin = "anonymous"; // 마지막 발악으로 익명 요청 시도
+              img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"; // 안 되면 투명 픽셀로 교체해서 에러 방지
             }
-          }
+          });
         }
       });
 
