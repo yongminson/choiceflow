@@ -5,10 +5,15 @@ import { createClient } from "@supabase/supabase-js";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-// 최신 방식의 Supabase 클라이언트 호출
+// 변경된 코드: flowType을 'pkce'로 강제 지정!
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      flowType: 'pkce', // 👈 무한 루프를 막는 핵심 키! 서버가 인식할 수 있게 해줍니다.
+    }
+  }
 );
 
 export default function LoginPage() {
