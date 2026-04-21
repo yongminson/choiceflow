@@ -3,19 +3,18 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/"; // 로그인 후 갈 곳 (기본 메인)
-
+  const code = searchParams.get("code"); // 여기서 드디어 ?code= 를 읽어냅니다!
+  
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error) {
-      // 성공하면 원래 가려던 페이지나 메인으로 리다이렉트
-      return NextResponse.redirect(`${origin}${next}`);
+      // 로그인 성공 시 메인 화면('/')으로 당당하게 입장!
+      return NextResponse.redirect(`${origin}/`);
     }
   }
 
-  // 실패 시 에러 메시지와 함께 로그인 페이지로
+  // 에러 나면 로그인 창으로
   return NextResponse.redirect(`${origin}/login?error=auth_code_error`);
 }
