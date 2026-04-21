@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { CREDIT_PACKS } from "@/lib/payment/credit-packs";
 
 export async function POST(request: Request) {
@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const { paymentId, packId } = await request.json();
 
     // 1. 로그인한 유저 확인
-    const supabase = createRouteHandlerSupabaseClient(request);
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {

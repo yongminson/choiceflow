@@ -1,73 +1,21 @@
-import { createServerClient } from "@supabase/ssr";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-/**
- * 이메일 인증·OAuth 등 PKCE `code` 를 세션 쿠키로 교환.
- * Route Handler 에서는 redirect 응답에 Set-Cookie 가 붙도록 setAll 에서 response 를 갱신해야 합니다.
- */
-function loginRedirectWithAuthError(
-  origin: string,
-  code: "missing_code" | "otp_expired" | "callback_failed"
-) {
-  const params = new URLSearchParams();
-  params.set("error_code", code);
-  return NextResponse.redirect(new URL(`/login?${params.toString()}`, origin));
-}
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url);
+  const code = searchParams.get("code");
+  const next = searchParams.get("next") ?? "/"; // 로그인 후 갈 곳 (기본 메인)
 
-export async function GET(request: NextRequest) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const nextParam = url.searchParams.get("next") ?? "/";
-  const redirectPath =
-    nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
-
-  if (!code) {
-    console.error("[auth/callback] missing code");
-    return loginRedirectWithAuthError(url.origin, "missing_code");
+  if (code) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    
+    if (!error) {
+      // 성공하면 원래 가려던 페이지나 메인으로 리다이렉트
+      return NextResponse.redirect(`${origin}${next}`);
+    }
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("[auth/callback] missing Supabase env");
-    return loginRedirectWithAuthError(url.origin, "callback_failed");
-  }
-
-  let response = NextResponse.redirect(new URL(redirectPath, url.origin));
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value)
-        );
-        response = NextResponse.redirect(new URL(redirectPath, url.origin));
-        cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options)
-        );
-      },
-    },
-  });
-
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-  if (error) {
-    console.error("[auth/callback] exchangeCodeForSession", error);
-    const msg = (error.message ?? "").toLowerCase();
-    const expired =
-      msg.includes("expired") ||
-      msg.includes("otp") ||
-      msg.includes("already been") ||
-      (msg.includes("invalid") &&
-        (msg.includes("code") || msg.includes("token") || msg.includes("grant")));
-    return loginRedirectWithAuthError(
-      url.origin,
-      expired ? "otp_expired" : "callback_failed"
-    );
-  }
-
-  return response;
+  // 실패 시 에러 메시지와 함께 로그인 페이지로
+  return NextResponse.redirect(`${origin}/login?error=auth_code_error`);
 }
