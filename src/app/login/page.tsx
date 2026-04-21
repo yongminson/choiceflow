@@ -36,8 +36,8 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          // 어설픈 콜백 주소 빼고, 내 로그인 창으로 당당하게 돌아와서 위 useEffect가 처리하게 만듦
-          redirectTo: `${window.location.origin}/login`, 
+          // 🟢 정답: 우리가 만든 문지기(callback) 파일로 보내야 함!
+          redirectTo: `${window.location.origin}/auth/callback`, 
         },
       });
 
