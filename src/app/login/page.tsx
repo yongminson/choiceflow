@@ -1,48 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-
-// Supabase 클라이언트 초기화
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
-  const router = useRouter();
 
-  // ✨ [해결의 핵심] 로그인 토큰이 감지되면 즉시 메인 페이지('/')로 날려버리는 마법의 코드
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // 세션(합격 목걸이)이 확인되면 바로 메인으로 강제 이동!
-      if (session) {
-        toast.success("로그인 성공!");
-        router.push("/");
-        router.refresh(); // 화면 새로고침하여 로그인 상태 반영
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [router]);
-
-  const handleSocialLogin = async (provider: 'kakao' | 'google') => {
+  const handleSocialLogin = async (provider: "kakao" | "google") => {
     setIsLoading(provider);
     try {
+      const supabase = createClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          // 🟢 정답: 우리가 만든 문지기(callback) 파일로 보내야 함!
-          redirectTo: `${window.location.origin}/auth/callback`, 
+          // 우리가 만들었던 콜백 라우트로 정확히 연결
+          redirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
       if (error) throw error;
-    } catch (error: any) {
+      
+    } catch (error) {
       toast.error(`${provider} 로그인 중 오류가 발생했습니다.`);
       console.error(error);
       setIsLoading(null);
@@ -52,7 +32,6 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-[360px] space-y-8 text-center">
-        {/* 로고 섹션 */}
         <div className="space-y-3">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Sparkles className="h-6 w-6" />
@@ -63,15 +42,13 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* 소셜 로그인 버튼 세트 */}
         <div className="grid gap-3">
-          {/* 카카오 로그인 버튼 */}
           <button
-            onClick={() => handleSocialLogin('kakao')}
+            onClick={() => handleSocialLogin("kakao")}
             disabled={!!isLoading}
             className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-[#FEE500] text-[15px] font-semibold text-[#191919] transition-all hover:bg-[#FEE500]/90 disabled:opacity-50"
           >
-            {isLoading === 'kakao' ? (
+            {isLoading === "kakao" ? (
               <span className="animate-pulse">연결 중...</span>
             ) : (
               <>
@@ -81,13 +58,12 @@ export default function LoginPage() {
             )}
           </button>
 
-          {/* 구글 로그인 버튼 */}
           <button
-            onClick={() => handleSocialLogin('google')}
+            onClick={() => handleSocialLogin("google")}
             disabled={!!isLoading}
             className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl border border-input bg-white text-[15px] font-semibold text-foreground transition-all hover:bg-accent disabled:opacity-50 dark:bg-zinc-900"
           >
-            {isLoading === 'google' ? (
+            {isLoading === "google" ? (
               <span className="animate-pulse">연결 중...</span>
             ) : (
               <>
