@@ -1,23 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
-// 변경된 코드: flowType을 'pkce'로 강제 지정!
+// Supabase 클라이언트 초기화
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      flowType: 'pkce', // 👈 무한 루프를 막는 핵심 키! 서버가 인식할 수 있게 해줍니다.
-    }
-  }
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
+  const router = useRouter();
+
+  // ✨ [해결의 핵심] 로그인 토큰이 감지되면 즉시 메인 페이지('/')로 날려버리는 마법의 코드
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // 세션(합격 목걸이)이 확인되면 바로 메인으로 강제 이동!
+      if (session) {
+        toast.success("로그인 성공!");
+        router.push("/");
+        router.refresh(); // 화면 새로고침하여 로그인 상태 반영
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router]);
 
   const handleSocialLogin = async (provider: 'kakao' | 'google') => {
     setIsLoading(provider);
@@ -25,8 +36,8 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          // 로그인 성공 후 돌아올 주소
-          redirectTo: `${window.location.origin}/auth/callback`,
+          // 어설픈 콜백 주소 빼고, 내 로그인 창으로 당당하게 돌아와서 위 useEffect가 처리하게 만듦
+          redirectTo: `${window.location.origin}/login`, 
         },
       });
 
@@ -34,7 +45,6 @@ export default function LoginPage() {
     } catch (error: any) {
       toast.error(`${provider} 로그인 중 오류가 발생했습니다.`);
       console.error(error);
-    } finally {
       setIsLoading(null);
     }
   };
