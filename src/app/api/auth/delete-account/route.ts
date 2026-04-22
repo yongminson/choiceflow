@@ -4,30 +4,35 @@ import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 export async function POST() {
   try {
-    // 1. 현재 탈퇴 버튼을 누른 사람이 누구인지 안전하게 확인합니다.
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+    if (userError || !user) {
+      return NextResponse.json({ error: '로그인 세션을 찾을 수 없습니다.' }, { status: 401 });
     }
 
-    // 2. 🌟 관리자 마스터키를 장착한 특수 클라이언트를 소환합니다.
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY! // 방금 .env에 넣은 마스터키!
-    );
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceKey) {
+      return NextResponse.json({ error: '마스터키가 없습니다.' }, { status: 500 });
+    }
 
-    // 3. 마스터키의 권한으로 해당 유저를 DB에서 영구 삭제합니다!
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+    const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
 
-    if (error) throw error;
+    // 🌟 [핵심 어뷰징 방지 로직] 유저를 삭제하기 직전, 이메일을 블랙리스트에 저장합니다!
+    if (user.email) {
+      await supabaseAdmin.from('withdrawn_users').insert({ email: user.email });
+    }
 
-    // 4. 삭제 성공 후 프론트엔드에 "성공!" 신호를 보냅니다.
+    // 마스터키로 유저 데이터 완벽 삭제 (이때 Cascade가 작동해 프로필 등 찌꺼기도 다 지워집니다)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+
+    if (deleteError) {
+      return NextResponse.json({ error: `Supabase 거부: ${deleteError.message}` }, { status: 400 });
+    }
+
     return NextResponse.json({ success: true });
 
-  } catch (error) {
-    console.error('회원 탈퇴 에러:', error);
-    return NextResponse.json({ error: '회원 탈퇴에 실패했습니다.' }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: `서버 내부 에러: ${error.message}` }, { status: 500 });
   }
 }
