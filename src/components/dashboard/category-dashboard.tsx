@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
 import { GuardrailRejectedModal } from "@/components/analyze/guardrail-rejected-modal";
+// category-dashboard.tsx 파일 위쪽 import 부분 어딘가에 추가
+import { PushButton } from "@/components/push-button";
 import { CategoryFormShell } from "@/components/dashboard/category-form-shell";
 import { CategoryPanelForm } from "@/components/dashboard/category-panel-forms";
 import { useBilling } from "@/components/payment/billing-provider";
@@ -280,6 +282,12 @@ export function CategoryDashboard() {
             <Button onClick={handleCopyShareLink} className="w-full h-12 text-[15px] font-bold mb-3 shadow-lg">
               <Share2 className="mr-2 size-5" /> 내 초대 링크 복사하기
             </Button>
+            
+            {/* 🔥 방금 만든 푸시 알림 유도 버튼 추가! */}
+            <div className="mb-3">
+              <PushButton />
+            </div>
+
             <button onClick={() => setShowWelcomeModal(false)} className="mt-2 text-[13px] text-muted-foreground underline hover:text-foreground">
               나중에 하기
             </button>
