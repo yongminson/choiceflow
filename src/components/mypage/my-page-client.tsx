@@ -132,31 +132,27 @@ export function MyPageClient() {
   }
 
   // 🔥 회원 탈퇴 로직
-  async function handleDeleteAccount() {
-    const confirmDelete = window.confirm("정말로 탈퇴하시겠습니까? 잔여 크레딧과 모든 분석 기록이 삭제되며 복구할 수 없습니다.");
-    if (!confirmDelete) return;
+  const handleDeleteAccount = async () => {
+    const isConfirm = window.confirm("정말 탈퇴하시겠습니까? 모든 데이터가 삭제됩니다.");
+    if (!isConfirm) return;
 
-    setIsSubmittingAuth(true);
     try {
-      // 탈퇴용 전용 API 호출
-      const res = await fetch("/api/user/delete", { method: "POST" });
-      const data = await res.json();
+      // 프론트엔드에서 직접 지우지 않고, 우리가 만든 API 서버에 삭제 '요청'을 보냅니다!
+      const response = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+      });
 
-      if (data.ok) {
-        toast.success("회원 탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.");
-        const supabase = createBrowserSupabaseClient();
-        await supabase.auth.signOut();
-        router.push("/");
-        router.refresh();
-      } else {
-        toast.error("탈퇴 처리 중 오류가 발생했습니다: " + (data.error || "알 수 없는 오류"));
-      }
+      if (!response.ok) throw new Error('탈퇴 실패');
+
+      // 탈퇴 성공 시, 남아있는 세션(쿠키)을 지우고 메인으로 쫓아냅니다.
+      await supabase.auth.signOut();
+      window.location.href = '/'; 
+      
     } catch (error) {
-      toast.error("네트워크 오류가 발생했습니다.");
-    } finally {
-      setIsSubmittingAuth(false);
+      alert('회원 탈퇴 중 오류가 발생했습니다.');
+      console.error(error);
     }
-  }
+  };
 
   if (user === undefined) return <p className="mt-8 text-center text-sm text-muted-foreground">불러오는 중…</p>;
   if (!user) return <p className="mt-8 text-center text-sm text-muted-foreground">로그인 정보가 없습니다.</p>;
