@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coins, LogOut, Sparkles, X, Key, UserMinus, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { Coins, LogOut, Sparkles, X, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 import { useCreditsRefresh } from "@/components/auth/credits-refresh-context";
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
 import { useBilling } from "@/components/payment/billing-provider";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -58,11 +56,6 @@ export function MyPageClient() {
   const { openBilling, isOpen: billingOpen } = useBilling();
   const { bump } = useCreditsRefresh();
   const prevBillingOpen = useRef(false);
-
-  // 🔥 비밀번호 변경 및 회원 탈퇴용 State 추가
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
 
   const loadProfileAndHistory = useCallback(async () => {
     if (!user) {
@@ -112,51 +105,26 @@ export function MyPageClient() {
     }
   }
 
-  // 🔥 비밀번호 변경 로직
-  async function handleUpdatePassword() {
-    if (newPassword.length < 6) {
-      toast.error("비밀번호는 최소 6자 이상이어야 합니다.");
-      return;
-    }
-    setIsSubmittingAuth(true);
-    const supabase = createBrowserSupabaseClient();
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setIsSubmittingAuth(false);
-    
-    if (error) {
-      toast.error("비밀번호 변경에 실패했습니다. 다시 시도해주세요.");
-    } else {
-      toast.success("비밀번호가 성공적으로 변경되었습니다.");
-      setIsChangingPassword(false);
-      setNewPassword("");
-    }
-  }
-
   // 🔥 회원 탈퇴 로직
   const handleDeleteAccount = async () => {
-    const isConfirm = window.confirm("정말 탈퇴하시겠습니까? 모든 데이터가 삭제됩니다.");
+    const isConfirm = window.confirm("정말 탈퇴하시겠습니까? 모든 데이터가 영구적으로 삭제됩니다.");
     if (!isConfirm) return;
 
     try {
-      // 1. API 서버로 탈퇴 요청을 보냅니다.
       const response = await fetch('/api/auth/delete-account', {
         method: 'POST',
       });
 
-      // 2. 서버가 보낸 결과를 읽어옵니다.
       const data = await response.json();
 
       if (!response.ok) {
-        // 만약 여기서도 실패한다면, 뭉뚱그린 에러가 아니라 '진짜 원인'을 경고창에 띄웁니다.
         alert(`탈퇴 실패 원인: ${data.error}`); 
         return;
       }
 
-      // 3. 🌟 에러 해결 부분: 클라이언트를 직접 불러와서 로그아웃 시킵니다!
       const supabase = createClient();
       await supabase.auth.signOut();
       
-      // 4. 깔끔하게 메인으로 이동
       alert('회원 탈퇴가 완료되었습니다.');
       window.location.href = '/'; 
       
@@ -229,38 +197,6 @@ export function MyPageClient() {
           <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
             카테고리별로 분석 1회당 사용 크레딧이 다를 수 있습니다.
           </p>
-        </div>
-
-        {/* 🔥 비밀번호 변경 및 계정 관리 토글 영역 */}
-        <div className="mt-6 rounded-2xl border border-white/30 bg-white/30 p-4 dark:border-white/10 dark:bg-white/[0.04]">
-          {isChangingPassword ? (
-            <div className="space-y-3 animate-in fade-in zoom-in-95">
-              <Input
-                type="password"
-                placeholder="새로운 비밀번호 (6자 이상)"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="bg-white/50 dark:bg-black/20"
-              />
-              <div className="flex gap-2">
-                <Button onClick={handleUpdatePassword} disabled={isSubmittingAuth} className="flex-1">
-                  {isSubmittingAuth ? <Loader2 className="size-4 animate-spin" /> : "비밀번호 변경 완료"}
-                </Button>
-                <Button variant="outline" onClick={() => setIsChangingPassword(false)} disabled={isSubmittingAuth} className="flex-1">
-                  취소
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="secondary" onClick={() => setIsChangingPassword(true)} className="flex-1 text-[13px] font-semibold bg-white/60 hover:bg-white/80 dark:bg-white/10 dark:hover:bg-white/20">
-                <Key className="mr-2 size-4 opacity-70" /> 비밀번호 변경
-              </Button>
-              <Button variant="ghost" onClick={handleDeleteAccount} disabled={isSubmittingAuth} className="flex-1 text-[13px] text-destructive hover:bg-destructive/10 hover:text-destructive">
-                <UserMinus className="mr-2 size-4 opacity-70" /> 회원 탈퇴
-              </Button>
-            </div>
-          )}
         </div>
 
         <div
@@ -395,6 +331,18 @@ export function MyPageClient() {
           <LogOut className="me-2 size-4" aria-hidden />
           로그아웃
         </Button>
+
+        {/* 🔥 회원 탈퇴 버튼을 화면 맨 밑 구석으로 작게 이동 */}
+        <div className="mt-6 text-center">
+          <button 
+            type="button"
+            className="text-[12px] text-muted-foreground/50 hover:text-red-400 hover:underline transition-colors"
+            onClick={handleDeleteAccount}
+          >
+            회원 탈퇴
+          </button>
+        </div>
+
       </div>
     </>
   );
