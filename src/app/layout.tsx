@@ -10,6 +10,9 @@ import { BillingProvider } from "@/components/payment/billing-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 
+// 🔥 [추가됨] 구글 애널리틱스 공식 컴포넌트 불러오기
+import { GoogleAnalytics } from '@next/third-parties/google';
+
 const display = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-display",
@@ -31,8 +34,6 @@ export const metadata: Metadata = {
   },
   description:
     "망설임의 시간을 확신으로. AI 기반 선택 분석 서비스 ChoiceFlow.",
-  
-  // 🔥 [핵심 추가] 네이버와 구글의 검색엔진 소유권 확인 태그를 여기에 세팅합니다.
   verification: {
     google: "mTatlpiTN0G1CZ1XKfH_gHsYoV183kAtBlZVBxKp4fg",
     other: {
@@ -60,6 +61,9 @@ export default function RootLayout({
             <Toaster />
           </BillingProvider>
         </CreditsRefreshProvider>
+
+        {/* 🔥 [핵심] 여기에 대표님의 GA4 아이디가 삽입됩니다! */}
+        <GoogleAnalytics gaId="G-QC4Z4BX84L" />
       </body>
     </html>
   );
