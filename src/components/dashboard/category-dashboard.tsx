@@ -88,7 +88,6 @@ function FoodRoulette({ onShare }: { onShare: () => void }) {
           </div>
         </div>
         
-        {/* 🔥 랜덤뽑기 버튼 + 공유하기 버튼 나란히 배치 */}
         <div className="flex gap-2">
           <Button onClick={spinRoulette} disabled={isSpinning} className="h-14 flex-1 text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
             {isSpinning ? "고민 중..." : "랜덤뽑기!"}
@@ -101,7 +100,6 @@ function FoodRoulette({ onShare }: { onShare: () => void }) {
             <Share2 className="size-6" />
           </Button>
         </div>
-
       </div>
     </div>
   );
@@ -136,10 +134,21 @@ export function CategoryDashboard() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showRouletteModal, setShowRouletteModal] = useState(false);
 
+  // 🌟 누군가 초대 링크(?ref=...)로 들어왔을 때 작동하는 로직
   useEffect(() => {
     const refCode = searchParams.get("ref");
     if (refCode) {
       localStorage.setItem("choiceflow_inviter", refCode);
+      
+      // 🔥 초대로 온 사람에게 환영 메시지 띄우기 (한 번만)
+      const isNotified = sessionStorage.getItem("invite_notified");
+      if (!isNotified) {
+        toast.success("🎁 지인의 초대로 오셨군요!\n가입하고 무료 10크레딧을 받아보세요!", {
+          duration: 6000,
+          position: "top-center"
+        });
+        sessionStorage.setItem("invite_notified", "true");
+      }
     }
   }, [searchParams]);
 
@@ -158,7 +167,6 @@ export function CategoryDashboard() {
             setShowWelcomeModal(true);
             localStorage.setItem(`welcomed_${user.id}`, 'true');
 
-            // 🔥 추천인 보상 로직 호출
             const inviterId = localStorage.getItem("choiceflow_inviter");
             if (inviterId && inviterId !== user.id) {
               sb.rpc("process_referral", { inviter_id: inviterId }).then(({ data, error }) => {
@@ -185,10 +193,9 @@ export function CategoryDashboard() {
     fetchCredits();
   }, [user]);
 
-  // 🔥 공통 공유 링크 복사 로직
   const handleCopyShareLink = useCallback(() => {
     if (!user) {
-      toast.error("로그인이 필요합니다.");
+      toast.error("초대 링크를 복사하려면 먼저 로그인해주세요!");
       return;
     }
     const shareUrl = `https://choice.ymstudio.co.kr/?ref=${user.id}`;
@@ -268,7 +275,6 @@ export function CategoryDashboard() {
             <p className="text-muted-foreground mb-6">첫 가입 축하 선물로 <strong className="text-primary font-bold">무료 10 크레딧</strong>이 지급되었습니다.</p>
             <div className="rounded-xl bg-primary/5 p-4 border border-primary/20 mb-6 text-left">
               <p className="text-[14px] font-semibold text-foreground mb-1 text-center">🎁 보너스 크레딧 이벤트</p>
-              {/* 🔥 문구 수정 완료 (1명 가입 시 1크레딧, 최대 50명) */}
               <p className="text-[13px] text-muted-foreground text-center">아래 링크를 친구들에게 전달해주세요!<br/>친구 가입 시 <strong className="text-primary">1 크레딧</strong>을 추가로 드립니다. (최대 50명)</p>
             </div>
             <Button onClick={handleCopyShareLink} className="w-full h-12 text-[15px] font-bold mb-3 shadow-lg">
@@ -287,7 +293,6 @@ export function CategoryDashboard() {
             <button onClick={() => setShowRouletteModal(false)} className="absolute right-5 top-5 rounded-full bg-black/5 p-2 text-muted-foreground hover:bg-black/10 hover:text-foreground transition-colors dark:bg-white/10 dark:hover:bg-white/20">
               <X className="size-5" />
             </button>
-            {/* 🔥 FoodRoulette 컴포넌트에 공유하기 함수 전달 */}
             <FoodRoulette onShare={handleCopyShareLink} />
           </div>
         </div>
