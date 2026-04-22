@@ -27,9 +27,9 @@ import { Button } from "@/components/ui/button";
 import { Share2, Gift, Dices, Plus, X, Trophy } from "lucide-react";
 
 // =====================================================================
-// 🎲 [무료 룰렛 게임 모달 컴포넌트]
+// 🎲 [무료 랜덤뽑기 모달 컴포넌트]
 // =====================================================================
-function FoodRoulette() {
+function FoodRoulette({ onShare }: { onShare: () => void }) {
   const [items, setItems] = useState<string[]>(["", ""]);
   const [result, setResult] = useState<string | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -61,7 +61,6 @@ function FoodRoulette() {
         clearInterval(interval);
         const finalResult = validItems[Math.floor(Math.random() * validItems.length)];
         setDisplayItem(finalResult); setResult(finalResult); setIsSpinning(false);
-        // 당첨 미니 폭죽 🎉
         confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 }, zIndex: 300 });
       }
     }, 100);
@@ -71,7 +70,7 @@ function FoodRoulette() {
     <div className="flex flex-col items-center">
       <div className="mb-4 flex items-center justify-center gap-2">
         <Dices className="size-6 text-primary" />
-        <h3 className="font-display text-xl font-bold text-foreground">결정장애 무료 룰렛!</h3>
+        <h3 className="font-display text-xl font-bold text-foreground">결정장애 무료 랜덤뽑기!</h3>
       </div>
       <div className="w-full space-y-3">
         {items.map((item, index) => (
@@ -88,9 +87,21 @@ function FoodRoulette() {
             {isSpinning ? <span className="animate-pulse">{displayItem}</span> : result ? <span className="flex items-center gap-2 text-green-500 animate-in zoom-in"><Trophy className="size-8" /> {result}</span> : <span className="text-muted-foreground opacity-50">?</span>}
           </div>
         </div>
-        <Button onClick={spinRoulette} disabled={isSpinning} className="h-14 w-full text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
-          {isSpinning ? "고민 중..." : "룰렛 돌리기!"}
-        </Button>
+        
+        {/* 🔥 랜덤뽑기 버튼 + 공유하기 버튼 나란히 배치 */}
+        <div className="flex gap-2">
+          <Button onClick={spinRoulette} disabled={isSpinning} className="h-14 flex-1 text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
+            {isSpinning ? "고민 중..." : "랜덤뽑기!"}
+          </Button>
+          <Button 
+            onClick={onShare} 
+            title="친구에게 공유하고 크레딧 받기"
+            className="h-14 w-14 shrink-0 bg-blue-50 text-blue-600 shadow-lg transition-transform hover:scale-[1.02] hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400"
+          >
+            <Share2 className="size-6" />
+          </Button>
+        </div>
+
       </div>
     </div>
   );
@@ -98,7 +109,7 @@ function FoodRoulette() {
 // =====================================================================
 
 const CATEGORY_LABELS: Record<CategoryId, string> = { food: "뭐 먹을까?", gift: "선물상담", appliance: "홈&가전", fashion: "패션", date: "데이트/여행", asset: "고가자산" };
-const CATEGORY_DESC: Record<CategoryId, string> = { food: "AI 분석 또는 무료 룰렛을 이용해보세요!", gift: "관계와 예산에 맞는 선물을 좁혀 드려요.", appliance: "제품 스펙과 가성비를 나란히 비교해요.", fashion: "스타일·가격·핏을 한 번에 정리해요.", date: "여행·데이트 코스와 예산을 함께 정리해요.", asset: "리스크와 기간을 반영한 선택을 돕습니다." };
+const CATEGORY_DESC: Record<CategoryId, string> = { food: "AI 분석 또는 무료 랜덤뽑기를 이용해보세요!", gift: "관계와 예산에 맞는 선물을 좁혀 드려요.", appliance: "제품 스펙과 가성비를 나란히 비교해요.", fashion: "스타일·가격·핏을 한 번에 정리해요.", date: "여행·데이트 코스와 예산을 함께 정리해요.", asset: "리스크와 기간을 반영한 선택을 돕습니다." };
 const LOADING_TEXTS = ["10만 건의 실사용자 빅데이터를 스캔하고 있습니다...", "선택하신 옵션의 가성비와 장단점을 비교 중입니다...", "결정적인 제3의 대안(Option C)을 탐색하는 중입니다...", "최종 리포트를 생성하고 있습니다. 잠시만 기다려주세요!"];
 const LOADING_EMOJIS = ["👀", "🤔", "💡", "🔍", "😉", "✨"];
 
@@ -123,9 +134,8 @@ export function CategoryDashboard() {
   const [credits, setCredits] = useState<number | null>(null);
 
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [showRouletteModal, setShowRouletteModal] = useState(false); // 🔥 룰렛 모달창 State
+  const [showRouletteModal, setShowRouletteModal] = useState(false);
 
-  // 🌟 누군가 초대 링크(?ref=아이디)로 들어왔을 때, 몰래 컴퓨터(브라우저)에 기록해두는 로직
   useEffect(() => {
     const refCode = searchParams.get("ref");
     if (refCode) {
@@ -142,22 +152,25 @@ export function CategoryDashboard() {
         const currentCredits = typeof data.credits === 'number' ? data.credits : 0;
         setCredits(currentCredits);
 
-        // 🚨 신규 가입자(크레딧이 10개) 확인 & 폭죽 로직
         if (currentCredits === 10) {
           const isWelcomed = localStorage.getItem(`welcomed_${user.id}`);
           if (!isWelcomed) {
             setShowWelcomeModal(true);
             localStorage.setItem(`welcomed_${user.id}`, 'true');
 
-            // 🚀 추천인(초대자)에게 20크레딧 보상 쏴주기 로직!
+            // 🔥 추천인 보상 로직 호출
             const inviterId = localStorage.getItem("choiceflow_inviter");
             if (inviterId && inviterId !== user.id) {
-              sb.rpc("process_referral", { inviter_id: inviterId }).then(() => {
-                localStorage.removeItem("choiceflow_inviter"); // 처리 완료 후 지우기
+              sb.rpc("process_referral", { inviter_id: inviterId }).then(({ data, error }) => {
+                if (error) {
+                  console.error("추천인 에러:", error);
+                } else if (data && data.success) {
+                  toast.success("초대한 친구에게 보상이 지급되었습니다! 🎁");
+                }
+                localStorage.removeItem("choiceflow_inviter");
               });
             }
 
-            // 폭죽 파티 시작! 🎉
             const end = Date.now() + 2 * 1000;
             const colors = ['#a786ff', '#fd8bbc', '#eca184', '#f8deb1'];
             (function frame() {
@@ -172,13 +185,17 @@ export function CategoryDashboard() {
     fetchCredits();
   }, [user]);
 
-  const handleCopyShareLink = () => {
-    if (!user) return;
+  // 🔥 공통 공유 링크 복사 로직
+  const handleCopyShareLink = useCallback(() => {
+    if (!user) {
+      toast.error("로그인이 필요합니다.");
+      return;
+    }
     const shareUrl = `https://choice.ymstudio.co.kr/?ref=${user.id}`;
     navigator.clipboard.writeText(shareUrl).then(() => {
       toast.success("초대 링크가 복사되었습니다! 친구들에게 공유해보세요 🚀");
     });
-  };
+  }, [user]);
 
   useEffect(() => { setSelectedCategory(urlTab); }, [urlTab]);
   useEffect(() => { if (searchParams.has("tab")) setIsFormOpen(true); }, [searchParams]);
@@ -241,7 +258,6 @@ export function CategoryDashboard() {
   return (
     <section id="dashboard" className="relative mx-auto w-full max-w-5xl px-4 pb-24 sm:px-6">
       
-      {/* 🌟 가입 축하 & 공유 마케팅 모달 */}
       {showWelcomeModal && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
           <div className="mx-4 w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl dark:bg-slate-900">
@@ -252,7 +268,8 @@ export function CategoryDashboard() {
             <p className="text-muted-foreground mb-6">첫 가입 축하 선물로 <strong className="text-primary font-bold">무료 10 크레딧</strong>이 지급되었습니다.</p>
             <div className="rounded-xl bg-primary/5 p-4 border border-primary/20 mb-6 text-left">
               <p className="text-[14px] font-semibold text-foreground mb-1 text-center">🎁 보너스 크레딧 이벤트</p>
-              <p className="text-[13px] text-muted-foreground text-center">아래 링크를 친구들에게 전달해주세요!<br/>친구 가입 시 <strong className="text-primary">20 크레딧</strong>을 무제한으로 드립니다.</p>
+              {/* 🔥 문구 수정 완료 (1명 가입 시 1크레딧, 최대 50명) */}
+              <p className="text-[13px] text-muted-foreground text-center">아래 링크를 친구들에게 전달해주세요!<br/>친구 가입 시 <strong className="text-primary">1 크레딧</strong>을 추가로 드립니다. (최대 50명)</p>
             </div>
             <Button onClick={handleCopyShareLink} className="w-full h-12 text-[15px] font-bold mb-3 shadow-lg">
               <Share2 className="mr-2 size-5" /> 내 초대 링크 복사하기
@@ -264,14 +281,14 @@ export function CategoryDashboard() {
         </div>
       )}
 
-      {/* 🌟 통통 튀는 무료 룰렛 모달창 */}
       {showRouletteModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-300 p-4">
           <div className="relative w-full max-w-sm rounded-[2rem] bg-white p-8 shadow-2xl dark:bg-slate-900">
             <button onClick={() => setShowRouletteModal(false)} className="absolute right-5 top-5 rounded-full bg-black/5 p-2 text-muted-foreground hover:bg-black/10 hover:text-foreground transition-colors dark:bg-white/10 dark:hover:bg-white/20">
               <X className="size-5" />
             </button>
-            <FoodRoulette />
+            {/* 🔥 FoodRoulette 컴포넌트에 공유하기 함수 전달 */}
+            <FoodRoulette onShare={handleCopyShareLink} />
           </div>
         </div>
       )}
@@ -311,23 +328,17 @@ export function CategoryDashboard() {
         <div className="mt-5 animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both sm:mt-8">
           <div className="glass-strong rounded-[1.75rem] p-6 shadow-glass sm:p-10">
             <div className="min-w-0">
-              
-              {/* 🔥 여기서 룰렛 버튼이 제목 옆에 통통 튀며 나타납니다! */}
               <h2 className="flex flex-wrap items-center gap-x-2 gap-y-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                 <img src={emojiAssets.mainSrc} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" decoding="async" loading="lazy" aria-hidden />
                 <span>{emojiAssets.formTitleLabel} · 입력</span>
                 {selectedCategory === "food" && (
-                  <button 
-                    onClick={() => setShowRouletteModal(true)}
-                    className="ml-2 animate-bounce rounded-full bg-gradient-to-r from-primary to-blue-500 px-3 py-1 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105"
-                  >
-                    🎲 무료 랜덤 뽑기
+                  <button onClick={() => setShowRouletteModal(true)} className="ml-2 animate-bounce rounded-full bg-gradient-to-r from-primary to-blue-500 px-3 py-1 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105">
+                    🎲 무료 랜덤뽑기
                   </button>
                 )}
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">{CATEGORY_DESC[selectedCategory]}</p>
             </div>
-
             <div className="pt-8">
               <CategoryFormShell isAnalyzing={isAnalyzing} onAnalyze={handleAnalyze} expectedCredits={expectedCredits}>
                 <CategoryPanelForm categoryId={selectedCategory} forms={forms} onFormsChange={setForms} disabled={isAnalyzing} />
