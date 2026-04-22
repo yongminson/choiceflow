@@ -27,6 +27,10 @@ import {
 import { CATEGORY_3D_EMOJI } from "@/lib/emojis/category-3d-emoji";
 import { cn } from "@/lib/utils";
 
+// 🔥 유저 크레딧 확인을 위해 추가된 패키지
+import { useSupabaseUser } from "@/components/auth/use-supabase-user";
+import { createBrowserSupabaseClient } from "@/lib/supabase";
+
 const CATEGORY_LABELS: Record<CategoryId, string> = {
   food: "뭐 먹을까?",
   gift: "선물상담",
@@ -77,7 +81,24 @@ export function CategoryDashboard() {
   const [guardrailReason, setGuardrailReason] = useState("");
   const [loadingTextIndex, setLoadingTextIndex] = useState(0);
 
-    useEffect(() => {
+  // 🔥 실시간 크레딧 감시를 위한 State
+  const user = useSupabaseUser();
+  const [credits, setCredits] = useState<number | null>(null);
+
+  // 🔥 컴포넌트가 켜질 때 유저의 현재 크레딧을 몰래 가져옵니다
+  useEffect(() => {
+    if (!user) return;
+    const fetchCredits = async () => {
+      const sb = createBrowserSupabaseClient();
+      const { data } = await sb.from("profiles").select("credits").eq("id", user.id).maybeSingle();
+      if (data) {
+        setCredits(typeof data.credits === 'number' ? data.credits : 0);
+      }
+    };
+    fetchCredits();
+  }, [user]);
+
+  useEffect(() => {
     setSelectedCategory(urlTab);
   }, [urlTab]);
 
@@ -119,11 +140,23 @@ export function CategoryDashboard() {
 
   const openCategory = useCallback(
     (id: CategoryId) => {
+      // 🚨 [핵심 문지기 로직] 크레딧이 0개면 폼 안 열어주고 경고창 + 결제창 띄우기
+      if (credits === 0) {
+        toast.error("크레딧이 부족합니다 😢\n소중한 입력 내용이 날아가지 않도록 먼저 충전해 주세요!", {
+          action: {
+            label: "충전하기",
+            onClick: () => openBilling(),
+          },
+        });
+        openBilling(); // 곧바로 결제 모달을 강제로 띄워버립니다.
+        return; // 여기서 함수를 멈춰서 아래에 있는 폼 열기 로직이 실행 안 되게 막습니다.
+      }
+
       setSelectedCategory(id);
       setIsFormOpen(true);
       router.replace(`/?tab=${id}`, { scroll: false });
     },
-    [router]
+    [router, credits, openBilling]
   );
 
   const handleAnalyze = useCallback(async () => {
@@ -137,7 +170,7 @@ export function CategoryDashboard() {
     try {
       const draftPayload = {
         categoryId: selectedCategory,
-        myeongunDeepDataEnabled: false, // 🔥 명운 데이터 강제 비활성화
+        myeongunDeepDataEnabled: false, 
         forms: serializeDashboardForms(forms),
         savedAt: Date.now(),
       };
@@ -152,7 +185,7 @@ export function CategoryDashboard() {
       const images = await readFilesAsDataUrls(imageFiles);
 
       const analyzeBody = buildAnalyzeBodyFromDashboard(forms, selectedCategory, {
-        myeongunDeepDataEnabled: false, // 🔥 명운 데이터 강제 비활성화
+        myeongunDeepDataEnabled: false, 
         images,
       });
 
@@ -218,7 +251,7 @@ export function CategoryDashboard() {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [selectedCategory, forms, router, openBilling]); // 🔥 myeongunOptIn 의존성 배열에서 제거됨
+  }, [selectedCategory, forms, router, openBilling]);
 
   const emojiAssets = CATEGORY_3D_EMOJI[selectedCategory];
 
@@ -280,7 +313,6 @@ export function CategoryDashboard() {
             </div>
 
             <div className="pt-8">
-              {/* 🔥 여기서 사주 관련 Props가 완전히 제거되었습니다! */}
               <CategoryFormShell
                 isAnalyzing={isAnalyzing}
                 onAnalyze={handleAnalyze}
