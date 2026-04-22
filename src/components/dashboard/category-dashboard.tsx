@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import confetti from "canvas-confetti"; // 🔥 폭죽 패키지
 
 import { GuardrailRejectedModal } from "@/components/analyze/guardrail-rejected-modal";
 import { CategoryFormShell } from "@/components/dashboard/category-form-shell";
@@ -15,63 +16,119 @@ import { collectDashboardImageFiles } from "@/lib/dashboard/collect-dashboard-fo
 import { serializeDashboardForms } from "@/lib/dashboard/serialize-dashboard-forms";
 import { readFilesAsDataUrls } from "@/lib/utils/file-to-data-url";
 import { validateDashboardForm } from "@/lib/dashboard/validate-dashboard-form";
-import {
-  CATEGORY_ORDER,
-  type CategoryId,
-  isCategoryId,
-} from "@/lib/types/category";
-import {
-  initialDashboardForms,
-  type DashboardFormsState,
-} from "@/lib/types/dashboard-forms";
+import { CATEGORY_ORDER, type CategoryId, isCategoryId } from "@/lib/types/category";
+import { initialDashboardForms, type DashboardFormsState } from "@/lib/types/dashboard-forms";
 import { CATEGORY_3D_EMOJI } from "@/lib/emojis/category-3d-emoji";
 import { cn } from "@/lib/utils";
 
-// 🔥 유저 크레딧 확인을 위해 추가된 패키지
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Share2, Gift, Dices, Plus, X, Trophy } from "lucide-react"; // 🔥 아이콘 추가
 
-const CATEGORY_LABELS: Record<CategoryId, string> = {
-  food: "뭐 먹을까?",
-  gift: "선물상담",
-  appliance: "홈&가전",
-  fashion: "패션",
-  date: "데이트/여행",
-  asset: "고가자산",
-};
+// =====================================================================
+// 🎲 [무료 룰렛 게임 컴포넌트] (파일 분리 없이 일체형으로 안전하게 탑재)
+// =====================================================================
+function FoodRoulette() {
+  const [items, setItems] = useState<string[]>(["", ""]);
+  const [result, setResult] = useState<string | null>(null);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [displayItem, setDisplayItem] = useState<string>("?");
 
-const CATEGORY_DESC: Record<CategoryId, string> = {
-  food: "뭐 먹을까?",
-  gift: "관계와 예산에 맞는 선물을 좁혀 드려요.",
-  appliance: "제품 스펙과 가성비를 나란히 비교해요.",
-  fashion: "스타일·가격·핏을 한 번에 정리해요.",
-  date: "여행·데이트 코스와 예산을 함께 정리해요.",
-  asset: "리스크와 기간을 반영한 선택을 돕습니다.",
-};
+  const handleAddItem = () => {
+    if (items.length >= 8) return alert("최대 8개까지만 가능합니다!");
+    setItems([...items, ""]);
+  };
 
-const LOADING_TEXTS = [
-  "10만 건의 실사용자 빅데이터를 스캔하고 있습니다...",
-  "선택하신 옵션의 가성비와 장단점을 비교 중입니다...",
-  "결정적인 제3의 대안(Option C)을 탐색하는 중입니다...",
-  "최종 리포트를 생성하고 있습니다. 잠시만 기다려주세요!"
-];
+  const handleRemoveItem = (index: number) => {
+    if (items.length <= 2) return alert("최소 2개는 입력해야 합니다!");
+    setItems(items.filter((_, i) => i !== index));
+  };
 
+  const handleUpdateItem = (index: number, value: string) => {
+    const newItems = [...items];
+    newItems[index] = value;
+    setItems(newItems);
+  };
+
+  const spinRoulette = () => {
+    const validItems = items.filter((i) => i.trim() !== "");
+    if (validItems.length < 2) return alert("메뉴를 2개 이상 입력해주세요!");
+
+    setIsSpinning(true);
+    setResult(null);
+
+    let count = 0;
+    const interval = setInterval(() => {
+      setDisplayItem(validItems[Math.floor(Math.random() * validItems.length)]);
+      count++;
+      if (count >= 20) {
+        clearInterval(interval);
+        const finalResult = validItems[Math.floor(Math.random() * validItems.length)];
+        setDisplayItem(finalResult);
+        setResult(finalResult);
+        setIsSpinning(false);
+      }
+    }, 100);
+  };
+
+  return (
+    <div className="mb-8 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-6 dark:border-primary/20 dark:bg-primary/10">
+      <div className="mb-4 flex items-center justify-center gap-2">
+        <Dices className="size-6 text-primary" />
+        <h3 className="font-display text-lg font-bold text-foreground">결정장애 무료 해결! 메뉴 룰렛</h3>
+      </div>
+
+      <div className="mx-auto max-w-sm space-y-3">
+        {items.map((item, index) => (
+          <div key={index} className="flex items-center gap-2">
+            {/* 에러 방지를 위해 기본 input 태그에 안전한 Tailwind 클래스 적용 */}
+            <input
+              type="text"
+              placeholder={`후보 ${index + 1} (ex: 짜장면)`}
+              value={item}
+              onChange={(e) => handleUpdateItem(index, e.target.value)}
+              className="flex h-10 w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-white/10 dark:bg-black/30"
+            />
+            <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)} className="shrink-0 text-muted-foreground hover:text-red-500">
+              <X className="size-4" />
+            </Button>
+          </div>
+        ))}
+
+        <Button variant="outline" size="sm" onClick={handleAddItem} className="w-full border-dashed bg-transparent">
+          <Plus className="mr-2 size-4" /> 후보 추가하기
+        </Button>
+
+        <div className="py-4 text-center">
+          <div className="flex h-16 items-center justify-center rounded-xl bg-white text-2xl font-black text-primary shadow-inner dark:bg-black/40">
+            {isSpinning ? <span className="animate-pulse">{displayItem}</span> : result ? <span className="flex items-center gap-2 text-green-500"><Trophy className="size-6" /> {result} 당첨!</span> : <span className="text-muted-foreground opacity-50">?</span>}
+          </div>
+        </div>
+
+        <Button onClick={spinRoulette} disabled={isSpinning} className="h-12 w-full text-base font-bold shadow-md">
+          {isSpinning ? "고민 중..." : "룰렛 돌리기!"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+// =====================================================================
+
+
+const CATEGORY_LABELS: Record<CategoryId, string> = { food: "뭐 먹을까?", gift: "선물상담", appliance: "홈&가전", fashion: "패션", date: "데이트/여행", asset: "고가자산" };
+const CATEGORY_DESC: Record<CategoryId, string> = { food: "무료 룰렛 또는 AI 분석을 이용해보세요!", gift: "관계와 예산에 맞는 선물을 좁혀 드려요.", appliance: "제품 스펙과 가성비를 나란히 비교해요.", fashion: "스타일·가격·핏을 한 번에 정리해요.", date: "여행·데이트 코스와 예산을 함께 정리해요.", asset: "리스크와 기간을 반영한 선택을 돕습니다." };
+const LOADING_TEXTS = ["10만 건의 실사용자 빅데이터를 스캔하고 있습니다...", "선택하신 옵션의 가성비와 장단점을 비교 중입니다...", "결정적인 제3의 대안(Option C)을 탐색하는 중입니다...", "최종 리포트를 생성하고 있습니다. 잠시만 기다려주세요!"];
 const LOADING_EMOJIS = ["👀", "🤔", "💡", "🔍", "😉", "✨"];
 
-function normalizeTab(raw: string | null): CategoryId {
-  if (isCategoryId(raw)) return raw;
-  return "gift";
-}
+function normalizeTab(raw: string | null): CategoryId { if (isCategoryId(raw)) return raw; return "gift"; }
 
 export function CategoryDashboard() {
   const [loadingEmojiIndex, setLoadingEmojiIndex] = useState(0);
   const router = useRouter();
   const { openBilling } = useBilling();
   const searchParams = useSearchParams();
-  const urlTab = useMemo(
-    () => normalizeTab(searchParams.get("tab")),
-    [searchParams]
-  );
+  const urlTab = useMemo(() => normalizeTab(searchParams.get("tab")), [searchParams]);
 
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>(urlTab);
   const [forms, setForms] = useState<DashboardFormsState>(() => initialDashboardForms());
@@ -81,196 +138,151 @@ export function CategoryDashboard() {
   const [guardrailReason, setGuardrailReason] = useState("");
   const [loadingTextIndex, setLoadingTextIndex] = useState(0);
 
-  // 🔥 실시간 크레딧 감시를 위한 State
   const user = useSupabaseUser();
   const [credits, setCredits] = useState<number | null>(null);
 
-  // 🔥 컴포넌트가 켜질 때 유저의 현재 크레딧을 몰래 가져옵니다
+  // 🔥 신규 가입 축하 모달 State
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     const fetchCredits = async () => {
       const sb = createBrowserSupabaseClient();
       const { data } = await sb.from("profiles").select("credits").eq("id", user.id).maybeSingle();
       if (data) {
-        setCredits(typeof data.credits === 'number' ? data.credits : 0);
+        const currentCredits = typeof data.credits === 'number' ? data.credits : 0;
+        setCredits(currentCredits);
+
+        // 🚨 신규 가입자(크레딧이 10개) 확인 & 폭죽 로직
+        if (currentCredits === 10) {
+          const isWelcomed = localStorage.getItem(`welcomed_${user.id}`);
+          if (!isWelcomed) {
+            setShowWelcomeModal(true);
+            localStorage.setItem(`welcomed_${user.id}`, 'true');
+
+            // 폭죽 파티 시작! 🎉
+            const end = Date.now() + 2 * 1000;
+            const colors = ['#a786ff', '#fd8bbc', '#eca184', '#f8deb1'];
+            (function frame() {
+              confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: colors });
+              confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: colors });
+              if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+          }
+        }
       }
     };
     fetchCredits();
   }, [user]);
 
-  useEffect(() => {
-    setSelectedCategory(urlTab);
-  }, [urlTab]);
+  // 공유 링크 복사 로직
+  const handleCopyShareLink = () => {
+    if (!user) return;
+    const shareUrl = `https://choice.ymstudio.co.kr/?ref=${user.id}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      toast.success("초대 링크가 복사되었습니다! 친구들에게 공유해보세요 🚀");
+    });
+  };
+
+  useEffect(() => { setSelectedCategory(urlTab); }, [urlTab]);
+  useEffect(() => { if (searchParams.has("tab")) setIsFormOpen(true); }, [searchParams]);
 
   useEffect(() => {
-    if (searchParams.has("tab")) setIsFormOpen(true);
-  }, [searchParams]);
-
-  useEffect(() => {
-    let textInterval: NodeJS.Timeout;
-    let emojiInterval: NodeJS.Timeout;
+    let textInterval: NodeJS.Timeout; let emojiInterval: NodeJS.Timeout;
     if (isAnalyzing) {
-      setLoadingTextIndex(0);
-      setLoadingEmojiIndex(0);
-      
-      textInterval = setInterval(() => {
-        setLoadingTextIndex((prev) => (prev + 1) % LOADING_TEXTS.length);
-      }, 3000);
-
-      emojiInterval = setInterval(() => {
-        setLoadingEmojiIndex((prev) => (prev + 1) % LOADING_EMOJIS.length);
-      }, 500);
+      setLoadingTextIndex(0); setLoadingEmojiIndex(0);
+      textInterval = setInterval(() => { setLoadingTextIndex((prev) => (prev + 1) % LOADING_TEXTS.length); }, 3000);
+      emojiInterval = setInterval(() => { setLoadingEmojiIndex((prev) => (prev + 1) % LOADING_EMOJIS.length); }, 500);
     }
-    return () => {
-      clearInterval(textInterval);
-      clearInterval(emojiInterval);
-    };
+    return () => { clearInterval(textInterval); clearInterval(emojiInterval); };
   }, [isAnalyzing]);
 
-  const expectedCredits = useMemo(
-    () =>
-      getRequiredCreditsForAnalyze(
-        selectedCategory,
-        selectedCategory === "appliance"
-          ? forms.appliance.premiumSpaceAnalysis
-          : undefined
-      ),
-    [selectedCategory, forms.appliance.premiumSpaceAnalysis]
-  );
+  const expectedCredits = useMemo(() => getRequiredCreditsForAnalyze(selectedCategory, selectedCategory === "appliance" ? forms.appliance.premiumSpaceAnalysis : undefined), [selectedCategory, forms.appliance.premiumSpaceAnalysis]);
 
-  const openCategory = useCallback(
-    (id: CategoryId) => {
-      // 🚨 [핵심 문지기 로직] 크레딧이 0개면 폼 안 열어주고 경고창 + 결제창 띄우기
-      if (credits === 0) {
-        toast.error("크레딧이 부족합니다 😢\n소중한 입력 내용이 날아가지 않도록 먼저 충전해 주세요!", {
-          action: {
-            label: "충전하기",
-            onClick: () => openBilling(),
-          },
-        });
-        openBilling(); // 곧바로 결제 모달을 강제로 띄워버립니다.
-        return; // 여기서 함수를 멈춰서 아래에 있는 폼 열기 로직이 실행 안 되게 막습니다.
-      }
-
-      setSelectedCategory(id);
-      setIsFormOpen(true);
-      router.replace(`/?tab=${id}`, { scroll: false });
-    },
-    [router, credits, openBilling]
-  );
+  const openCategory = useCallback((id: CategoryId) => {
+    // 🔥 뭐먹지(food) 탭은 0크레딧이어도 진입 가능 (무료 룰렛 이용)
+    if (credits === 0 && id !== "food") { 
+      toast.error("크레딧이 부족합니다 😢\n소중한 입력 내용이 날아가지 않도록 먼저 충전해 주세요!", { action: { label: "충전하기", onClick: () => openBilling() } });
+      openBilling(); return;
+    }
+    setSelectedCategory(id); setIsFormOpen(true); router.replace(`/?tab=${id}`, { scroll: false });
+  }, [router, credits, openBilling]);
 
   const handleAnalyze = useCallback(async () => {
-    const err = validateDashboardForm(selectedCategory, forms);
-    if (err) {
-      toast.error(err);
-      return;
+    // 🔥 0크레딧일 때 'AI 분석하기' 버튼 누르면 완벽 차단!
+    if (credits === 0) {
+      toast.error("AI 분석을 위한 크레딧이 부족합니다.");
+      openBilling(); return;
     }
 
+    const err = validateDashboardForm(selectedCategory, forms);
+    if (err) { toast.error(err); return; }
     setIsAnalyzing(true);
     try {
-      const draftPayload = {
-        categoryId: selectedCategory,
-        myeongunDeepDataEnabled: false, 
-        forms: serializeDashboardForms(forms),
-        savedAt: Date.now(),
-      };
-      try {
-        sessionStorage.setItem("choiceflow-dashboard-draft", JSON.stringify(draftPayload));
-      } catch (e) {
-        toast.error("임시 저장에 실패했습니다. 브라우저 저장소를 확인해 주세요.");
-        return;
-      }
-
+      const draftPayload = { categoryId: selectedCategory, myeongunDeepDataEnabled: false, forms: serializeDashboardForms(forms), savedAt: Date.now() };
+      try { sessionStorage.setItem("choiceflow-dashboard-draft", JSON.stringify(draftPayload)); } catch (e) { toast.error("저장 실패"); return; }
       const imageFiles = collectDashboardImageFiles(forms, selectedCategory);
       const images = await readFilesAsDataUrls(imageFiles);
-
-      const analyzeBody = buildAnalyzeBodyFromDashboard(forms, selectedCategory, {
-        myeongunDeepDataEnabled: false, 
-        images,
-      });
-
-      let res: Response;
-      let data: Record<string, unknown> = {};
+      const analyzeBody = buildAnalyzeBodyFromDashboard(forms, selectedCategory, { myeongunDeepDataEnabled: false, images });
+      let res: Response; let data: Record<string, unknown> = {};
       try {
-        res = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(analyzeBody),
-          credentials: "same-origin",
-          cache: "no-store",
-        });
-        try {
-          data = (await res.json()) as Record<string, unknown>;
-        } catch {
-          data = {};
-        }
-      } catch (e) {
-        toast.error("네트워크 오류로 분석을 완료하지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.");
-        return;
-      }
+        res = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(analyzeBody), credentials: "same-origin", cache: "no-store" });
+        try { data = (await res.json()) as Record<string, unknown>; } catch { data = {}; }
+      } catch (e) { toast.error("네트워크 오류"); return; }
 
       if (!res.ok || data.ok !== true) {
-        if (data.status === "REJECTED") {
-          const reason =
-            typeof data.reason === "string" && data.reason.trim()
-              ? data.reason.trim()
-              : ANALYZE_GUARDRAIL_DEFAULT_REASON;
-          setGuardrailReason(reason);
-          setGuardrailOpen(true);
-          return;
-        }
-        const msg =
-          typeof data.error === "string" && data.error.trim()
-            ? data.error.trim()
-            : "분석에 실패했습니다. 잠시 후 다시 시도해 주세요.";
-        const lowCredit = res.status === 402 || msg.includes("크레딧");
-        if (lowCredit) {
-          toast.error(msg, {
-            action: {
-              label: "크레딧 충전하기",
-              onClick: () => openBilling(),
-            },
-          });
-        } else {
-          toast.error(msg);
-        }
+        if (data.status === "REJECTED") { setGuardrailReason(typeof data.reason === "string" ? data.reason : ANALYZE_GUARDRAIL_DEFAULT_REASON); setGuardrailOpen(true); return; }
+        const msg = typeof data.error === "string" ? data.error : "에러가 발생했습니다.";
+        if (res.status === 402 || msg.includes("크레딧")) { toast.error(msg, { action: { label: "충전하기", onClick: () => openBilling() } }); } else { toast.error(msg); }
         return;
       }
-
       const { ok: _ok, ...rest } = data;
-      try {
-        sessionStorage.setItem("choiceResult", JSON.stringify(rest));
-      } catch (storageErr) {
-        toast.error("결과를 저장할 수 없습니다. 브라우저 설정을 확인해 주세요.");
-        return;
-      }
-
+      try { sessionStorage.setItem("choiceResult", JSON.stringify(rest)); } catch (storageErr) { toast.error("저장 불가"); return; }
       router.push("/result");
-    } catch (e) {
-      toast.error("일시적인 오류가 발생했습니다. 다시 시도해 주세요.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [selectedCategory, forms, router, openBilling]);
+    } catch (e) { toast.error("일시적 오류"); } finally { setIsAnalyzing(false); }
+  }, [selectedCategory, forms, router, openBilling, credits]);
 
   const emojiAssets = CATEGORY_3D_EMOJI[selectedCategory];
 
   return (
     <section id="dashboard" className="relative mx-auto w-full max-w-5xl px-4 pb-24 sm:px-6">
+      
+      {/* 🔥 가입 축하 & 공유 마케팅 모달 */}
+      {showWelcomeModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
+          <div className="mx-4 w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl dark:bg-slate-900">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 mb-6">
+              <Gift className="size-10 text-primary animate-bounce" />
+            </div>
+            <h2 className="text-2xl font-black text-foreground mb-2">🎉 가입을 환영합니다!</h2>
+            <p className="text-muted-foreground mb-6">
+              첫 가입 축하 선물로 <strong className="text-primary font-bold">무료 10 크레딧</strong>이 지급되었습니다.
+            </p>
+            <div className="rounded-xl bg-primary/5 p-4 border border-primary/20 mb-6 text-left">
+              <p className="text-[14px] font-semibold text-foreground mb-1 text-center">🎁 보너스 크레딧 이벤트</p>
+              <p className="text-[13px] text-muted-foreground text-center">
+                아래 링크를 친구들에게 전달해주세요!<br/>
+                친구 가입 시 <strong className="text-primary">20 크레딧</strong>을 추가로 드립니다.
+              </p>
+            </div>
+            <Button onClick={handleCopyShareLink} className="w-full h-12 text-[15px] font-bold mb-3 shadow-lg">
+              <Share2 className="mr-2 size-5" /> 내 초대 링크 복사하기
+            </Button>
+            <button onClick={() => setShowWelcomeModal(false)} className="mt-2 text-[13px] text-muted-foreground underline hover:text-foreground">
+              나중에 하기
+            </button>
+          </div>
+        </div>
+      )}
+
       {isAnalyzing && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/60 backdrop-blur-md animate-in fade-in duration-300">
           <div className="flex flex-col items-center justify-center rounded-[2rem] border-2 border-primary/20 bg-white/90 p-8 sm:p-12 shadow-[0_0_50px_rgba(0,0,0,0.1)] backdrop-blur-xl text-center max-w-[90vw] dark:bg-slate-900/90">
             <div className="relative mb-6 flex size-24 items-center justify-center rounded-full bg-gradient-to-tr from-sky-100 to-indigo-100 shadow-inner dark:from-sky-900/40 dark:to-indigo-900/40">
-              <span className="text-5xl animate-bounce drop-shadow-md">
-                {LOADING_EMOJIS[loadingEmojiIndex]}
-              </span>
+              <span className="text-5xl animate-bounce drop-shadow-md">{LOADING_EMOJIS[loadingEmojiIndex]}</span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-black tracking-tight text-foreground mb-3">
-              AI가 열일 중이에요! 🚀
-            </h3>
-            <p className="min-h-[1.5rem] text-[14px] sm:text-[15px] font-semibold text-primary animate-pulse transition-all duration-500">
-              {LOADING_TEXTS[loadingTextIndex]}
-            </p>
+            <h3 className="text-xl sm:text-2xl font-black tracking-tight text-foreground mb-3">AI가 열일 중이에요! 🚀</h3>
+            <p className="min-h-[1.5rem] text-[14px] sm:text-[15px] font-semibold text-primary animate-pulse transition-all duration-500">{LOADING_TEXTS[loadingTextIndex]}</p>
           </div>
         </div>
       )}
@@ -279,20 +291,13 @@ export function CategoryDashboard() {
       
       <div className={cn("flex flex-col items-center justify-center px-1 text-center", isFormOpen ? "min-h-0 pt-8 sm:pt-10" : "min-h-[calc(100dvh-5.5rem)] sm:min-h-[calc(100dvh-6rem)]")}>
         <h1 className="font-display max-w-4xl text-balance text-[1.65rem] font-semibold leading-[1.12] tracking-[-0.045em] text-foreground sm:text-4xl md:text-5xl md:leading-[1.08]">
-          어떤 선택이
-          <span className="mt-1.5 block bg-gradient-to-br from-primary via-primary to-foreground/65 bg-clip-text text-transparent sm:mt-2.5">
-            고민이신가요?
-          </span>
+          어떤 선택이 <span className="mt-1.5 block bg-gradient-to-br from-primary via-primary to-foreground/65 bg-clip-text text-transparent sm:mt-2.5">고민이신가요?</span>
         </h1>
-
         <div className={cn("mt-8 w-full max-w-[60rem] mx-auto sm:mt-9 md:mt-10", "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-6 md:gap-3 lg:gap-4")}>
           {CATEGORY_ORDER.map((id) => {
             const selected = selectedCategory === id;
             return (
-              <button
-                key={id} type="button" onClick={() => openCategory(id)}
-                className={cn("flex min-h-[3.5rem] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 transition-all sm:min-h-[4rem] sm:gap-1.5 sm:rounded-[1.5rem] sm:px-3 sm:py-3.5 md:min-h-[4.5rem] md:px-2 md:py-3 lg:min-h-[5rem] lg:px-3 lg:py-4 glass border border-white/40 bg-white/45 shadow-glass-sm backdrop-blur-md hover:-translate-y-1 hover:border-primary/40 hover:shadow-glass active:scale-[0.98] dark:border-white/12 dark:bg-white/[0.08]", selected && "border-primary/50 bg-primary/14 ring-2 ring-primary/35 dark:bg-primary/18")}
-              >
+              <button key={id} type="button" onClick={() => openCategory(id)} className={cn("flex min-h-[3.5rem] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 transition-all sm:min-h-[4rem] sm:gap-1.5 sm:rounded-[1.5rem] sm:px-3 sm:py-3.5 md:min-h-[4.5rem] md:px-2 md:py-3 lg:min-h-[5rem] lg:px-3 lg:py-4 glass border border-white/40 bg-white/45 shadow-glass-sm backdrop-blur-md hover:-translate-y-1 hover:border-primary/40 hover:shadow-glass active:scale-[0.98] dark:border-white/12 dark:bg-white/[0.08]", selected && "border-primary/50 bg-primary/14 ring-2 ring-primary/35 dark:bg-primary/18")}>
                 <img src={CATEGORY_3D_EMOJI[id].mainSrc} alt="" width={56} height={56} className={cn("shrink-0 object-contain select-none transition-transform", id === "food" ? "size-14 sm:size-16 scale-110" : "size-12 sm:size-14")} decoding="async" loading="lazy" aria-hidden />
                 <span className="max-w-full mt-1 truncate px-1 text-center text-[12px] font-bold leading-tight text-foreground sm:text-[13px] md:text-[13px] lg:text-[14px]">{CATEGORY_LABELS[id]}</span>
               </button>
@@ -313,11 +318,10 @@ export function CategoryDashboard() {
             </div>
 
             <div className="pt-8">
-              <CategoryFormShell
-                isAnalyzing={isAnalyzing}
-                onAnalyze={handleAnalyze}
-                expectedCredits={expectedCredits}
-              >
+              {/* 🔥 음식(뭐먹지) 탭을 열었을 때만 무료 룰렛 게임이 제일 상단에 등장! */}
+              {selectedCategory === "food" && <FoodRoulette />}
+
+              <CategoryFormShell isAnalyzing={isAnalyzing} onAnalyze={handleAnalyze} expectedCredits={expectedCredits}>
                 <CategoryPanelForm categoryId={selectedCategory} forms={forms} onFormsChange={setForms} disabled={isAnalyzing} />
               </CategoryFormShell>
             </div>
