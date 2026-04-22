@@ -31,6 +31,14 @@ export const metadata: Metadata = {
   },
   description:
     "망설임의 시간을 확신으로. AI 기반 선택 분석 서비스 ChoiceFlow.",
+  
+  // 🔥 [핵심 추가] 네이버와 구글의 검색엔진 소유권 확인 태그를 여기에 세팅합니다.
+  verification: {
+    google: "mTatlpiTN0G1CZ1XKfH_gHsYoV183kAtBlZVBxKp4fg",
+    other: {
+      "naver-site-verification": ["6167765ea7406f0c55598bb7ec583be33bd8e72c"],
+    },
+  },
 };
 
 export default function RootLayout({
