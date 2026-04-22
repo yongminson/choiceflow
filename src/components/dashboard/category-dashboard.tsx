@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import confetti from "canvas-confetti"; // 🔥 폭죽 패키지
+import confetti from "canvas-confetti";
 
 import { GuardrailRejectedModal } from "@/components/analyze/guardrail-rejected-modal";
 import { CategoryFormShell } from "@/components/dashboard/category-form-shell";
@@ -24,10 +24,10 @@ import { cn } from "@/lib/utils";
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Share2, Gift, Dices, Plus, X, Trophy } from "lucide-react"; // 🔥 아이콘 추가
+import { Share2, Gift, Dices, Plus, X, Trophy } from "lucide-react";
 
 // =====================================================================
-// 🎲 [무료 룰렛 게임 컴포넌트] (파일 분리 없이 일체형으로 안전하게 탑재)
+// 🎲 [무료 룰렛 게임 모달 컴포넌트]
 // =====================================================================
 function FoodRoulette() {
   const [items, setItems] = useState<string[]>(["", ""]);
@@ -39,25 +39,20 @@ function FoodRoulette() {
     if (items.length >= 8) return alert("최대 8개까지만 가능합니다!");
     setItems([...items, ""]);
   };
-
   const handleRemoveItem = (index: number) => {
     if (items.length <= 2) return alert("최소 2개는 입력해야 합니다!");
     setItems(items.filter((_, i) => i !== index));
   };
-
   const handleUpdateItem = (index: number, value: string) => {
     const newItems = [...items];
     newItems[index] = value;
     setItems(newItems);
   };
-
   const spinRoulette = () => {
     const validItems = items.filter((i) => i.trim() !== "");
     if (validItems.length < 2) return alert("메뉴를 2개 이상 입력해주세요!");
 
-    setIsSpinning(true);
-    setResult(null);
-
+    setIsSpinning(true); setResult(null);
     let count = 0;
     const interval = setInterval(() => {
       setDisplayItem(validItems[Math.floor(Math.random() * validItems.length)]);
@@ -65,48 +60,35 @@ function FoodRoulette() {
       if (count >= 20) {
         clearInterval(interval);
         const finalResult = validItems[Math.floor(Math.random() * validItems.length)];
-        setDisplayItem(finalResult);
-        setResult(finalResult);
-        setIsSpinning(false);
+        setDisplayItem(finalResult); setResult(finalResult); setIsSpinning(false);
+        // 당첨 미니 폭죽 🎉
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 }, zIndex: 300 });
       }
     }, 100);
   };
 
   return (
-    <div className="mb-8 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-6 dark:border-primary/20 dark:bg-primary/10">
+    <div className="flex flex-col items-center">
       <div className="mb-4 flex items-center justify-center gap-2">
         <Dices className="size-6 text-primary" />
-        <h3 className="font-display text-lg font-bold text-foreground">결정장애 무료 해결! 메뉴 룰렛</h3>
+        <h3 className="font-display text-xl font-bold text-foreground">결정장애 무료 룰렛!</h3>
       </div>
-
-      <div className="mx-auto max-w-sm space-y-3">
+      <div className="w-full space-y-3">
         {items.map((item, index) => (
           <div key={index} className="flex items-center gap-2">
-            {/* 에러 방지를 위해 기본 input 태그에 안전한 Tailwind 클래스 적용 */}
-            <input
-              type="text"
-              placeholder={`후보 ${index + 1} (ex: 짜장면)`}
-              value={item}
-              onChange={(e) => handleUpdateItem(index, e.target.value)}
-              className="flex h-10 w-full rounded-md border border-black/10 bg-white/70 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-white/10 dark:bg-black/30"
-            />
-            <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)} className="shrink-0 text-muted-foreground hover:text-red-500">
-              <X className="size-4" />
-            </Button>
+            <input type="text" placeholder={`후보 ${index + 1} (ex: 짜장면)`} value={item} onChange={(e) => handleUpdateItem(index, e.target.value)} className="flex h-11 w-full rounded-xl border border-black/10 bg-black/5 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary dark:border-white/10 dark:bg-white/5" />
+            <button onClick={() => handleRemoveItem(index)} className="p-2 text-muted-foreground hover:text-red-500"><X className="size-5" /></button>
           </div>
         ))}
-
-        <Button variant="outline" size="sm" onClick={handleAddItem} className="w-full border-dashed bg-transparent">
+        <Button variant="outline" onClick={handleAddItem} className="w-full border-dashed border-primary/40 text-primary hover:bg-primary/5">
           <Plus className="mr-2 size-4" /> 후보 추가하기
         </Button>
-
         <div className="py-4 text-center">
-          <div className="flex h-16 items-center justify-center rounded-xl bg-white text-2xl font-black text-primary shadow-inner dark:bg-black/40">
-            {isSpinning ? <span className="animate-pulse">{displayItem}</span> : result ? <span className="flex items-center gap-2 text-green-500"><Trophy className="size-6" /> {result} 당첨!</span> : <span className="text-muted-foreground opacity-50">?</span>}
+          <div className="flex h-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-blue-500/10 text-3xl font-black text-primary shadow-inner">
+            {isSpinning ? <span className="animate-pulse">{displayItem}</span> : result ? <span className="flex items-center gap-2 text-green-500 animate-in zoom-in"><Trophy className="size-8" /> {result}</span> : <span className="text-muted-foreground opacity-50">?</span>}
           </div>
         </div>
-
-        <Button onClick={spinRoulette} disabled={isSpinning} className="h-12 w-full text-base font-bold shadow-md">
+        <Button onClick={spinRoulette} disabled={isSpinning} className="h-14 w-full text-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
           {isSpinning ? "고민 중..." : "룰렛 돌리기!"}
         </Button>
       </div>
@@ -115,9 +97,8 @@ function FoodRoulette() {
 }
 // =====================================================================
 
-
 const CATEGORY_LABELS: Record<CategoryId, string> = { food: "뭐 먹을까?", gift: "선물상담", appliance: "홈&가전", fashion: "패션", date: "데이트/여행", asset: "고가자산" };
-const CATEGORY_DESC: Record<CategoryId, string> = { food: "무료 룰렛 또는 AI 분석을 이용해보세요!", gift: "관계와 예산에 맞는 선물을 좁혀 드려요.", appliance: "제품 스펙과 가성비를 나란히 비교해요.", fashion: "스타일·가격·핏을 한 번에 정리해요.", date: "여행·데이트 코스와 예산을 함께 정리해요.", asset: "리스크와 기간을 반영한 선택을 돕습니다." };
+const CATEGORY_DESC: Record<CategoryId, string> = { food: "AI 분석 또는 무료 룰렛을 이용해보세요!", gift: "관계와 예산에 맞는 선물을 좁혀 드려요.", appliance: "제품 스펙과 가성비를 나란히 비교해요.", fashion: "스타일·가격·핏을 한 번에 정리해요.", date: "여행·데이트 코스와 예산을 함께 정리해요.", asset: "리스크와 기간을 반영한 선택을 돕습니다." };
 const LOADING_TEXTS = ["10만 건의 실사용자 빅데이터를 스캔하고 있습니다...", "선택하신 옵션의 가성비와 장단점을 비교 중입니다...", "결정적인 제3의 대안(Option C)을 탐색하는 중입니다...", "최종 리포트를 생성하고 있습니다. 잠시만 기다려주세요!"];
 const LOADING_EMOJIS = ["👀", "🤔", "💡", "🔍", "😉", "✨"];
 
@@ -141,8 +122,16 @@ export function CategoryDashboard() {
   const user = useSupabaseUser();
   const [credits, setCredits] = useState<number | null>(null);
 
-  // 🔥 신규 가입 축하 모달 State
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showRouletteModal, setShowRouletteModal] = useState(false); // 🔥 룰렛 모달창 State
+
+  // 🌟 누군가 초대 링크(?ref=아이디)로 들어왔을 때, 몰래 컴퓨터(브라우저)에 기록해두는 로직
+  useEffect(() => {
+    const refCode = searchParams.get("ref");
+    if (refCode) {
+      localStorage.setItem("choiceflow_inviter", refCode);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!user) return;
@@ -160,6 +149,14 @@ export function CategoryDashboard() {
             setShowWelcomeModal(true);
             localStorage.setItem(`welcomed_${user.id}`, 'true');
 
+            // 🚀 추천인(초대자)에게 20크레딧 보상 쏴주기 로직!
+            const inviterId = localStorage.getItem("choiceflow_inviter");
+            if (inviterId && inviterId !== user.id) {
+              sb.rpc("process_referral", { inviter_id: inviterId }).then(() => {
+                localStorage.removeItem("choiceflow_inviter"); // 처리 완료 후 지우기
+              });
+            }
+
             // 폭죽 파티 시작! 🎉
             const end = Date.now() + 2 * 1000;
             const colors = ['#a786ff', '#fd8bbc', '#eca184', '#f8deb1'];
@@ -175,7 +172,6 @@ export function CategoryDashboard() {
     fetchCredits();
   }, [user]);
 
-  // 공유 링크 복사 로직
   const handleCopyShareLink = () => {
     if (!user) return;
     const shareUrl = `https://choice.ymstudio.co.kr/?ref=${user.id}`;
@@ -200,7 +196,6 @@ export function CategoryDashboard() {
   const expectedCredits = useMemo(() => getRequiredCreditsForAnalyze(selectedCategory, selectedCategory === "appliance" ? forms.appliance.premiumSpaceAnalysis : undefined), [selectedCategory, forms.appliance.premiumSpaceAnalysis]);
 
   const openCategory = useCallback((id: CategoryId) => {
-    // 🔥 뭐먹지(food) 탭은 0크레딧이어도 진입 가능 (무료 룰렛 이용)
     if (credits === 0 && id !== "food") { 
       toast.error("크레딧이 부족합니다 😢\n소중한 입력 내용이 날아가지 않도록 먼저 충전해 주세요!", { action: { label: "충전하기", onClick: () => openBilling() } });
       openBilling(); return;
@@ -209,7 +204,6 @@ export function CategoryDashboard() {
   }, [router, credits, openBilling]);
 
   const handleAnalyze = useCallback(async () => {
-    // 🔥 0크레딧일 때 'AI 분석하기' 버튼 누르면 완벽 차단!
     if (credits === 0) {
       toast.error("AI 분석을 위한 크레딧이 부족합니다.");
       openBilling(); return;
@@ -247,23 +241,18 @@ export function CategoryDashboard() {
   return (
     <section id="dashboard" className="relative mx-auto w-full max-w-5xl px-4 pb-24 sm:px-6">
       
-      {/* 🔥 가입 축하 & 공유 마케팅 모달 */}
+      {/* 🌟 가입 축하 & 공유 마케팅 모달 */}
       {showWelcomeModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-300">
           <div className="mx-4 w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl dark:bg-slate-900">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 mb-6">
               <Gift className="size-10 text-primary animate-bounce" />
             </div>
             <h2 className="text-2xl font-black text-foreground mb-2">🎉 가입을 환영합니다!</h2>
-            <p className="text-muted-foreground mb-6">
-              첫 가입 축하 선물로 <strong className="text-primary font-bold">무료 10 크레딧</strong>이 지급되었습니다.
-            </p>
+            <p className="text-muted-foreground mb-6">첫 가입 축하 선물로 <strong className="text-primary font-bold">무료 10 크레딧</strong>이 지급되었습니다.</p>
             <div className="rounded-xl bg-primary/5 p-4 border border-primary/20 mb-6 text-left">
               <p className="text-[14px] font-semibold text-foreground mb-1 text-center">🎁 보너스 크레딧 이벤트</p>
-              <p className="text-[13px] text-muted-foreground text-center">
-                아래 링크를 친구들에게 전달해주세요!<br/>
-                친구 가입 시 <strong className="text-primary">20 크레딧</strong>을 추가로 드립니다.
-              </p>
+              <p className="text-[13px] text-muted-foreground text-center">아래 링크를 친구들에게 전달해주세요!<br/>친구 가입 시 <strong className="text-primary">20 크레딧</strong>을 무제한으로 드립니다.</p>
             </div>
             <Button onClick={handleCopyShareLink} className="w-full h-12 text-[15px] font-bold mb-3 shadow-lg">
               <Share2 className="mr-2 size-5" /> 내 초대 링크 복사하기
@@ -271,6 +260,18 @@ export function CategoryDashboard() {
             <button onClick={() => setShowWelcomeModal(false)} className="mt-2 text-[13px] text-muted-foreground underline hover:text-foreground">
               나중에 하기
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 통통 튀는 무료 룰렛 모달창 */}
+      {showRouletteModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-300 p-4">
+          <div className="relative w-full max-w-sm rounded-[2rem] bg-white p-8 shadow-2xl dark:bg-slate-900">
+            <button onClick={() => setShowRouletteModal(false)} className="absolute right-5 top-5 rounded-full bg-black/5 p-2 text-muted-foreground hover:bg-black/10 hover:text-foreground transition-colors dark:bg-white/10 dark:hover:bg-white/20">
+              <X className="size-5" />
+            </button>
+            <FoodRoulette />
           </div>
         </div>
       )}
@@ -310,17 +311,24 @@ export function CategoryDashboard() {
         <div className="mt-5 animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both sm:mt-8">
           <div className="glass-strong rounded-[1.75rem] p-6 shadow-glass sm:p-10">
             <div className="min-w-0">
-              <h2 className="flex flex-wrap items-center gap-x-2 gap-y-1 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              
+              {/* 🔥 여기서 룰렛 버튼이 제목 옆에 통통 튀며 나타납니다! */}
+              <h2 className="flex flex-wrap items-center gap-x-2 gap-y-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                 <img src={emojiAssets.mainSrc} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" decoding="async" loading="lazy" aria-hidden />
                 <span>{emojiAssets.formTitleLabel} · 입력</span>
+                {selectedCategory === "food" && (
+                  <button 
+                    onClick={() => setShowRouletteModal(true)}
+                    className="ml-2 animate-bounce rounded-full bg-gradient-to-r from-primary to-blue-500 px-3 py-1 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105"
+                  >
+                    🎲 무료 랜덤 뽑기
+                  </button>
+                )}
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">{CATEGORY_DESC[selectedCategory]}</p>
             </div>
 
             <div className="pt-8">
-              {/* 🔥 음식(뭐먹지) 탭을 열었을 때만 무료 룰렛 게임이 제일 상단에 등장! */}
-              {selectedCategory === "food" && <FoodRoulette />}
-
               <CategoryFormShell isAnalyzing={isAnalyzing} onAnalyze={handleAnalyze} expectedCredits={expectedCredits}>
                 <CategoryPanelForm categoryId={selectedCategory} forms={forms} onFormsChange={setForms} disabled={isAnalyzing} />
               </CategoryFormShell>
