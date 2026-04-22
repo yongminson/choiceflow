@@ -24,7 +24,7 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-xl font-bold text-foreground mb-4">1. 수집하는 개인정보의 항목 및 수집 방법</h2>
           <ul className="list-disc pl-5 space-y-2">
-            <li><strong>필수 수집 항목:</strong> 이메일 주소, 비밀번호(암호화 처리)</li>
+            <li><strong>필수 수집 항목:</strong> 필수 수집 항목: 카카오/구글 연동을 통한 식별 이메일 주소</li>
             <li><strong>결제 시 수집 항목:</strong> 결제 수단 정보, 결제 기록 (결제대행사(PG)를 통해 안전하게 처리되며 회사 서버에 금융 정보를 직접 저장하지 않습니다.)</li>
             <li><strong>자동 수집 항목:</strong> IP 주소, 쿠키, 서비스 이용 기록(분석 요청 내역 등)</li>
           </ul>

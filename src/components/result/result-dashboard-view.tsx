@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 import type { AnalyzeApiResult } from "@/lib/types/analyze";
 import { AnalysisAffiliateSection } from "@/components/result/analysis-affiliate-section";
 
+// 🔥 유저 정보를 가져와서 초대 링크를 만들기 위해 추가!
+import { useSupabaseUser } from "@/components/auth/use-supabase-user";
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -41,23 +44,11 @@ function MetricBar({ percent, label, icon, isDanger }: { percent: number; label:
   return (
     <div className="flex w-full flex-1 flex-col space-y-2.5">
       <div className="flex items-end justify-between gap-4">
-        <span className="flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-muted-foreground">
-          {icon}
-          {label}
-        </span>
-        <span className={cn("font-display text-2xl font-bold tabular-nums tracking-tight sm:text-3xl", isDanger ? "text-rose-500" : "text-foreground")}>
-          {p}
-          <span className="text-lg font-semibold text-muted-foreground">%</span>
-        </span>
+        <span className="flex items-center gap-1.5 text-[13px] font-semibold tracking-wide text-muted-foreground">{icon}{label}</span>
+        <span className={cn("font-display text-2xl font-bold tabular-nums tracking-tight sm:text-3xl", isDanger ? "text-rose-500" : "text-foreground")}>{p}<span className="text-lg font-semibold text-muted-foreground">%</span></span>
       </div>
       <div className={cn("h-4 w-full overflow-hidden rounded-full shadow-inner", isDanger ? "bg-rose-500/15 dark:bg-rose-500/20" : "bg-white/25 dark:bg-white/10")}>
-        <div
-          className={cn(
-            "h-full rounded-full transition-[width] duration-1000 ease-out",
-            isDanger ? "bg-gradient-to-r from-rose-400 to-rose-600 shadow-[0_0_20px_rgba(225,29,72,0.4)]" : "bg-gradient-to-r from-primary via-primary to-violet-400/90 shadow-[0_0_20px_oklch(0.55_0.18_252/0.45)]"
-          )}
-          style={{ width: `${p}%` }}
-        />
+        <div className={cn("h-full rounded-full transition-[width] duration-1000 ease-out", isDanger ? "bg-gradient-to-r from-rose-400 to-rose-600 shadow-[0_0_20px_rgba(225,29,72,0.4)]" : "bg-gradient-to-r from-primary via-primary to-violet-400/90 shadow-[0_0_20px_oklch(0.55_0.18_252/0.45)]")} style={{ width: `${p}%` }} />
       </div>
     </div>
   );
@@ -69,21 +60,22 @@ export function ResultDashboardView() {
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  
+  // 🔥 유저 정보를 가져옵니다.
+  const user = useSupabaseUser();
 
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("choiceResult");
       if (!raw || !raw.trim()) {
         setError("저장된 분석 결과가 없습니다. 홈에서 다시 분석해 주세요.");
-        setHydrated(true);
-        return;
+        setHydrated(true); return;
       }
       const parsedRaw: unknown = JSON.parse(raw);
       const parsed = isRecord(parsedRaw) ? normalizeChoiceResultPayload(parsedRaw) : parsedRaw;
       if (!isAnalyzeApiResult(parsed)) {
         setError("결과 형식이 올바르지 않거나 이전 버전의 데이터입니다. 다시 분석해 주세요.");
-        setHydrated(true);
-        return;
+        setHydrated(true); return;
       }
       setData(parsed);
     } catch {
@@ -108,50 +100,32 @@ export function ResultDashboardView() {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       const dataUrl = await toPng(el, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
+        cacheBust: true, pixelRatio: 2, backgroundColor: "#ffffff",
         filter: (node) => {
-          if (node instanceof HTMLElement && node.classList.contains("no-capture")) {
-            return false;
-          }
+          if (node instanceof HTMLElement && node.classList.contains("no-capture")) return false;
           return true;
         },
       });
 
-      // 🔥 1. 이미지를 파일 객체로 변환
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], `choiceflow-${Date.now()}.png`, { type: "image/png" });
 
-      // 🔥 다운로드용 도우미 함수 (PC이거나 공유 실패 시 사용)
       const forceDownload = (url: string) => {
         const a = document.createElement("a");
-        a.href = url;
-        a.download = `choiceflow-${Date.now()}.png`;
-        a.click();
+        a.href = url; a.download = `choiceflow-${Date.now()}.png`; a.click();
         toast.success("결과 화면이 사진으로 저장되었습니다! 📸");
       };
 
-      // 🔥 2. 모바일/공유 지원 기기인지 확인 후 공유창 띄우기
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
-          await navigator.share({
-            title: "ChoiceFlow AI 분석 결과",
-            files: [file],
-          });
-          // 유저가 공유를 완료했을 때
+          await navigator.share({ title: "ChoiceFlow AI 분석 결과", files: [file] });
           toast.success("공유창이 열렸습니다! 🚀");
         } catch (shareError: any) {
-          // 유저가 공유창을 그냥 닫은 경우(취소)에는 에러 안 띄움
-          if (shareError.name !== "AbortError") {
-            forceDownload(dataUrl); // 예상치 못한 에러면 그냥 다운로드시켜버림
-          }
+          if (shareError.name !== "AbortError") forceDownload(dataUrl);
         }
       } else {
-        // PC 등 공유 기능을 지원하지 않는 브라우저면 바로 다운로드
         forceDownload(dataUrl);
       }
-
     } catch (e) {
       console.error("캡처 에러:", e);
       toast.error("이미지 처리에 실패했습니다.");
@@ -160,16 +134,23 @@ export function ResultDashboardView() {
     }
   }, []);
 
+  // 🔥 [핵심 기능] 결과창 링크 복사 시, 대표님의 메인화면 초대 링크로 변신!
   const handleCopyLink = useCallback(async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    if (!url) return;
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    // 로그인 상태면 초대 링크 생성, 아니면 그냥 메인 링크 복사
+    const shareUrl = user ? `${baseUrl}/?ref=${user.id}` : baseUrl;
+    
     try {
-      await navigator.clipboard.writeText(url);
-      toast.success("링크를 복사했습니다.");
+      await navigator.clipboard.writeText(shareUrl);
+      if (user) {
+        toast.success("결과 링크가 복사되었습니다! 친구가 가입하면 크레딧을 받아요 🚀");
+      } else {
+        toast.success("링크를 복사했습니다.");
+      }
     } catch {
       toast.error("복사에 실패했습니다.");
     }
-  }, []);
+  }, [user]);
 
   if (!hydrated) {
     return <div className="flex min-h-[calc(100dvh-3.5rem)] w-full flex-col items-center justify-center"><p className="text-sm text-muted-foreground">결과를 불러오는 중…</p></div>;
@@ -191,7 +172,7 @@ export function ResultDashboardView() {
   const winnerIsA = m.winner === "A";
   const showSajuPremium = m.myeongunDeepDataEnabled === true && !!m.sajuSynergy;
   const reviews = m.realReviews || [];
-  const isFoodCategory = m.categoryId === "food"; // 🔥 카테고리가 음식인지 확인
+  const isFoodCategory = m.categoryId === "food";
 
   return (
     <div className="relative flex min-h-[calc(100dvh-3.5rem)] w-full flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
@@ -217,22 +198,16 @@ export function ResultDashboardView() {
         {m.comparisonMetrics && m.comparisonMetrics.length > 0 && (
           <section className="mt-12 overflow-hidden rounded-2xl border border-white/25 bg-white/[0.12] p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] sm:p-8">
             <div className="mb-8 flex items-center justify-center gap-2.5">
-              <div className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-primary">
-                <BarChart3 className="size-5" />
-              </div>
-              <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
-                AI 심층 분석 스탯 비교
-              </h3>
+              <div className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-primary"><BarChart3 className="size-5" /></div>
+              <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">AI 심층 분석 스탯 비교</h3>
             </div>
             
             <div className="mb-8 flex justify-center gap-8 sm:gap-16 text-[14px] font-bold">
               <div className={cn("flex items-center gap-2", winnerIsA ? "text-rose-500 text-[15px]" : "text-indigo-600 dark:text-indigo-400")}>
-                <span className={cn("size-3 rounded-full", winnerIsA ? "bg-rose-500" : "bg-indigo-500")}></span>
-                {winnerIsA && "🏆 "} {m.optionALabel || "옵션 A"} {winnerIsA && "(승)"}
+                <span className={cn("size-3 rounded-full", winnerIsA ? "bg-rose-500" : "bg-indigo-500")}></span>{winnerIsA && "🏆 "} {m.optionALabel || "옵션 A"} {winnerIsA && "(승)"}
               </div>
               <div className={cn("flex items-center gap-2", !winnerIsA ? "text-rose-500 text-[15px]" : "text-sky-600 dark:text-sky-400")}>
-                {!winnerIsA && "🏆 "} {m.optionBLabel || "옵션 B"} {!winnerIsA && "(승)"}
-                <span className={cn("size-3 rounded-full", !winnerIsA ? "bg-rose-500" : "bg-sky-400")}></span>
+                {!winnerIsA && "🏆 "} {m.optionBLabel || "옵션 B"} {!winnerIsA && "(승)"}<span className={cn("size-3 rounded-full", !winnerIsA ? "bg-rose-500" : "bg-sky-400")}></span>
               </div>
             </div>
 
@@ -247,11 +222,7 @@ export function ResultDashboardView() {
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="w-[80px] shrink-0 break-keep text-center text-[11px] font-bold text-foreground/80 sm:w-[100px] sm:text-[13px]">
-                    {metric.label}
-                  </div>
-
+                  <div className="w-[80px] shrink-0 break-keep text-center text-[11px] font-bold text-foreground/80 sm:w-[100px] sm:text-[13px]">{metric.label}</div>
                   <div className="flex flex-1 justify-start">
                     <div className="flex w-full items-center justify-start gap-2 sm:gap-3">
                     <div className="h-3 w-[60px] min-w-[60px] overflow-hidden rounded-r-full bg-black/5 shadow-inner dark:bg-white/5 sm:w-[150px]">
@@ -297,12 +268,8 @@ export function ResultDashboardView() {
                 ))}
                 <tr className="bg-rose-500/[0.06] dark:bg-rose-500/[0.15]">
                   <td className="px-4 py-3.5 font-bold text-rose-600 dark:text-rose-300 sm:px-6">단점·우려</td>
-                  <td className="px-4 py-3.5 align-top text-slate-800 dark:text-white sm:px-6">
-                    <ul className="list-inside list-disc space-y-1.5">{m.table?.A?.cons?.map((c, idx) => <li key={`a-con-${idx}`}>{c}</li>)}</ul>
-                  </td>
-                  <td className="px-4 py-3.5 align-top text-slate-800 dark:text-white sm:px-6">
-                    <ul className="list-inside list-disc space-y-1.5">{m.table?.B?.cons?.map((c, idx) => <li key={`b-con-${idx}`}>{c}</li>)}</ul>
-                  </td>
+                  <td className="px-4 py-3.5 align-top text-slate-800 dark:text-white sm:px-6"><ul className="list-inside list-disc space-y-1.5">{m.table?.A?.cons?.map((c, idx) => <li key={`a-con-${idx}`}>{c}</li>)}</ul></td>
+                  <td className="px-4 py-3.5 align-top text-slate-800 dark:text-white sm:px-6"><ul className="list-inside list-disc space-y-1.5">{m.table?.B?.cons?.map((c, idx) => <li key={`b-con-${idx}`}>{c}</li>)}</ul></td>
                 </tr>
               </tbody>
             </table>
@@ -311,11 +278,7 @@ export function ResultDashboardView() {
 
         <section className="mt-10 sm:mt-12">
           <div className="rounded-2xl border border-slate-200/90 bg-slate-50/95 p-6 shadow-[0_8px_40px_-12px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-white/15 dark:bg-white/[0.09] sm:p-8">
-          <h3 className="text-center font-display text-xl font-bold tracking-[-0.03em] sm:text-2xl">
-          <span className="text-amber-600 dark:text-amber-400">
-  💡 0.1% 전문가의 결정적 이유
-</span>
-</h3>
+            <h3 className="text-center font-display text-xl font-bold tracking-[-0.03em] sm:text-2xl"><span className="text-amber-600 dark:text-amber-400">💡 0.1% 전문가의 결정적 이유</span></h3>
             <p className="mt-6 whitespace-pre-wrap text-pretty text-[15px] leading-[1.75] text-foreground/95 sm:text-base">{m.killerInsight}</p>
             <div className="mt-8 border-t border-slate-200/90 pt-6 dark:border-white/12">
               <p className="text-center font-display text-[15px] font-bold leading-snug tracking-[-0.02em] text-foreground sm:text-lg">{m.summary}</p>
@@ -323,18 +286,12 @@ export function ResultDashboardView() {
           </div>
         </section>
 
-        {/* 🔥 음식이 아닐 때만 리뷰 상자를 보여줍니다! */}
         {reviews.length > 0 && !isFoodCategory && (
           <section className="mt-8 sm:mt-10">
             <div className="rounded-2xl border border-white/25 bg-white/[0.12] p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] sm:p-8">
               <div className="mb-6 flex items-center gap-2.5">
-                <div className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-primary">
-                  <MessageSquare className="size-5" />
-                </div>
-                {/* 🔥 음식 카테고리일 때 제목을 "AI 조언"으로 변신! */}
-                <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
-                  AI 검색 기반 실사용자 리뷰 요약
-                </h3>
+                <div className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-primary"><MessageSquare className="size-5" /></div>
+                <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">AI 검색 기반 실사용자 리뷰 요약</h3>
               </div>
               <div className="grid gap-3">
                 {reviews.map((review, idx) => {
@@ -353,31 +310,18 @@ export function ResultDashboardView() {
           </section>
         )}
 
-        {/* 1. 메인 승자 추천 섹션 (음식일 때는 네이버 지도, 그 외는 쿠팡) */}
         {isFoodCategory ? (
           <section className="mt-8 sm:mt-10">
-            <a
-              href={`https://map.naver.com/p/search/${encodeURIComponent(m.searchKeyword || m.winnerName)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="relative block rounded-2xl border-2 border-emerald-400/50 bg-gradient-to-br from-emerald-500/10 to-teal-400/5 p-6 shadow-[0_0_30px_rgba(16,185,129,0.15)] backdrop-blur-md transition-all hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(16,185,129,0.25)] sm:p-8 cursor-pointer group"
-            >
+            <a href={`https://map.naver.com/p/search/${encodeURIComponent(m.searchKeyword || m.winnerName)}`} target="_blank" rel="noopener noreferrer" className="relative block rounded-2xl border-2 border-emerald-400/50 bg-gradient-to-br from-emerald-500/10 to-teal-400/5 p-6 shadow-[0_0_30px_rgba(16,185,129,0.15)] backdrop-blur-md transition-all hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(16,185,129,0.25)] sm:p-8 cursor-pointer group">
               <div className="mb-4 flex items-center gap-2.5">
-                <div className="flex size-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-transform group-hover:scale-110">
-                  <MapPin className="size-5" />
-                </div>
-                <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl group-hover:text-emerald-600 transition-colors">
-                  🗺️ 내 주변 · 지역 추천 검색
-                </h3>
+                <div className="flex size-10 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-transform group-hover:scale-110"><MapPin className="size-5" /></div>
+                <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl group-hover:text-emerald-600 transition-colors">🗺️ 내 주변 · 지역 추천 검색</h3>
               </div>
               <p className="mb-3 text-xl font-bold text-foreground">&apos;{m.searchKeyword || m.winnerName}&apos; 바로 검색하기</p>
-              <p className="mb-6 text-[15px] leading-relaxed text-foreground/80">
-                선택된 결과를 네이버 지도에서 바로 확인해 보세요!
-              </p>
+              <p className="mb-6 text-[15px] leading-relaxed text-foreground/80">선택된 결과를 네이버 지도에서 바로 확인해 보세요!</p>
               <div className="mt-4 border-t border-emerald-400/20 pt-5">
                 <div className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3.5 text-[15px] font-bold text-white shadow-md transition-all group-hover:bg-emerald-600 group-hover:shadow-lg">
-                  <Search className="size-4.5" />
-                  네이버 지도 검색하기
+                  <Search className="size-4.5" /> 네이버 지도 검색하기
                 </div>
               </div>
             </a>
@@ -386,39 +330,24 @@ export function ResultDashboardView() {
           <AnalysisAffiliateSection data={m} />
         )}
 
-        {/* 2. 그 아래에 제3의 대안 (Option C) 띄움 */}
         {m.optionC && m.optionC.name && (
           <section className="mt-8 sm:mt-10">
-            <a
-              href={m.optionC.searchKeyword ? buildDirectCoupangNpSearchUrl(m.optionC.searchKeyword) : "#"}
-              target={m.optionC.searchKeyword ? "_blank" : undefined}
-              rel={m.optionC.searchKeyword ? "noopener noreferrer sponsored" : undefined}
-              className="relative block rounded-2xl border-2 border-amber-400/50 bg-gradient-to-br from-amber-500/10 to-orange-400/5 p-6 shadow-[0_0_30px_rgba(251,191,36,0.15)] backdrop-blur-md transition-all hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(251,191,36,0.25)] sm:p-8 cursor-pointer group"
-            >
-              {/* 🎁 우측 상단 통통 튀는 뱃지 */}
+            <a href={m.optionC.searchKeyword ? buildDirectCoupangNpSearchUrl(m.optionC.searchKeyword) : "#"} target={m.optionC.searchKeyword ? "_blank" : undefined} rel={m.optionC.searchKeyword ? "noopener noreferrer sponsored" : undefined} className="relative block rounded-2xl border-2 border-amber-400/50 bg-gradient-to-br from-amber-500/10 to-orange-400/5 p-6 shadow-[0_0_30px_rgba(251,191,36,0.15)] backdrop-blur-md transition-all hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(251,191,36,0.25)] sm:p-8 cursor-pointer group">
               {m.optionC.searchKeyword && (
                 <div className="absolute -top-5 -right-3 animate-bounce z-10 drop-shadow-xl group-hover:scale-110 transition-transform">
-                  <span className="text-5xl" style={{ filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.2))" }}>
-                    🎁
-                  </span>
+                  <span className="text-5xl" style={{ filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.2))" }}>🎁</span>
                 </div>
               )}
-
               <div className="mb-4 flex items-center gap-2.5">
-                <div className="flex size-10 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-transform group-hover:scale-110">
-                  <Gift className="size-5" />
-                </div>
+                <div className="flex size-10 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-transform group-hover:scale-110"><Gift className="size-5" /></div>
                 <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl group-hover:text-amber-600 transition-colors">🎁 AI가 찾아낸 숨겨진 대안 (Option C)</h3>
               </div>
               <p className="mb-3 text-xl font-bold text-foreground">{m.optionC.name}</p>
               <p className="mb-6 text-[15px] leading-relaxed text-foreground/80">{m.optionC.reason}</p>
-              
               {m.optionC.searchKeyword && (
                 <div className="mt-4 border-t border-amber-400/20 pt-5">
                   <div className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-3.5 text-[15px] font-bold text-white shadow-md transition-all group-hover:bg-amber-600 group-hover:shadow-lg">
-                    <Search className="size-4.5" />
-                    {/* 🔥 음식 카테고리일 땐 버튼 멘트도 살짝 자연스럽게 변경! */}
-                    {isFoodCategory ? "집에서 즐기는 상품/밀키트 확인하기" : "대안 상품 (Option C) 가격 확인하기"}
+                    <Search className="size-4.5" /> {isFoodCategory ? "집에서 즐기는 상품/밀키트 확인하기" : "대안 상품 (Option C) 가격 확인하기"}
                   </div>
                 </div>
               )}
@@ -428,23 +357,20 @@ export function ResultDashboardView() {
 
         {showSajuPremium && (
           <div className="mt-10 rounded-2xl border border-violet-400/25 bg-gradient-to-br from-violet-600/90 via-purple-700/85 to-indigo-900/90 p-6 text-white shadow-[0_20px_60px_-15px_rgba(91,33,182,0.55)] sm:p-8">
-            <div className="mb-3 flex items-center gap-2">
-              <Sparkles className="size-5 shrink-0 opacity-95" aria-hidden />
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-100/90">Premium Report</span>
-            </div>
+            <div className="mb-3 flex items-center gap-2"><Sparkles className="size-5 shrink-0 opacity-95" aria-hidden /><span className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-100/90">Premium Report</span></div>
             <p className="text-pretty text-[15px] font-medium leading-relaxed sm:text-base">{m.sajuSynergy}</p>
           </div>
         )}
 
-        {/* 👇 여기 맨 끝에 no-capture 가 추가되었습니다! */}
         <div className="mt-10 flex flex-col items-stretch gap-3 border-t border-white/15 pt-10 dark:border-white/10 sm:items-center no-capture">
           <div className="flex w-full flex-col flex-wrap items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:justify-center">
             <Link href="/" className={cn(buttonVariants({ variant: "default" }), "inline-flex min-h-[52px] min-w-[200px] flex-1 items-center justify-center rounded-full px-8 text-[15px] font-semibold shadow-glass-sm sm:min-w-[240px] sm:flex-none sm:px-10")}>다시 분석하기</Link>
             <Button type="button" variant="outline" size="lg" disabled={savingImage} className="min-h-[52px] flex-1 rounded-full px-6 text-[15px] font-semibold sm:flex-none" onClick={() => void handleSaveImage()}>
               {savingImage ? <Loader2 className="me-2 size-5 animate-spin" aria-hidden /> : null} 📸 결과 이미지로 저장
             </Button>
+            {/* 🔥 초대 링크를 복사하도록 변경된 버튼 */}
             <Button type="button" variant="outline" size="lg" className="min-h-[52px] flex-1 rounded-full px-6 text-[15px] font-semibold sm:flex-none" onClick={() => void handleCopyLink()}>
-              <Link2 className="me-2 size-4 opacity-80" aria-hidden /> 🔗 링크 복사
+              <Link2 className="me-2 size-4 opacity-80" aria-hidden /> 🔗 결과 공유하기
             </Button>
           </div>
         </div>
