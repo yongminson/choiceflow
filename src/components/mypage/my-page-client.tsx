@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Coins, LogOut, Sparkles, X, Key, UserMinus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 
 import { useCreditsRefresh } from "@/components/auth/credits-refresh-context";
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
@@ -137,19 +138,30 @@ export function MyPageClient() {
     if (!isConfirm) return;
 
     try {
-      // 프론트엔드에서 직접 지우지 않고, 우리가 만든 API 서버에 삭제 '요청'을 보냅니다!
+      // 1. API 서버로 탈퇴 요청을 보냅니다.
       const response = await fetch('/api/auth/delete-account', {
         method: 'POST',
       });
 
-      if (!response.ok) throw new Error('탈퇴 실패');
+      // 2. 서버가 보낸 결과를 읽어옵니다.
+      const data = await response.json();
 
-      // 탈퇴 성공 시, 남아있는 세션(쿠키)을 지우고 메인으로 쫓아냅니다.
+      if (!response.ok) {
+        // 만약 여기서도 실패한다면, 뭉뚱그린 에러가 아니라 '진짜 원인'을 경고창에 띄웁니다.
+        alert(`탈퇴 실패 원인: ${data.error}`); 
+        return;
+      }
+
+      // 3. 🌟 에러 해결 부분: 클라이언트를 직접 불러와서 로그아웃 시킵니다!
+      const supabase = createClient();
       await supabase.auth.signOut();
+      
+      // 4. 깔끔하게 메인으로 이동
+      alert('회원 탈퇴가 완료되었습니다.');
       window.location.href = '/'; 
       
     } catch (error) {
-      alert('회원 탈퇴 중 오류가 발생했습니다.');
+      alert('네트워크 연결 오류가 발생했습니다.');
       console.error(error);
     }
   };
