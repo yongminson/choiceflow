@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/reset-credits",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/push/send",
+      "schedule": "0 3 * * *"
     }
   ]
 }
