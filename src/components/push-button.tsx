@@ -77,7 +77,7 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
         title="무료뽑기 알림 받기"
         className="flex size-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 shadow-sm transition-transform hover:scale-110 hover:bg-indigo-100 dark:bg-indigo-500/20 dark:text-indigo-400"
       >
-        <BellRing className="size-5 animate-pulse" />
+        <BellRing className="size-5 animate-bounce text-indigo-500" />
       </button>
     );
   }
@@ -88,7 +88,7 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
       onClick={handleSubscribe} 
       className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-3 text-[14px] font-bold text-white shadow-lg transition-transform hover:scale-[1.02] animate-in zoom-in"
     >
-      <BellRing className="size-5 animate-pulse" />
+      <BellRing className="size-5 animate-bounce text-indigo-500" />
       매일 무료뽑기 & 크레딧 알림 받기
     </button>
   );
