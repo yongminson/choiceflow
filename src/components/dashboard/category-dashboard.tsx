@@ -316,10 +316,13 @@ export function CategoryDashboard() {
 
       <GuardrailRejectedModal open={guardrailOpen} reason={guardrailReason} onRetry={() => setGuardrailOpen(false)} />
       
+      {/* 🔥 메인 컨테이너 시작 (이 블록 '안쪽'에 배너를 넣어야 아이콘 바로 밑에 붙습니다!) */}
       <div className={cn("flex flex-col items-center justify-center px-1 text-center", isFormOpen ? "min-h-0 pt-8 sm:pt-10" : "min-h-[calc(100dvh-5.5rem)] sm:min-h-[calc(100dvh-6rem)]")}>
         <h1 className="font-display max-w-4xl text-balance text-[1.65rem] font-semibold leading-[1.12] tracking-[-0.045em] text-foreground sm:text-4xl md:text-5xl md:leading-[1.08]">
           어떤 선택이 <span className="mt-1.5 block bg-gradient-to-br from-primary via-primary to-foreground/65 bg-clip-text text-transparent sm:mt-2.5">고민이신가요?</span>
         </h1>
+        
+        {/* 6개 아이콘 그룹 */}
         <div className={cn("mt-8 w-full max-w-[60rem] mx-auto sm:mt-9 md:mt-10", "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-6 md:gap-3 lg:gap-4")}>
           {CATEGORY_ORDER.map((id) => {
             const selected = selectedCategory === id;
@@ -331,36 +334,36 @@ export function CategoryDashboard() {
             );
           })}
         </div>
-      </div>
 
-      {/* 🔥 임시 쿠팡 파트너스 배너 시작 (아이콘 바로 밑으로 끌어올림) */}
-      <div className="mx-auto mt-8 w-full max-w-2xl px-4 sm:px-6">
-        <a
-          // 👇여기에 쿠팡 파트너스에서 발급받은 '진짜 단축 링크'를 넣으셔야 합니다!!
-          href="https://link.coupang.com/a/https://link.coupang.com/a/euX8yu"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full items-center justify-between overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 p-5 shadow-sm transition-transform hover:scale-[1.02] dark:border-blue-900 dark:from-blue-950/40 dark:to-blue-900/40"
-        >
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-blue-600 dark:text-blue-400">🔥 ChoiceFlow 런칭 기념</span>
-            <span className="mt-1 font-display text-[17px] font-black tracking-tight text-slate-800 dark:text-slate-100 sm:text-lg">
-              로켓배송으로 생필품 구경가기 &rarr;
-            </span>
-          </div>
-          <div className="flex shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm">
-            <img 
-              src="https://image9.coupangcdn.com/image/coupang/common/logo_coupang_w350.png" 
-              alt="쿠팡 로켓배송" 
-              className="h-6 w-auto object-contain sm:h-8" 
-            />
-          </div>
-        </a>
-        <p className="mt-3 text-center text-[11px] text-muted-foreground/60">
-          이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
-        </p>
+        {/* 🔥 임시 쿠팡 파트너스 배너 (여기로 쏙 들어왔습니다!) */}
+        <div className="mx-auto mt-10 w-full max-w-[60rem] px-2 sm:px-0">
+          <a
+            href="https://link.coupang.com/a/euX8yu"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-between overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 p-4 sm:p-5 shadow-sm transition-transform hover:scale-[1.02] dark:border-blue-900 dark:from-blue-950/40 dark:to-blue-900/40"
+          >
+            <div className="flex flex-col text-left">
+              <span className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400">🔥 ChoiceFlow 런칭 기념</span>
+              <span className="mt-1 font-display text-[15px] sm:text-[17px] font-black tracking-tight text-slate-800 dark:text-slate-100">
+                로켓배송으로 생필품 구경가기 &rarr;
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ml-4">
+              <img 
+                src="https://image9.coupangcdn.com/image/coupang/common/logo_coupang_w350.png" 
+                alt="쿠팡 로켓배송" 
+                className="h-5 w-auto object-contain sm:h-7" 
+              />
+            </div>
+          </a>
+          <p className="mt-2.5 text-center text-[10px] sm:text-[11px] text-muted-foreground/60">
+            이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+          </p>
+        </div>
+        {/* 🔥 배너 끝 */}
+
       </div>
-      {/* 🔥 임시 쿠팡 파트너스 배너 끝 */}
 
       {isFormOpen && (
         <div className="mt-5 animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both sm:mt-8">
