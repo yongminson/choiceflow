@@ -107,7 +107,7 @@ function FoodRoulette({ onShare }: { onShare: () => void }) {
 }
 // =====================================================================
 
-const CATEGORY_LABELS: Record<CategoryId, string> = { food: "뭐 먹을까?", gift: "선물상담", appliance: "홈&가전", fashion: "패션", date: "데이트/여행", asset: "고가자산" };
+const CATEGORY_LABELS: Record<CategoryId, string> = { food: "뭐 먹을까?", gift: "선물상담", appliance: "홈&가전", fashion: "패션", date: "데이트/여행", asset: "고가자산/렌탈" };
 const CATEGORY_DESC: Record<CategoryId, string> = { food: "AI 분석 또는 무료 랜덤뽑기를 이용해보세요!", gift: "관계와 예산에 맞는 선물을 좁혀 드려요.", appliance: "제품 스펙과 가성비를 나란히 비교해요.", fashion: "스타일·가격·핏을 한 번에 정리해요.", date: "여행·데이트 코스와 예산을 함께 정리해요.", asset: "리스크와 기간을 반영한 선택을 돕습니다." };
 const LOADING_TEXTS = ["10만 건의 실사용자 빅데이터를 스캔하고 있습니다...", "선택하신 옵션의 가성비와 장단점을 비교 중입니다...", "결정적인 제3의 대안(Option C)을 탐색하는 중입니다...", "최종 리포트를 생성하고 있습니다. 잠시만 기다려주세요!"];
 const LOADING_EMOJIS = ["👀", "🤔", "💡", "🔍", "😉", "✨"];
