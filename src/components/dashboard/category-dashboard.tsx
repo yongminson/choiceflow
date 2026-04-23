@@ -338,7 +338,7 @@ export function CategoryDashboard() {
         {/* 🔥 임시 쿠팡 파트너스 배너 (여기로 쏙 들어왔습니다!) */}
         <div className="mx-auto mt-10 w-full max-w-[60rem] px-2 sm:px-0">
           <a
-            href="https://link.coupang.com/a/euX8yu"
+            href="https://link.coupang.com/a/euZhic"
             target="_blank"
             rel="noopener noreferrer"
             className="flex w-full items-center justify-between overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 p-4 sm:p-5 shadow-sm transition-transform hover:scale-[1.02] dark:border-blue-900 dark:from-blue-950/40 dark:to-blue-900/40"
