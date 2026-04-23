@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
 import { GuardrailRejectedModal } from "@/components/analyze/guardrail-rejected-modal";
-// category-dashboard.tsx 파일 위쪽 import 부분 어딘가에 추가
 import { PushButton } from "@/components/push-button";
 import { CategoryFormShell } from "@/components/dashboard/category-form-shell";
 import { CategoryPanelForm } from "@/components/dashboard/category-panel-forms";
@@ -142,7 +141,6 @@ export function CategoryDashboard() {
     if (refCode) {
       localStorage.setItem("choiceflow_inviter", refCode);
       
-      // 🔥 초대로 온 사람에게 환영 메시지 띄우기 (한 번만)
       const isNotified = sessionStorage.getItem("invite_notified");
       if (!isNotified) {
         toast.success("🎁 지인의 초대로 오셨군요!\n가입하고 무료 10크레딧을 받아보세요!", {
@@ -283,7 +281,6 @@ export function CategoryDashboard() {
               <Share2 className="mr-2 size-5" /> 내 초대 링크 복사하기
             </Button>
             
-            {/* 🔥 방금 만든 푸시 알림 유도 버튼 추가! */}
             <div className="mb-3">
               <PushButton />
             </div>
@@ -360,6 +357,35 @@ export function CategoryDashboard() {
           </div>
         </div>
       )}
+
+      {/* 🔥 임시 쿠팡 파트너스 배너 시작 (승인 후 삭제 예정) */}
+      <div className="mx-auto mt-12 w-full max-w-2xl px-4 sm:px-6">
+        <a
+          href="https://link.coupang.com/a/여기에_대표님_링크_붙여넣기"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center justify-between overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 p-5 shadow-sm transition-transform hover:scale-[1.02] dark:border-blue-900 dark:from-blue-950/40 dark:to-blue-900/40"
+        >
+          <div className="flex flex-col">
+            <span className="text-sm font-bold text-blue-600 dark:text-blue-400">🔥 ChoiceFlow 런칭 기념</span>
+            <span className="mt-1 font-display text-[17px] font-black tracking-tight text-slate-800 dark:text-slate-100 sm:text-lg">
+              로켓배송으로 생필품 구경가기 &rarr;
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm">
+            <img 
+              src="https://image9.coupangcdn.com/image/coupang/common/logo_coupang_w350.png" 
+              alt="쿠팡 로켓배송" 
+              className="h-6 w-auto object-contain sm:h-8" 
+            />
+          </div>
+        </a>
+        <p className="mt-3 text-center text-[11px] text-muted-foreground/60">
+          이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+        </p>
+      </div>
+      {/* 🔥 임시 쿠팡 파트너스 배너 끝 */}
+
     </section>
   );
 }
