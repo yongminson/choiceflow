@@ -2,31 +2,37 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 
-// 1. VAPID 키 세팅 (아까 하드코딩한 공개키와, Vercel에 넣은 비밀키)
-const publicKey = "BIAX-LspIga8pR2ehMyiGYUK9GAywlLBQ0GHtABX-iTfIkUc-NmKTfmeY2iYWuGbq82VHRKAT3v1tVmG8FwCp6g";
-const privateKey = process.env.VAPID_PRIVATE_KEY!;
+// 🔥 [핵심 추가] Next.js가 빌드(건축)할 때 이 파일을 미리 실행해서 에러 내는 것을 막아줍니다!
+export const dynamic = "force-dynamic";
 
-webpush.setVapidDetails(
-  "mailto:admin@choiceflow.co.kr", // 관리자 이메일 (아무거나 적어도 무방합니다)
-  publicKey,
-  privateKey
-);
-
-// 2. Supabase DB 연결 (마스터키 사용)
+// DB 연결은 바깥에 둬도 안전합니다.
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// GET 요청으로 설정 (Vercel Cron은 기본적으로 GET으로 찌릅니다)
 export async function GET(req: Request) {
-  // 🔥 [보안 핵심] 아무나 이 주소를 쳐서 알림 테러를 하지 못하게 '암호(CRON_SECRET)'를 확인합니다!
+  // 1. 보안 검사 (아무나 알림 못 쏘게 막기)
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 401 });
   }
 
   try {
-    // 3. DB에서 알림을 허락한 모든 유저의 주소록 가져오기
+    const publicKey = "BIAX-LspIga8pR2ehMyiGYUK9GAywlLBQ0GHtABX-iTfIkUc-NmKTfmeY2iYWuGbq82VHRKAT3v1tVmG8FwCp6g";
+    const privateKey = process.env.VAPID_PRIVATE_KEY;
+
+    if (!privateKey) {
+        throw new Error("Vercel 환경변수에 VAPID_PRIVATE_KEY가 없습니다.");
+    }
+
+    // 우체국 세팅
+    webpush.setVapidDetails(
+      "mailto:admin@choiceflow.co.kr", 
+      publicKey,
+      privateKey
+    );
+
+    // 3. DB에서 알림을 허락한 유저들 가져오기
     const { data: subscriptions, error } = await supabase.from("push_subscriptions").select("*");
 
     if (error) throw error;
@@ -38,7 +44,7 @@ export async function GET(req: Request) {
     const payload = JSON.stringify({
       title: "🎁 오늘의 무료 1크레딧 충전 완료!",
       body: "지금 바로 접속해서 ChoiceFlow AI 분석을 무료로 이용해 보세요!",
-      url: "https://choice.ymstudio.co.kr", // 알림 누르면 이동할 주소
+      url: "https://choice.ymstudio.co.kr", 
     });
 
     // 5. 모두에게 단체 알림 발송!
@@ -48,9 +54,8 @@ export async function GET(req: Request) {
         keys: { p256dh: sub.p256dh, auth: sub.auth },
       };
       
-      // 알림 쏘기 (만약 앱을 지웠거나 차단한 유저가 섞여 있어도 에러 안 나게 처리)
       return webpush.sendNotification(pushSubscription, payload).catch((e) => {
-        console.log("알림 발송 실패 (아마 알림을 차단/삭제한 유저일 수 있음):", sub.endpoint);
+        console.log("알림 발송 실패 (차단/삭제한 유저):", sub.endpoint);
       });
     });
 
