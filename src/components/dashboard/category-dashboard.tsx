@@ -135,7 +135,6 @@ export function CategoryDashboard() {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showRouletteModal, setShowRouletteModal] = useState(false);
 
-  // 🌟 누군가 초대 링크(?ref=...)로 들어왔을 때 작동하는 로직
   useEffect(() => {
     const refCode = searchParams.get("ref");
     if (refCode) {
@@ -334,34 +333,11 @@ export function CategoryDashboard() {
         </div>
       </div>
 
-      {isFormOpen && (
-        <div className="mt-5 animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both sm:mt-8">
-          <div className="glass-strong rounded-[1.75rem] p-6 shadow-glass sm:p-10">
-            <div className="min-w-0">
-              <h2 className="flex flex-wrap items-center gap-x-2 gap-y-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-                <img src={emojiAssets.mainSrc} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" decoding="async" loading="lazy" aria-hidden />
-                <span>{emojiAssets.formTitleLabel} · 입력</span>
-                {selectedCategory === "food" && (
-                  <button onClick={() => setShowRouletteModal(true)} className="ml-2 animate-bounce rounded-full bg-gradient-to-r from-primary to-blue-500 px-3 py-1 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105">
-                    🎲 무료 랜덤뽑기
-                  </button>
-                )}
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">{CATEGORY_DESC[selectedCategory]}</p>
-            </div>
-            <div className="pt-8">
-              <CategoryFormShell isAnalyzing={isAnalyzing} onAnalyze={handleAnalyze} expectedCredits={expectedCredits}>
-                <CategoryPanelForm categoryId={selectedCategory} forms={forms} onFormsChange={setForms} disabled={isAnalyzing} />
-              </CategoryFormShell>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 🔥 임시 쿠팡 파트너스 배너 시작 (승인 후 삭제 예정) */}
-      <div className="mx-auto mt-12 w-full max-w-2xl px-4 sm:px-6">
+      {/* 🔥 임시 쿠팡 파트너스 배너 시작 (아이콘 바로 밑으로 끌어올림) */}
+      <div className="mx-auto mt-8 w-full max-w-2xl px-4 sm:px-6">
         <a
-          href="https://link.coupang.com/a/https://choice.ymstudio.co.kr/"
+          // 👇여기에 쿠팡 파트너스에서 발급받은 '진짜 단축 링크'를 넣으셔야 합니다!!
+          href="https://link.coupang.com/a/https://link.coupang.com/a/euX8yu"
           target="_blank"
           rel="noopener noreferrer"
           className="flex w-full items-center justify-between overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 p-5 shadow-sm transition-transform hover:scale-[1.02] dark:border-blue-900 dark:from-blue-950/40 dark:to-blue-900/40"
@@ -385,6 +361,30 @@ export function CategoryDashboard() {
         </p>
       </div>
       {/* 🔥 임시 쿠팡 파트너스 배너 끝 */}
+
+      {isFormOpen && (
+        <div className="mt-5 animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both sm:mt-8">
+          <div className="glass-strong rounded-[1.75rem] p-6 shadow-glass sm:p-10">
+            <div className="min-w-0">
+              <h2 className="flex flex-wrap items-center gap-x-2 gap-y-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                <img src={emojiAssets.mainSrc} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" decoding="async" loading="lazy" aria-hidden />
+                <span>{emojiAssets.formTitleLabel} · 입력</span>
+                {selectedCategory === "food" && (
+                  <button onClick={() => setShowRouletteModal(true)} className="ml-2 animate-bounce rounded-full bg-gradient-to-r from-primary to-blue-500 px-3 py-1 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105">
+                    🎲 무료 랜덤뽑기
+                  </button>
+                )}
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">{CATEGORY_DESC[selectedCategory]}</p>
+            </div>
+            <div className="pt-8">
+              <CategoryFormShell isAnalyzing={isAnalyzing} onAnalyze={handleAnalyze} expectedCredits={expectedCredits}>
+                <CategoryPanelForm categoryId={selectedCategory} forms={forms} onFormsChange={setForms} disabled={isAnalyzing} />
+              </CategoryFormShell>
+            </div>
+          </div>
+        </div>
+      )}
 
     </section>
   );
