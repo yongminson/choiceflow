@@ -9,6 +9,7 @@ import { useSupabaseUser } from "@/components/auth/use-supabase-user";
 import { useBilling } from "@/components/payment/billing-provider";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PushButton } from "@/components/push-button";
 
 export function AppNavbar() {
   const pathname = usePathname();
@@ -22,7 +23,7 @@ export function AppNavbar() {
   return (
     <header className="glass-nav fixed top-0 z-50 w-full">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-3 sm:gap-4 sm:px-6">
-      <button
+        <button
           type="button"
           className="flex shrink-0 cursor-pointer items-center gap-2 font-display text-[17px] font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90 sm:text-lg"
           aria-label="ChoiceFlow 첫 화면으로 이동"
@@ -63,6 +64,9 @@ export function AppNavbar() {
           >
             충전
           </Button>
+
+          {/* 🔥 여기에 귀여운 알림 종 모양 버튼이 들어갑니다! (사람 모양 바로 왼쪽) */}
+          <PushButton variant="icon" />
 
           <Link
             href={userHref}
