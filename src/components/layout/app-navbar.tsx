@@ -65,15 +65,17 @@ export function AppNavbar() {
             충전
           </Button>
 
-          {/* 🔥 여기에 귀여운 알림 종 모양 버튼이 들어갑니다! (사람 모양 바로 왼쪽) */}
-          <PushButton variant="icon" />
+          {/* 🔥 모바일 터치 가로챔 방지: z-index 최상위로 끌어올리고 터치 강제 활성화 */}
+          <div className="relative z-[9999] flex shrink-0 items-center justify-center touch-manipulation">
+            <PushButton variant="icon" />
+          </div>
 
           <Link
             href={userHref}
             prefetch={user !== null}
             className={cn(
               buttonVariants({ variant: "ghost", size: "icon-sm" }),
-              "rounded-full bg-white/25 backdrop-blur-md"
+              "relative z-[9999] rounded-full bg-white/25 backdrop-blur-md touch-manipulation"
             )}
             aria-label={user === null ? "로그인" : "마이페이지"}
           >
