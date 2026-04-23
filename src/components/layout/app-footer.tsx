@@ -16,7 +16,7 @@ export function AppFooter() {
             </p>
           </div>
 
-          {/* 2. 서비스 링크 (🔥 대표님 요청대로 완벽 수정!) */}
+          {/* 2. 서비스 링크 (초깔끔 다이어트!) */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               서비스
@@ -27,20 +27,10 @@ export function AppFooter() {
                   메인 홈
                 </Link>
               </li>
-              <li>
-                <Link href="/?tab=food" className="hover:text-foreground transition-colors">
-                  결정장애 무료 랜덤뽑기
-                </Link>
-              </li>
-              <li>
-                <a href="https://saju.ymstudio.co.kr/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-                  내 사주 (명운)
-                </a>
-              </li>
             </ul>
           </div>
 
-          {/* 3. 법적 고지 및 약관 (PG 심사 필수) */}
+          {/* 3. 법적 고지 및 약관 */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               고객지원 및 약관
@@ -64,7 +54,7 @@ export function AppFooter() {
             </ul>
           </div>
 
-          {/* 4. 면책 조항 및 제휴 안내 (PG 및 파트너스 필수) */}
+          {/* 4. 면책 조항 및 제휴 안내 */}
           <div className="md:col-span-1">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               제휴 및 고지
@@ -76,7 +66,7 @@ export function AppFooter() {
           </div>
         </div>
 
-        {/* 하단 사업자 정보 (PG 심사 필수 영역) */}
+        {/* 하단 사업자 정보 */}
         <div className="mt-12 border-t border-border/40 pt-8 text-[12px] text-muted-foreground leading-relaxed">
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:gap-x-4 gap-y-1">
             <span><strong>상호명</strong> : 와이엠 스튜디오 (YM Studio)</span>
@@ -85,7 +75,6 @@ export function AppFooter() {
             <span className="hidden sm:inline text-border">|</span>
             <span><strong>사업자등록번호</strong> : 510-21-21827</span>
             <span className="hidden sm:inline text-border">|</span>
-            {/* 통신판매업 신고 완료 시 아래 문구를 '제 2024-OOOO-OOOO 호' 등으로 변경하세요 */}
             <span><strong>통신판매업신고</strong> : 통신판매업 신고 진행 중</span>
           </div>
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:gap-x-4 gap-y-1 mt-1">
@@ -93,7 +82,6 @@ export function AppFooter() {
             <span className="hidden sm:inline text-border">|</span>
             <span><strong>이메일</strong> : support@ymstudio.co.kr</span>
             <span className="hidden sm:inline text-border">|</span>
-            {/* 🔥 아래 [사업장 주소를 입력해 주세요] 부분을 반드시 실제 주소로 변경하세요! */}
             <span><strong>사업장 소재지</strong> : 충청남도 아산시 둔포면 운교길129번길 14-71</span>
           </div>
           <p className="mt-6 text-center text-[11px]">

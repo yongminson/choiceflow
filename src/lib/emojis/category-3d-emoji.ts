@@ -26,7 +26,7 @@ export const CATEGORY_3D_EMOJI: Record<
   },
   asset: {
     mainSrc: "/emojis/3d-diamond.png",
-    formTitleLabel: "고가자산",
+    formTitleLabel: "고가자산/렌탈",
   },
 
   food: { mainSrc: "/emojis/food.png", formTitleLabel: "뭐 먹을까?" },
