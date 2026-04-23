@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 import type { AnalyzeApiResult } from "@/lib/types/analyze";
 import { AnalysisAffiliateSection } from "@/components/result/analysis-affiliate-section";
 
+// 🔥 방금 만든 고가자산 프리미엄 폼 가져오기
+import { ConsultationForm } from "@/components/result/consultation-form";
+
 // 🔥 유저 정보를 가져와서 초대 링크를 만들기 위해 추가!
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
 
@@ -102,6 +105,7 @@ export function ResultDashboardView() {
       const dataUrl = await toPng(el, {
         cacheBust: true, pixelRatio: 2, backgroundColor: "#ffffff",
         filter: (node) => {
+          // 캡처에서 제외할 요소들 (폼 등) 숨기기
           if (node instanceof HTMLElement && node.classList.contains("no-capture")) return false;
           return true;
         },
@@ -134,10 +138,8 @@ export function ResultDashboardView() {
     }
   }, []);
 
-  // 🔥 [핵심 기능] 결과창 링크 복사 시, 대표님의 메인화면 초대 링크로 변신!
   const handleCopyLink = useCallback(async () => {
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-    // 로그인 상태면 초대 링크 생성, 아니면 그냥 메인 링크 복사
     const shareUrl = user ? `${baseUrl}/?ref=${user.id}` : baseUrl;
     
     try {
@@ -173,6 +175,7 @@ export function ResultDashboardView() {
   const showSajuPremium = m.myeongunDeepDataEnabled === true && !!m.sajuSynergy;
   const reviews = m.realReviews || [];
   const isFoodCategory = m.categoryId === "food";
+  const isAssetCategory = m.categoryId === "asset"; // 🔥 고가자산 카테고리 여부 확인
 
   return (
     <div className="relative flex min-h-[calc(100dvh-3.5rem)] w-full flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
@@ -310,6 +313,7 @@ export function ResultDashboardView() {
           </section>
         )}
 
+        {/* 🔥 가장 핵심이 되는 부분! 조건에 따라 렌더링이 갈립니다. */}
         {isFoodCategory ? (
           <section className="mt-8 sm:mt-10">
             <a href={`https://map.naver.com/p/search/${encodeURIComponent(m.searchKeyword || m.winnerName)}`} target="_blank" rel="noopener noreferrer" className="relative block rounded-2xl border-2 border-emerald-400/50 bg-gradient-to-br from-emerald-500/10 to-teal-400/5 p-6 shadow-[0_0_30px_rgba(16,185,129,0.15)] backdrop-blur-md transition-all hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(16,185,129,0.25)] sm:p-8 cursor-pointer group">
@@ -326,11 +330,17 @@ export function ResultDashboardView() {
               </div>
             </a>
           </section>
+        ) : isAssetCategory ? (
+          // 💎 고가자산일 경우에만 '프리미엄 상담 폼'을 화면에 띄웁니다!
+          <div className="no-capture w-full">
+            <ConsultationForm categoryName="고가자산" />
+          </div>
         ) : (
+          // 🛍️ 그 외 일반 카테고리는 쿠팡 영역 노출
           <AnalysisAffiliateSection data={m} />
         )}
 
-        {m.optionC && m.optionC.name && (
+        {m.optionC && m.optionC.name && !isAssetCategory && (
           <section className="mt-8 sm:mt-10">
             <a href={m.optionC.searchKeyword ? buildDirectCoupangNpSearchUrl(m.optionC.searchKeyword) : "#"} target={m.optionC.searchKeyword ? "_blank" : undefined} rel={m.optionC.searchKeyword ? "noopener noreferrer sponsored" : undefined} className="relative block rounded-2xl border-2 border-amber-400/50 bg-gradient-to-br from-amber-500/10 to-orange-400/5 p-6 shadow-[0_0_30px_rgba(251,191,36,0.15)] backdrop-blur-md transition-all hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(251,191,36,0.25)] sm:p-8 cursor-pointer group">
               {m.optionC.searchKeyword && (
@@ -347,7 +357,7 @@ export function ResultDashboardView() {
               {m.optionC.searchKeyword && (
                 <div className="mt-4 border-t border-amber-400/20 pt-5">
                   <div className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-3.5 text-[15px] font-bold text-white shadow-md transition-all group-hover:bg-amber-600 group-hover:shadow-lg">
-                    <Search className="size-4.5" /> {isFoodCategory ? "집에서 즐기는 상품/밀키트 확인하기" : "대안 상품 (Option C) 가격 확인하기"}
+                    <Search className="size-4.5" /> 대안 상품 가격 확인하기
                   </div>
                 </div>
               )}
@@ -368,7 +378,6 @@ export function ResultDashboardView() {
             <Button type="button" variant="outline" size="lg" disabled={savingImage} className="min-h-[52px] flex-1 rounded-full px-6 text-[15px] font-semibold sm:flex-none" onClick={() => void handleSaveImage()}>
               {savingImage ? <Loader2 className="me-2 size-5 animate-spin" aria-hidden /> : null} 📸 결과 이미지로 저장
             </Button>
-            {/* 🔥 초대 링크를 복사하도록 변경된 버튼 */}
             <Button type="button" variant="outline" size="lg" className="min-h-[52px] flex-1 rounded-full px-6 text-[15px] font-semibold sm:flex-none" onClick={() => void handleCopyLink()}>
               <Link2 className="me-2 size-4 opacity-80" aria-hidden /> 🔗 결과 공유하기
             </Button>
