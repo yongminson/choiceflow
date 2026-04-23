@@ -16,21 +16,26 @@ export function AppFooter() {
             </p>
           </div>
 
-          {/* 2. 서비스 링크 */}
+          {/* 2. 서비스 링크 (🔥 대표님 요청대로 완벽 수정!) */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               서비스
             </p>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               <li>
-                <Link href="/start" className="hover:text-foreground transition-colors">
-                  분석 시작하기
+                <Link href="/" className="hover:text-foreground transition-colors">
+                  메인 홈
                 </Link>
               </li>
               <li>
-                <Link href="/" className="hover:text-foreground transition-colors">
-                  홈으로
+                <Link href="/?tab=food" className="hover:text-foreground transition-colors">
+                  결정장애 무료 랜덤뽑기
                 </Link>
+              </li>
+              <li>
+                <a href="https://saju.ymstudio.co.kr/" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
+                  내 사주 (명운)
+                </a>
               </li>
             </ul>
           </div>
