@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
 import webpush from "web-push";
 
 export const dynamic = "force-dynamic";
@@ -43,16 +43,26 @@ export async function GET(req: Request) {
     let failCount = 0;
 
     const sendPromises = subscriptions.map(async (sub) => {
+      // 변수명은 pushSub 하나로 통일합니다.
       const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } };
       try {
-        await webpush.sendNotification(pushSub, payload);
+        await webpush.sendNotification(
+          pushSub, // 에러 해결: pushSub로 통일
+          payload  // 에러 해결: 위에서 이미 JSON.stringify를 했으므로 중복 안 되게 변경
+        );
         successCount++;
-      } catch (e: any) {
-        console.error(`🚨 발송 실패 (ID: ${sub.id}):`, e?.body || e?.message || e);
+      } catch (error: any) {
         failCount++;
-        if (e.statusCode === 404 || e.statusCode === 410) {
-           await supabase.from("push_subscriptions").delete().eq("id", sub.id);
-           console.log("🗑️ 만료된 토큰 자동 삭제 완료");
+        if (error.statusCode === 410 || error.statusCode === 404) {
+          console.log("만료된 구독권 자동 삭제 진행:", pushSub.endpoint); // 에러 해결: pushSub로 통일
+          
+          // 에러 해결: 파일 맨 위에 이미 supabase가 선언되어 있으므로, 새로 만들지 않고 바로 씁니다.
+          await supabase
+            .from('push_subscriptions')
+            .delete()
+            .eq('endpoint', pushSub.endpoint); // 에러 해결: pushSub로 통일
+        } else {
+          console.error("푸시 발송 에러:", error);
         }
       }
     });
