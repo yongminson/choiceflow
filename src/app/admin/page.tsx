@@ -14,7 +14,7 @@ export default function AdminDashboard() {
   const [logs, setLogs] = useState<any[]>([]);
 
   // 🔥 아까 쓰셨던 대표님의 카카오 로그인 이메일을 똑같이 넣어주세요!
-  const ADMIN_EMAIL = "여기에_대표님_이메일@naver.com";
+  const ADMIN_EMAIL = "yongmincucu@gmail.com";
 
   useEffect(() => {
     // 대표님이 맞을 때만 기록을 불러옵니다.
