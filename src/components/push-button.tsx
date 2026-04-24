@@ -26,7 +26,8 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
       setIsSupported(false);
       return;
     }
-    navigator.serviceWorker.ready.then((reg) => {
+    // 🔥 [핵심 수정] 우체부(sw.js)를 확실하게 고용(register)합니다!
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
       reg.pushManager.getSubscription().then((sub) => {
         if (sub) setIsSubscribed(true);
       });
@@ -35,16 +36,16 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
 
   const handleToggle = async () => {
     try {
-      // 🚨 [핵심!] 모바일 먹통 방지: 1순위로 권한 요청부터 띄웁니다!
       if (!isSubscribed) {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
-          toast.error("알림이 차단되었습니다. 폰 브라우저 설정에서 알림을 '허용'으로 바꿔주세요!");
+          toast.error("알림이 차단되었습니다. 설정에서 허용해 주세요!");
           return;
         }
       }
 
-      const registration = await navigator.serviceWorker.ready;
+      // 🔥 대기 타지 않고 직접 우체부를 호출합니다. (버튼 먹통 방지)
+      const registration = await navigator.serviceWorker.register('/sw.js');
 
       // 🔴 켜져 있다면 -> 끈다!
       if (isSubscribed) {
@@ -53,19 +54,17 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
           await subscription.unsubscribe();
         }
         setIsSubscribed(false);
-        toast.info("알림이 해제되었습니다. 언제든 다시 켤 수 있어요! 🔕");
+        toast.info("알림이 해제되었습니다. 🔕");
         return;
       }
 
-      // 🟢 꺼져 있다면 -> 켠다! (하드코딩 제거, 환경변수 사용)
+      // 🟢 꺼져 있다면 -> 켠다!
       const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
-
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
 
-      // DB 저장 요청
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,13 +74,10 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
         }),
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "서버 DB 저장에 실패했습니다.");
-      }
+      if (!res.ok) throw new Error("DB 저장 실패");
 
       setIsSubscribed(true);
-      toast.success("🎉 알림 켜기 완료! 매일 1크레딧을 배달해 드릴게요!");
+      toast.success("🎉 알림 켜기 완료!");
       
     } catch (e: any) {
       console.error(e);
@@ -96,7 +92,7 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
       <button 
         onClick={handleToggle} 
         title={isSubscribed ? "알림 끄기" : "알림 켜기"}
-        className="flex size-9 items-center justify-center rounded-full bg-indigo-50 shadow-sm transition-transform hover:scale-110 hover:bg-indigo-100 dark:bg-white/10"
+        className="relative z-50 flex size-9 items-center justify-center rounded-full bg-indigo-50 shadow-sm transition-transform hover:scale-110 hover:bg-indigo-100 dark:bg-white/10 touch-manipulation cursor-pointer"
       >
         {isSubscribed ? (
           <BellRing className="size-5 text-emerald-500" /> 
@@ -110,7 +106,7 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
   return (
     <button 
       onClick={handleToggle} 
-      className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold text-white shadow-lg transition-transform hover:scale-[1.02] ${
+      className={`relative z-50 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold text-white shadow-lg transition-transform hover:scale-[1.02] touch-manipulation cursor-pointer ${
         isSubscribed ? "bg-emerald-500" : "bg-gradient-to-r from-indigo-500 to-purple-500"
       }`}
     >
