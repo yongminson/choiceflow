@@ -35,7 +35,9 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
 
   const handleToggle = async () => {
     try {
+      alert("1. 버튼 클릭 감지됨!");
       const registration = await navigator.serviceWorker.ready;
+      alert("2. 서비스 워커 준비 완료");
 
       if (isSubscribed) {
         const subscription = await registration.pushManager.getSubscription();
@@ -45,20 +47,30 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
         return;
       }
 
+      alert("3. 권한 요청 팝업 띄우기 전");
       const permission = await Notification.requestPermission();
+      alert("4. 권한 상태: " + permission);
+      
       if (permission !== "granted") {
         toast.error("알림이 차단되었습니다. 브라우저 설정에서 허용해 주세요!");
         return;
       }
 
-      // 🔥 짝짝이 원인 제거! Vercel 환경변수에서 진짜 키를 가져옵니다.
-      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      alert("5. VAPID 키 확인: " + (publicKey ? "키 들어있음!" : "키가 텅 비었음!"));
 
+      if (!publicKey) {
+        alert("🚨 에러: VAPID 키를 못 불러왔습니다!");
+        return;
+      }
+
+      alert("6. 구글에 새 구독권 발급 요청 중...");
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY as string) 
+        applicationServerKey: urlBase64ToUint8Array(publicKey) 
       });
 
+      alert("7. 구독권 발급 성공! DB에 저장 시작...");
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,12 +80,17 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
         }),
       });
 
-      if (!res.ok) throw new Error("서버 DB 저장에 실패했습니다.");
+      if (!res.ok) {
+        alert("🚨 에러: 서버 DB 저장 실패!");
+        throw new Error("서버 DB 저장에 실패했습니다.");
+      }
 
       setIsSubscribed(true);
+      alert("8. 최종 완료! 모든 과정이 끝났습니다.");
       toast.success("🎉 알림 켜기 완료! 매일 1크레딧을 배달해 드릴게요!");
       
     } catch (e: any) {
+      alert("💥 먹통의 원인 발견:\n" + e.message);
       console.error(e);
       toast.error(`오류 발생: ${e.message}`);
     }
