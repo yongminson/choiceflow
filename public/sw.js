@@ -1,31 +1,45 @@
-self.addEventListener('push', function (event) {
-  // 기본 알림 설정 (에러 방지용)
-  let title = "ChoiceFlow";
-  let options = {
-    body: "새로운 알림이 도착했습니다.",
-    vibrate: [100, 50, 100],
-    data: { url: 'https://choice.ymstudio.co.kr' }
-  };
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
 
-  // 서버에서 보낸 데이터가 있으면 덮어쓰기
-  if (event.data) {
-    try {
-      const data = event.data.json();
-      title = data.title || title;
-      options.body = data.body || options.body;
-      if (data.url) options.data.url = data.url;
-    } catch (e) {
-      options.body = event.data.text();
-    }
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
+self.addEventListener('push', function(event) {
+  if (!event.data) return;
+  let data;
+  try {
+    data = event.data.json();
+  } catch(e) {
+    data = { title: 'ChoiceFlow', body: event.data.text() };
   }
-
-  // 화면에 알림 띄우기 (아이콘 없어도 작동하게 수정됨)
+  
+  const title = data.title || 'ChoiceFlow';
+  const options = {
+    body: data.body || '새 알림이 도착했습니다.',
+    icon: '/icon.png',
+    badge: '/icon.png',
+    vibrate: [200, 100, 200],
+    requireInteraction: true,  // ← 핵심: 안드로이드에서 알림 유지
+    data: { url: data.url || 'https://choice.ymstudio.co.kr' },
+  };
+  
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-self.addEventListener('notificationclick', function (event) {
+self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  if (event.notification.data && event.notification.data.url) {
-    event.waitUntil(clients.openWindow(event.notification.data.url));
-  }
+  const url = event.notification.data?.url || 'https://choice.ymstudio.co.kr';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url === url && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        return clients.openWindow(url);
+      })
+  );
 });

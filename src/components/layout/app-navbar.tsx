@@ -65,10 +65,7 @@ export function AppNavbar() {
             충전
           </Button>
 
-          {/* 🔥 모바일 터치 가로챔 방지: z-index 최상위로 끌어올리고 터치 강제 활성화 */}
-          <div className="relative z-[9999] flex shrink-0 items-center justify-center touch-manipulation">
-            <PushButton variant="icon" />
-          </div>
+          <PushButton variant="icon" />
 
           <Link
             href={userHref}
