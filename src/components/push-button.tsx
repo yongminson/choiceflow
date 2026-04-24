@@ -56,7 +56,7 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY as string) 
       });
 
       const res = await fetch("/api/push/subscribe", {

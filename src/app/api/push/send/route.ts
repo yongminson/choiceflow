@@ -21,7 +21,11 @@ export async function GET(req: Request) {
 
     if (!publicKey || !privateKey) throw new Error("VAPID 키가 없습니다.");
 
-    webpush.setVapidDetails("mailto:admin@choiceflow.co.kr", publicKey, privateKey);
+    webpush.setVapidDetails(
+      'mailto:admin@choiceflow.com', // 이메일은 형식만 맞으면 작동합니다.
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY as string,
+      process.env.VAPID_PRIVATE_KEY as string
+    );
 
     const { data: subscriptions, error } = await supabase.from("push_subscriptions").select("*");
     if (error) throw error;
