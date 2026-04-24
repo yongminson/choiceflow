@@ -116,7 +116,15 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase.from("profiles").select("credits").eq("id", user.id).maybeSingle();
   const required = getRequiredCreditsForAnalyze(categoryId, isPremium);
-  if ((profile?.credits ?? 0) < required) return NextResponse.json({ ok: false, error: "크레딧 부족" }, { status: 402 });
+
+  // 🔥 운영자(대표님) 마스터키 설정 (카카오 로그인 시 사용하시는 이메일을 적어주세요!)
+  const ADMIN_EMAIL = "yongmincucu@gmail.com"; 
+  const isAdmin = user?.email === ADMIN_EMAIL;
+
+  // 운영자가 아니면서 크레딧이 부족할 때만 에러(402) 발생
+  if (!isAdmin && (profile?.credits ?? 0) < required) {
+    return NextResponse.json({ ok: false, error: "크레딧 부족" }, { status: 402 });
+  }
 
   const urlA = (body as any).urlA || (body as any).linkA || (body as any).productUrlA || (body as any).optionAUrl || "없음";
   const urlB = (body as any).urlB || (body as any).linkB || (body as any).productUrlB || (body as any).optionBUrl || "없음";
@@ -174,9 +182,15 @@ export async function POST(request: Request) {
       myeongunDeepDataEnabled: !!body.myeongunDeepDataEnabled,
     };
 
+    // 🔥 운영자는 크레딧 차감(update)을 실행하지 않고 통과!
+    const updateCreditTask = isAdmin
+      ? Promise.resolve() 
+      : supabase.from("profiles").update({ credits: (profile?.credits || 0) - required }).eq("id", user.id);
+
     await Promise.all([
-      supabase.from("profiles").update({ credits: (profile?.credits || 0) - required }).eq("id", user.id),
-      supabase.from("analysis_history").insert({ user_id: user.id, category: getCategoryDisplayLabel(categoryId), input_data: body, result_data: out, spent_credits: required })
+      updateCreditTask,
+      // 운영자는 사용한 크레딧(spent_credits) 기록도 0으로 남깁니다.
+      supabase.from("analysis_history").insert({ user_id: user.id, category: getCategoryDisplayLabel(categoryId), input_data: body, result_data: out, spent_credits: isAdmin ? 0 : required })
     ]);
 
     return NextResponse.json({ ok: true, ...out });
