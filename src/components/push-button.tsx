@@ -26,10 +26,16 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
       setIsSupported(false);
       return;
     }
-    navigator.serviceWorker.ready.then((reg) => {
-      reg.pushManager.getSubscription().then((sub) => {
-        if (sub) setIsSubscribed(true);
+    
+    // 🔥 범인 해결: 서비스 워커(sw.js)를 브라우저에 강제로 등록(채용)시킵니다!
+    navigator.serviceWorker.register('/sw.js').then(() => {
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.pushManager.getSubscription().then((sub) => {
+          if (sub) setIsSubscribed(true);
+        });
       });
+    }).catch((err) => {
+      console.error("서비스 워커 등록 실패:", err);
     });
   }, []);
 
