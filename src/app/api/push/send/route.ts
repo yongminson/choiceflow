@@ -3,13 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import webpush from "web-push";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store"; // 🔥 Vercel 캐시 영구 박멸!
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function GET(req: Request) {
-  // 🔥 [임시 해제] 에러 텍스트를 브라우저에서 직접 보기 위해 잠시 자물쇠를 풉니다!
   // const authHeader = req.headers.get("authorization");
   // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
   //   return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 401 });
@@ -21,16 +21,17 @@ export async function GET(req: Request) {
 
     if (!publicKey || !privateKey) throw new Error("VAPID 키가 없습니다.");
 
-    webpush.setVapidDetails(
-      'mailto:admin@choiceflow.com',
-      publicKey,
-      privateKey as string
-    );
+    webpush.setVapidDetails('mailto:admin@choiceflow.com', publicKey, privateKey as string);
 
     const { data: subscriptions, error } = await supabase.from("push_subscriptions").select("*");
     if (error) throw error;
+    
+    // 🔥 DB에 몇 명이 있는지 화면에 출력합니다.
     if (!subscriptions || subscriptions.length === 0) {
-      return NextResponse.json({ message: "알림 보낼 대상이 없습니다." });
+      return NextResponse.json({ 
+        time: new Date().toISOString(), 
+        message: "알림 보낼 대상이 없습니다. DB가 비어있습니다." 
+      });
     }
 
     const payload = JSON.stringify({
@@ -54,19 +55,22 @@ export async function GET(req: Request) {
           await supabase.from('push_subscriptions').delete().eq('endpoint', pushSub.endpoint);
           errorDetails.push({ endpoint: pushSub.endpoint.substring(0, 20) + "...", status: "만료 삭제" });
         } else {
-          errorDetails.push({ 
-            endpoint: pushSub.endpoint.substring(0, 20) + "...", 
-            status: "발송 실패", 
-            error: error.message || String(error) 
-          });
+          errorDetails.push({ status: "발송 실패", error: error.message || String(error) });
         }
       }
     });
 
     await Promise.all(sendPromises);
 
-    return NextResponse.json({ success: true, successCount, failCount, errorDetails });
+    return NextResponse.json({ 
+      time: new Date().toISOString(), // 🔥 새로고침할 때마다 시간이 바뀌면 캐시가 뚫린 겁니다!
+      db_rows: subscriptions.length,  // 🔥 DB에 있던 수신증 개수
+      success: true, 
+      successCount, 
+      failCount, 
+      errorDetails 
+    });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ time: new Date().toISOString(), success: false, error: e.message }, { status: 500 });
   }
 }
