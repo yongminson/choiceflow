@@ -20,7 +20,7 @@ export function AdminFloatingWidget() {
   useEffect(() => {
     if (user?.email === ADMIN_EMAIL) {
       fetchStats();
-      // 10초마다 실시간으로 새로고침
+      // 10초마다 실시간 새로고침
       const interval = setInterval(fetchStats, 10000);
       return () => clearInterval(interval);
     }
@@ -28,39 +28,38 @@ export function AdminFloatingWidget() {
 
   const fetchStats = async () => {
     try {
-      // 한국 시간 기준 오늘 자정 구하기
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // 전체 누적 방문자
+      // 1. 방문자 수는 기존대로 유지 (사이트 접속자 파악용)
       const { count: totalCount } = await supabase
         .from("visitor_logs")
         .select("*", { count: "exact", head: true });
 
-      // 오늘 방문자
       const { count: todayCount } = await supabase
         .from("visitor_logs")
         .select("*", { count: "exact", head: true })
         .gte("created_at", today.toISOString());
 
-      // 메뉴(경로)별 통계 (최근 1000개 기준)
-      const { data } = await supabase.from("visitor_logs").select("path").limit(1000);
+      // 2. 🔥 탭별 인기 순위를 '실제 분석 돌린 횟수(analysis_history)'로 변경!
+      const { data } = await supabase.from("analysis_history").select("category").limit(1000);
       
-      const pathCounts = (data || []).reduce((acc: any, log: any) => {
-        let p = log.path === "/" ? "메인 홈" : log.path.replace("/", "");
+      const categoryCounts = (data || []).reduce((acc: any, log: any) => {
+        // DB에 저장된 한글 이름 (뭐 먹을까, 선물상담 등) 그대로 사용
+        let p = log.category || "기타"; 
         acc[p] = (acc[p] || 0) + 1;
         return acc;
       }, {});
 
-      // 많이 클릭한 순서대로 정렬해서 탑 6개만 뽑기
-      const sortedPaths = Object.entries(pathCounts)
+      // 많이 분석한 순서대로 정렬해서 6개까지만 보여주기
+      const sortedCategories = Object.entries(categoryCounts)
         .sort((a: any, b: any) => b[1] - a[1])
         .slice(0, 6);
 
       setStats({ 
         today: todayCount || 0, 
         total: totalCount || 0, 
-        paths: sortedPaths 
+        paths: sortedCategories 
       });
     } catch (error) {
       console.error("통계 불러오기 실패");
@@ -88,17 +87,17 @@ export function AdminFloatingWidget() {
 
       <div className="mb-4">
         <h4 className="mb-3 text-xs font-bold text-slate-400 flex items-center gap-1">
-          📊 탭별 인기 순위
+          🔥 탭별 분석 횟수 순위
         </h4>
         <ul className="space-y-2 text-sm">
-          {stats.paths.map(([pathName, count], idx) => (
+          {stats.paths.map(([categoryName, count], idx) => (
             <div key={idx} className="flex justify-between text-slate-300">
-              <span className="truncate max-w-[120px]">{pathName}</span>
+              <span className="truncate max-w-[120px]">{categoryName}</span>
               <span className="font-bold text-cyan-400">{count}회</span>
             </div>
           ))}
           {stats.paths.length === 0 && (
-            <div className="text-center text-slate-500 text-xs">기록 없음</div>
+            <div className="text-center text-slate-500 text-xs">분석 기록 없음</div>
           )}
         </ul>
       </div>
