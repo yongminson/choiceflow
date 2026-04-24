@@ -21,7 +21,6 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
 
-  // 현재 브라우저가 알림을 켜놨는지 확인
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setIsSupported(false);
@@ -36,9 +35,18 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
 
   const handleToggle = async () => {
     try {
+      // 🚨 [핵심!] 모바일 먹통 방지: 1순위로 권한 요청부터 띄웁니다!
+      if (!isSubscribed) {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          toast.error("알림이 차단되었습니다. 폰 브라우저 설정에서 알림을 '허용'으로 바꿔주세요!");
+          return;
+        }
+      }
+
       const registration = await navigator.serviceWorker.ready;
 
-      // 🔴 이미 켜져 있다면? -> 끈다!
+      // 🔴 켜져 있다면 -> 끈다!
       if (isSubscribed) {
         const subscription = await registration.pushManager.getSubscription();
         if (subscription) {
@@ -49,22 +57,15 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
         return;
       }
 
-      // 🟢 꺼져 있다면? -> 켠다!
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        toast.error("알림이 차단되었습니다. 주소창 왼쪽 자물쇠를 눌러 알림을 '허용'으로 바꿔주세요!");
-        return;
-      }
-
-      // 🔥 [필살기] Vercel 환경변수 오류를 막기 위해 Public Key를 코드에 직접 박아버립니다! (100% 안전함)
-      const publicKey = "BIAX-LspIga8pR2ehMyiGYUK9GAywlLBQ0GHtABX-iTfIkUc-NmKTfmeY2iYWuGbq82VHRKAT3v1tVmG8FwCp6g";
+      // 🟢 꺼져 있다면 -> 켠다! (하드코딩 제거, 환경변수 사용)
+      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
 
-      // 서버(DB)에 저장 요청
+      // DB 저장 요청
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
