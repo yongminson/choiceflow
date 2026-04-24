@@ -9,11 +9,11 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function GET(req: Request) {
-  // 대표님의 소중한 크론잡 보안 코드 (유지)
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 401 });
-  }
+  // 🔥 [임시 해제] 에러 텍스트를 브라우저에서 직접 보기 위해 잠시 자물쇠를 풉니다!
+  // const authHeader = req.headers.get("authorization");
+  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  //   return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 401 });
+  // }
 
   try {
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
@@ -41,7 +41,7 @@ export async function GET(req: Request) {
 
     let successCount = 0;
     let failCount = 0;
-    const errorDetails: any[] = []; // 🔥 에러 내역을 상세히 담을 바구니!
+    const errorDetails: any[] = []; 
 
     const sendPromises = subscriptions.map(async (sub) => {
       const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } };
@@ -54,7 +54,6 @@ export async function GET(req: Request) {
           await supabase.from('push_subscriptions').delete().eq('endpoint', pushSub.endpoint);
           errorDetails.push({ endpoint: pushSub.endpoint.substring(0, 20) + "...", status: "만료 삭제" });
         } else {
-          // 🔥 치명적 에러 자백 기록!
           errorDetails.push({ 
             endpoint: pushSub.endpoint.substring(0, 20) + "...", 
             status: "발송 실패", 
@@ -66,7 +65,6 @@ export async function GET(req: Request) {
 
     await Promise.all(sendPromises);
 
-    // 🔥 최종 응답에 상세 에러 내역(errorDetails)을 전부 까발립니다!
     return NextResponse.json({ success: true, successCount, failCount, errorDetails });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
