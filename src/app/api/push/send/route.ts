@@ -15,10 +15,11 @@ export async function GET(req: Request) {
   }
 
   try {
-    const publicKey = "BIAX-LspIga8pR2ehMyiGYUK9GAywlLBQ0GHtABX-iTfIkUc-NmKTfmeY2iYWuGbq82VHRKAT3v1tVmG8FwCp6g";
+    // 🔥 짝짝이 원인 제거! 환경변수에서 진짜 키를 가져옵니다.
+    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
 
-    if (!privateKey) throw new Error("VAPID_PRIVATE_KEY가 없습니다.");
+    if (!publicKey || !privateKey) throw new Error("VAPID 키가 없습니다.");
 
     webpush.setVapidDetails("mailto:admin@choiceflow.co.kr", publicKey, privateKey);
 
@@ -43,11 +44,8 @@ export async function GET(req: Request) {
         await webpush.sendNotification(pushSub, payload);
         successCount++;
       } catch (e: any) {
-        // 🔥 실패 원인을 Vercel 로그에 아주 상세하게 찍습니다!
         console.error(`🚨 발송 실패 (ID: ${sub.id}):`, e?.body || e?.message || e);
         failCount++;
-        
-        // 구글에서 '만료된 토큰'이라고 하면 DB에서 알아서 삭제해버림
         if (e.statusCode === 404 || e.statusCode === 410) {
            await supabase.from("push_subscriptions").delete().eq("id", sub.id);
            console.log("🗑️ 만료된 토큰 자동 삭제 완료");

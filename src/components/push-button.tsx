@@ -26,8 +26,7 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
       setIsSupported(false);
       return;
     }
-    // 🔥 [핵심 수정] 우체부(sw.js)를 확실하게 고용(register)합니다!
-    navigator.serviceWorker.register('/sw.js').then((reg) => {
+    navigator.serviceWorker.ready.then((reg) => {
       reg.pushManager.getSubscription().then((sub) => {
         if (sub) setIsSubscribed(true);
       });
@@ -36,30 +35,25 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
 
   const handleToggle = async () => {
     try {
-      if (!isSubscribed) {
-        const permission = await Notification.requestPermission();
-        if (permission !== "granted") {
-          toast.error("알림이 차단되었습니다. 설정에서 허용해 주세요!");
-          return;
-        }
-      }
+      const registration = await navigator.serviceWorker.ready;
 
-      // 🔥 대기 타지 않고 직접 우체부를 호출합니다. (버튼 먹통 방지)
-      const registration = await navigator.serviceWorker.register('/sw.js');
-
-      // 🔴 켜져 있다면 -> 끈다!
       if (isSubscribed) {
         const subscription = await registration.pushManager.getSubscription();
-        if (subscription) {
-          await subscription.unsubscribe();
-        }
+        if (subscription) await subscription.unsubscribe();
         setIsSubscribed(false);
-        toast.info("알림이 해제되었습니다. 🔕");
+        toast.info("알림이 해제되었습니다. 언제든 다시 켤 수 있어요! 🔕");
         return;
       }
 
-      // 🟢 꺼져 있다면 -> 켠다!
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        toast.error("알림이 차단되었습니다. 브라우저 설정에서 허용해 주세요!");
+        return;
+      }
+
+      // 🔥 짝짝이 원인 제거! Vercel 환경변수에서 진짜 키를 가져옵니다.
       const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
@@ -74,10 +68,10 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
         }),
       });
 
-      if (!res.ok) throw new Error("DB 저장 실패");
+      if (!res.ok) throw new Error("서버 DB 저장에 실패했습니다.");
 
       setIsSubscribed(true);
-      toast.success("🎉 알림 켜기 완료!");
+      toast.success("🎉 알림 켜기 완료! 매일 1크레딧을 배달해 드릴게요!");
       
     } catch (e: any) {
       console.error(e);
@@ -89,27 +83,14 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
 
   if (variant === "icon") {
     return (
-      <button 
-        onClick={handleToggle} 
-        title={isSubscribed ? "알림 끄기" : "알림 켜기"}
-        className="relative z-50 flex size-9 items-center justify-center rounded-full bg-indigo-50 shadow-sm transition-transform hover:scale-110 hover:bg-indigo-100 dark:bg-white/10 touch-manipulation cursor-pointer"
-      >
-        {isSubscribed ? (
-          <BellRing className="size-5 text-emerald-500" /> 
-        ) : (
-          <BellOff className="size-5 text-slate-400 animate-bounce" />
-        )}
+      <button onClick={handleToggle} title={isSubscribed ? "알림 끄기" : "알림 켜기"} className="flex size-9 items-center justify-center rounded-full bg-indigo-50 shadow-sm transition-transform hover:scale-110 hover:bg-indigo-100 dark:bg-white/10">
+        {isSubscribed ? <BellRing className="size-5 text-emerald-500" /> : <BellOff className="size-5 text-slate-400 animate-bounce" />}
       </button>
     );
   }
 
   return (
-    <button 
-      onClick={handleToggle} 
-      className={`relative z-50 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold text-white shadow-lg transition-transform hover:scale-[1.02] touch-manipulation cursor-pointer ${
-        isSubscribed ? "bg-emerald-500" : "bg-gradient-to-r from-indigo-500 to-purple-500"
-      }`}
-    >
+    <button onClick={handleToggle} className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold text-white shadow-lg transition-transform hover:scale-[1.02] ${isSubscribed ? "bg-emerald-500" : "bg-gradient-to-r from-indigo-500 to-purple-500"}`}>
       {isSubscribed ? <BellRing className="size-5" /> : <BellOff className="size-5 animate-pulse" />}
       {isSubscribed ? "알림 켜짐 (누르면 해제)" : "매일 무료뽑기 알림 켜기"}
     </button>
