@@ -1,5 +1,6 @@
 import "./globals.css";
 import { VisitorTracker } from "@/components/visitor-tracker";
+import { AdminFloatingWidget } from "@/components/admin-floating-widget";
 import type { Metadata } from "next";
 import { Noto_Sans_KR, Plus_Jakarta_Sans } from "next/font/google";
 import { AppFooter } from "@/components/layout/app-footer";
@@ -51,6 +52,7 @@ export default function RootLayout({
     <html lang="ko" className={cn(display.variable, notoSansKr.variable)}>
       <body className="min-h-screen antialiased">
       <VisitorTracker />  {/* 👈 여기에 센서를 부착합니다! */}
+      <AdminFloatingWidget /> {/* 👈 추가된 부분 */}
         <CreditsRefreshProvider>
           <BillingProvider>
             <MeshBackground />
