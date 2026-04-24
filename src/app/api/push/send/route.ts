@@ -9,22 +9,22 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function GET(req: Request) {
+  // 대표님의 소중한 크론잡 보안 코드 (유지)
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 401 });
   }
 
   try {
-    // 🔥 짝짝이 원인 제거! 환경변수에서 진짜 키를 가져옵니다.
     const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
 
     if (!publicKey || !privateKey) throw new Error("VAPID 키가 없습니다.");
 
     webpush.setVapidDetails(
-      'mailto:admin@choiceflow.com', // 이메일은 형식만 맞으면 작동합니다.
-      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY as string,
-      process.env.VAPID_PRIVATE_KEY as string
+      'mailto:admin@choiceflow.com',
+      publicKey,
+      privateKey as string
     );
 
     const { data: subscriptions, error } = await supabase.from("push_subscriptions").select("*");
@@ -41,37 +41,34 @@ export async function GET(req: Request) {
 
     let successCount = 0;
     let failCount = 0;
+    const errorDetails: any[] = []; // 🔥 에러 내역을 상세히 담을 바구니!
 
     const sendPromises = subscriptions.map(async (sub) => {
-      // 변수명은 pushSub 하나로 통일합니다.
       const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } };
       try {
-        await webpush.sendNotification(
-          pushSub, // 에러 해결: pushSub로 통일
-          payload  // 에러 해결: 위에서 이미 JSON.stringify를 했으므로 중복 안 되게 변경
-        );
+        await webpush.sendNotification(pushSub, payload);
         successCount++;
       } catch (error: any) {
         failCount++;
         if (error.statusCode === 410 || error.statusCode === 404) {
-          console.log("만료된 구독권 자동 삭제 진행:", pushSub.endpoint); // 에러 해결: pushSub로 통일
-          
-          // 에러 해결: 파일 맨 위에 이미 supabase가 선언되어 있으므로, 새로 만들지 않고 바로 씁니다.
-          await supabase
-            .from('push_subscriptions')
-            .delete()
-            .eq('endpoint', pushSub.endpoint); // 에러 해결: pushSub로 통일
+          await supabase.from('push_subscriptions').delete().eq('endpoint', pushSub.endpoint);
+          errorDetails.push({ endpoint: pushSub.endpoint.substring(0, 20) + "...", status: "만료 삭제" });
         } else {
-          console.error("푸시 발송 에러:", error);
+          // 🔥 치명적 에러 자백 기록!
+          errorDetails.push({ 
+            endpoint: pushSub.endpoint.substring(0, 20) + "...", 
+            status: "발송 실패", 
+            error: error.message || String(error) 
+          });
         }
       }
     });
 
     await Promise.all(sendPromises);
 
-    return NextResponse.json({ success: true, successCount, failCount });
+    // 🔥 최종 응답에 상세 에러 내역(errorDetails)을 전부 까발립니다!
+    return NextResponse.json({ success: true, successCount, failCount, errorDetails });
   } catch (e: any) {
-    console.error("💥 치명적 에러 발생:", e);
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
