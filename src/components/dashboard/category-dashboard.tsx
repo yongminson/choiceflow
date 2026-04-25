@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import confetti from "canvas-confetti";
@@ -115,6 +115,7 @@ const LOADING_EMOJIS = ["👀", "🤔", "💡", "🔍", "😉", "✨"];
 function normalizeTab(raw: string | null): CategoryId { if (isCategoryId(raw)) return raw; return "gift"; }
 
 export function CategoryDashboard() {
+  const inputSectionRef = useRef<HTMLDivElement>(null);
   const [loadingEmojiIndex, setLoadingEmojiIndex] = useState(0);
   const router = useRouter();
   const { openBilling } = useBilling();
@@ -224,6 +225,13 @@ export function CategoryDashboard() {
       openBilling(); return;
     }
     setSelectedCategory(id); setIsFormOpen(true); router.replace(`/?tab=${id}`, { scroll: false });
+   
+    setTimeout(() => {
+      inputSectionRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    }, 100);
   }, [router, credits, openBilling]);
 
   const handleAnalyze = useCallback(async () => {
@@ -366,7 +374,7 @@ export function CategoryDashboard() {
       </div>
 
       {isFormOpen && (
-        <div className="mt-5 animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both sm:mt-8">
+        <div ref={inputSectionRef} className="mt-5 animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both sm:mt-8">
           <div className="glass-strong rounded-[1.75rem] p-6 shadow-glass sm:p-10">
             <div className="min-w-0">
               <h2 className="flex flex-wrap items-center gap-x-2 gap-y-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
