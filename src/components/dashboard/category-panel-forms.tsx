@@ -891,7 +891,7 @@ export function CategoryPanelForm({
             </div>
           </div>
           <div className={cn("rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3.5", "text-[13px] leading-relaxed text-muted-foreground dark:border-amber-400/20 dark:bg-amber-400/[0.07]")}>
-            <p className="font-medium text-foreground/90">고가 자산 분석은 정밀 데이터가 요구되어 <span className="tabular-nums">2</span> 크레딧이 소모됩니다.</p>
+          <p className="font-medium text-foreground/90">고가 자산은 정밀한 데이터를 기반으로 심층 AI 분석을 제공합니다.</p>
             <p className="mt-2 text-[12px]">1차 AI 분석 후 제휴 전문가 연결이 가능합니다.</p>
           </div>
         </div>

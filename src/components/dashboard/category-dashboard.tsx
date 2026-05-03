@@ -220,26 +220,14 @@ export function CategoryDashboard() {
   const expectedCredits = useMemo(() => getRequiredCreditsForAnalyze(selectedCategory, selectedCategory === "appliance" ? forms.appliance.premiumSpaceAnalysis : undefined), [selectedCategory, forms.appliance.premiumSpaceAnalysis]);
 
   const openCategory = useCallback((id: CategoryId) => {
-    if (credits === 0 && id !== "food") { 
-      toast.error("크레딧이 부족합니다 😢\n소중한 입력 내용이 날아가지 않도록 먼저 충전해 주세요!", { action: { label: "충전하기", onClick: () => openBilling() } });
-      openBilling(); return;
-    }
     setSelectedCategory(id); setIsFormOpen(true); router.replace(`/?tab=${id}`, { scroll: false });
-   
+    
     setTimeout(() => {
-      inputSectionRef.current?.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'start' 
-      });
+      inputSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
-  }, [router, credits, openBilling]);
+  }, [router]);
 
   const handleAnalyze = useCallback(async () => {
-    if (credits === 0) {
-      toast.error("AI 분석을 위한 크레딧이 부족합니다.");
-      openBilling(); return;
-    }
-
     const err = validateDashboardForm(selectedCategory, forms);
     if (err) { toast.error(err); return; }
     setIsAnalyzing(true);

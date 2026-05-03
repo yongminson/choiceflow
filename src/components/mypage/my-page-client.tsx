@@ -1,33 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Coins, LogOut, Sparkles, X, Loader2 } from "lucide-react";
+import { LogOut, Sparkles, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-import { useCreditsRefresh } from "@/components/auth/credits-refresh-context";
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
-import { useBilling } from "@/components/payment/billing-provider";
 import { Button } from "@/components/ui/button";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
-type MypageTab = "analysis" | "payment";
-
 type AnalysisRow = {
   id: string;
   category: string;
-  spent_credits: number | null;
   input_data?: unknown;
   result_data?: unknown;
-  created_at: string;
-};
-
-type CreditRow = {
-  id: string;
-  amount: number | null;
-  price: number | null;
-  status: string | null;
   created_at: string;
 };
 
@@ -47,52 +34,32 @@ function formatHistoryDate(iso: string): string {
 export function MyPageClient() {
   const router = useRouter();
   const user = useSupabaseUser();
-  const [credits, setCredits] = useState<number | null>(null);
-  const [isPro, setIsPro] = useState<boolean | null>(null);
-  const [tab, setTab] = useState<MypageTab>("analysis");
   const [analysisRows, setAnalysisRows] = useState<AnalysisRow[]>([]);
-  const [creditRows, setCreditRows] = useState<CreditRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const { openBilling, isOpen: billingOpen } = useBilling();
-  const { bump } = useCreditsRefresh();
-  const prevBillingOpen = useRef(false);
 
   const loadProfileAndHistory = useCallback(async () => {
     if (!user) {
-      setCredits(null);
-      setIsPro(null);
       setAnalysisRows([]);
-      setCreditRows([]);
       return;
     }
     setHistoryLoading(true);
     const sb = createBrowserSupabaseClient();
-    const [profileRes, analysisRes, creditRes] = await Promise.all([
-      sb.from("profiles").select("credits, is_pro").eq("id", user.id).maybeSingle(),
-      sb.from("analysis_history").select("id, category, spent_credits, input_data, result_data, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
-      sb.from("credit_history").select("id, user_id, amount, price, status, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
-    ]);
+    
+    // 무료화에 맞게 크레딧, 결제내역 호출 부분은 완전히 제거하고 분석 내역만 가져옵니다.
+    const { data, error } = await sb
+      .from("analysis_history")
+      .select("id, category, input_data, result_data, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    
     setHistoryLoading(false);
-
-    if (profileRes.error) {
-      setCredits(0);
-      setIsPro(false);
-    } else {
-      setCredits(typeof profileRes.data?.credits === "number" ? profileRes.data.credits : 0);
-      setIsPro(profileRes.data?.is_pro === true);
-    }
-    setAnalysisRows(analysisRes.error ? [] : (analysisRes.data as AnalysisRow[]));
-    setCreditRows(creditRes.error ? [] : (creditRes.data as CreditRow[]));
-  }, [user, bump]);
+    setAnalysisRows(error ? [] : (data as AnalysisRow[]));
+  }, [user]);
 
   useEffect(() => {
     void loadProfileAndHistory();
   }, [loadProfileAndHistory]);
-
-  useEffect(() => {
-    if (prevBillingOpen.current && !billingOpen) void loadProfileAndHistory();
-    prevBillingOpen.current = billingOpen;
-  }, [billingOpen, loadProfileAndHistory]);
 
   async function handleSignOut() {
     try {
@@ -105,7 +72,7 @@ export function MyPageClient() {
     }
   }
 
-  // 🔥 회원 탈퇴 로직
+  // 회원 탈퇴 로직
   const handleDeleteAccount = async () => {
     const isConfirm = window.confirm("정말 탈퇴하시겠습니까? 모든 데이터가 영구적으로 삭제됩니다.");
     if (!isConfirm) return;
@@ -153,12 +120,6 @@ export function MyPageClient() {
             <p className="mt-2 break-all text-[15px] font-medium leading-snug text-foreground">
               {user.email}
             </p>
-            <p className="mt-2 text-[13px] font-medium text-foreground">
-              구독:{" "}
-              <span className={isPro === true ? "text-primary" : "text-muted-foreground"}>
-                {isPro === null ? "…" : isPro ? "Pro" : "Free"}
-              </span>
-            </p>
           </div>
           <div className="flex shrink-0 items-start gap-2">
             <div
@@ -183,130 +144,44 @@ export function MyPageClient() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-white/40 bg-white/45 p-5 dark:border-white/10 dark:bg-white/[0.06]">
-          <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
-            <Coins className="size-4 shrink-0 opacity-80" aria-hidden />
-            보유 크레딧
-          </div>
-          <p className="mt-2 font-display text-4xl font-bold tabular-nums tracking-tight text-foreground sm:text-5xl">
-            {credits === null ? "—" : credits}
-            <span className="ms-1.5 text-xl font-semibold text-muted-foreground sm:text-2xl">
-              개
-            </span>
-          </p>
-          <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-            카테고리별로 분석 1회당 사용 크레딧이 다를 수 있습니다.
-          </p>
+        <div className="mt-8 rounded-2xl border border-white/25 bg-black/[0.04] p-3 dark:border-white/10 dark:bg-black/25">
+          <p className="text-[13px] font-semibold text-foreground px-1">최근 분석 내역</p>
         </div>
 
-        <div
-          className="mt-8 flex gap-1 rounded-2xl border border-white/25 bg-black/[0.04] p-1 dark:border-white/10 dark:bg-black/25"
-          role="tablist"
-          aria-label="내역 유형"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "analysis"}
-            onClick={() => setTab("analysis")}
-            className={cn(
-              "flex-1 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all",
-              tab === "analysis"
-                ? "bg-white/90 text-foreground shadow-sm dark:bg-white/15"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            분석 내역
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "payment"}
-            onClick={() => setTab("payment")}
-            className={cn(
-              "flex-1 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all",
-              tab === "payment"
-                ? "bg-white/90 text-foreground shadow-sm dark:bg-white/15"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            결제 내역
-          </button>
-        </div>
-
-        <div className="mt-4 min-h-[200px] rounded-2xl border border-white/30 bg-white/35 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+        <div className="mt-2 min-h-[200px] rounded-2xl border border-white/30 bg-white/35 p-4 dark:border-white/10 dark:bg-white/[0.04]">
           {historyLoading ? (
             <p className="py-8 text-center text-sm text-muted-foreground">불러오는 중…</p>
-          ) : tab === "analysis" ? (
-            analysisRows.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                아직 분석 기록이 없습니다.
-              </p>
-            ) : (
-              <ul className="max-h-[min(360px,50vh)] space-y-3 overflow-y-auto pr-1">
-                {analysisRows.map((row) => {
-                  const spent =
-                    typeof row.spent_credits === "number" ? row.spent_credits : 0;
-                  const summarySnippet = (() => {
-                    const r = row.result_data;
-                    if (!r || typeof r !== "object" || r === null) return null;
-                    const s = (r as { summary?: unknown }).summary;
-                    if (typeof s !== "string" || !s.trim()) return null;
-                    const t = s.trim();
-                    return t.length > 120 ? `${t.slice(0, 120)}…` : t;
-                  })();
-                  return (
-                    <li
-                      key={row.id}
-                      className="rounded-xl border border-white/25 bg-white/40 px-3 py-2.5 text-[13px] dark:border-white/10 dark:bg-white/[0.06]"
-                    >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-medium text-foreground">{row.category}</span>
-                        <span className="shrink-0 tabular-nums text-[12px] text-muted-foreground">
-                          {formatHistoryDate(row.created_at)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[12px] text-muted-foreground">
-                        소모 {spent} 크레딧
-                      </p>
-                      {summarySnippet ? (
-                        <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-                          {summarySnippet}
-                        </p>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )
-          ) : creditRows.length === 0 ? (
+          ) : analysisRows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              아직 결제·충전 내역이 없습니다.
+              아직 분석 기록이 없습니다.
             </p>
           ) : (
             <ul className="max-h-[min(360px,50vh)] space-y-3 overflow-y-auto pr-1">
-              {creditRows.map((row) => {
-                const creditAmt = row.amount ?? 0;
-                const won = row.price ?? 0;
+              {analysisRows.map((row) => {
+                const summarySnippet = (() => {
+                  const r = row.result_data;
+                  if (!r || typeof r !== "object" || r === null) return null;
+                  const s = (r as { summary?: unknown }).summary;
+                  if (typeof s !== "string" || !s.trim()) return null;
+                  const t = s.trim();
+                  return t.length > 120 ? `${t.slice(0, 120)}…` : t;
+                })();
                 return (
                   <li
                     key={row.id}
                     className="rounded-xl border border-white/25 bg-white/40 px-3 py-2.5 text-[13px] dark:border-white/10 dark:bg-white/[0.06]"
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-medium text-foreground">
-                        +{creditAmt} 크레딧
-                      </span>
+                      <span className="font-medium text-foreground">{row.category}</span>
                       <span className="shrink-0 tabular-nums text-[12px] text-muted-foreground">
                         {formatHistoryDate(row.created_at)}
                       </span>
                     </div>
-                    <p className="mt-1 text-[12px] font-medium text-foreground">
-                      결제 {won.toLocaleString("ko-KR")}원
-                      {row.status && row.status !== "success" ? (
-                        <span className="ms-1 text-muted-foreground">({row.status})</span>
-                      ) : null}
-                    </p>
+                    {summarySnippet ? (
+                      <p className="mt-2 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                        {summarySnippet}
+                      </p>
+                    ) : null}
                   </li>
                 );
               })}
@@ -316,23 +191,14 @@ export function MyPageClient() {
 
         <Button
           type="button"
-          className="mt-6 h-12 w-full rounded-2xl text-[15px] font-semibold shadow-md"
-          onClick={() => openBilling()}
-        >
-          크레딧 충전하기
-        </Button>
-
-        <Button
-          type="button"
           variant="outline"
-          className="mt-3 w-full rounded-2xl border-white/40 bg-transparent dark:border-white/15"
+          className="mt-6 w-full rounded-2xl border-white/40 bg-transparent dark:border-white/15"
           onClick={() => void handleSignOut()}
         >
           <LogOut className="me-2 size-4" aria-hidden />
           로그아웃
         </Button>
 
-        {/* 🔥 회원 탈퇴 버튼을 화면 맨 밑 구석으로 작게 이동 */}
         <div className="mt-6 text-center">
           <button 
             type="button"
