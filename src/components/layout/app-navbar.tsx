@@ -15,8 +15,7 @@ export function AppNavbar() {
   const pathname = usePathname();
   const user = useSupabaseUser();
   const credits = useProfileCredits(user, pathname);
-  const { openBilling } = useBilling();
-
+  
   const userHref =
     user === undefined ? "/mypage" : user === null ? "/login" : "/mypage";
 

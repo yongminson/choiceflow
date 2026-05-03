@@ -35,8 +35,8 @@ export async function GET(req: Request) {
     }
 
     const payload = JSON.stringify({
-      title: "🎁 오늘의 무료 1크레딧 충전 완료!",
-      body: "지금 바로 접속해서 ChoiceFlow AI 분석을 무료로 이용해 보세요!",
+      title: "🤔 오늘의 선택을 도와줄게!",
+      body: "결정장애 탈출! AI 코치가 딱 정해드립니다. 지금 바로 확인해보세요 🚀",
       url: "https://choice.ymstudio.co.kr", 
     });
 

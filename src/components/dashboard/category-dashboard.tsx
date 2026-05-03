@@ -9,10 +9,8 @@ import { GuardrailRejectedModal } from "@/components/analyze/guardrail-rejected-
 import { PushButton } from "@/components/push-button";
 import { CategoryFormShell } from "@/components/dashboard/category-form-shell";
 import { CategoryPanelForm } from "@/components/dashboard/category-panel-forms";
-import { useBilling } from "@/components/payment/billing-provider";
 import { ANALYZE_GUARDRAIL_DEFAULT_REASON } from "@/lib/analyze/guardrail";
 import { buildAnalyzeBodyFromDashboard } from "@/lib/analyze/build-dashboard-analyze-body";
-import { getRequiredCreditsForAnalyze } from "@/lib/analyze/category-credits";
 import { collectDashboardImageFiles } from "@/lib/dashboard/collect-dashboard-form-images";
 import { serializeDashboardForms } from "@/lib/dashboard/serialize-dashboard-forms";
 import { readFilesAsDataUrls } from "@/lib/utils/file-to-data-url";
@@ -28,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Share2, Gift, Dices, Plus, X, Trophy } from "lucide-react";
 
 // =====================================================================
-// 🎲 [무료 랜덤뽑기 모달 컴포넌트]
+// 🎲 [간단 랜덤뽑기 모달 컴포넌트]
 // =====================================================================
 function FoodRoulette({ onShare }: { onShare: () => void }) {
   const [items, setItems] = useState<string[]>(["", ""]);
@@ -71,7 +69,7 @@ function FoodRoulette({ onShare }: { onShare: () => void }) {
     <div className="flex flex-col items-center">
       <div className="mb-4 flex items-center justify-center gap-2">
         <Dices className="size-6 text-primary" />
-        <h3 className="font-display text-xl font-bold text-foreground">결정장애 무료 랜덤뽑기!</h3>
+        <h3 className="font-display text-xl font-bold text-foreground">결정장애 간단 랜덤뽑기!</h3>
       </div>
       <div className="w-full space-y-3">
         {items.map((item, index) => (
@@ -95,7 +93,7 @@ function FoodRoulette({ onShare }: { onShare: () => void }) {
           </Button>
           <Button 
             onClick={onShare} 
-            title="친구에게 공유하고 크레딧 받기"
+            title="친구에게 공유하고 혜택 받기"
             className="h-14 w-14 shrink-0 bg-blue-50 text-blue-600 shadow-lg transition-transform hover:scale-[1.02] hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400"
           >
             <Share2 className="size-6" />
@@ -118,7 +116,6 @@ export function CategoryDashboard() {
   const inputSectionRef = useRef<HTMLDivElement>(null);
   const [loadingEmojiIndex, setLoadingEmojiIndex] = useState(0);
   const router = useRouter();
-  const { openBilling } = useBilling();
   const searchParams = useSearchParams();
   const urlTab = useMemo(() => normalizeTab(searchParams.get("tab")), [searchParams]);
 
@@ -143,7 +140,7 @@ export function CategoryDashboard() {
       
       const isNotified = sessionStorage.getItem("invite_notified");
       if (!isNotified) {
-        toast.success("🎁 지인의 초대로 오셨군요!\n가입하고 무료 10크레딧을 받아보세요!", {
+        toast.success("🎁 지인의 초대로 오셨군요!\n가입하고 환영 선물을 받아보세요!", {
           duration: 6000,
           position: "top-center"
         });
@@ -217,8 +214,6 @@ export function CategoryDashboard() {
     return () => { clearInterval(textInterval); clearInterval(emojiInterval); };
   }, [isAnalyzing]);
 
-  const expectedCredits = useMemo(() => getRequiredCreditsForAnalyze(selectedCategory, selectedCategory === "appliance" ? forms.appliance.premiumSpaceAnalysis : undefined), [selectedCategory, forms.appliance.premiumSpaceAnalysis]);
-
   const openCategory = useCallback((id: CategoryId) => {
     setSelectedCategory(id); setIsFormOpen(true); router.replace(`/?tab=${id}`, { scroll: false });
     
@@ -246,14 +241,14 @@ export function CategoryDashboard() {
       if (!res.ok || data.ok !== true) {
         if (data.status === "REJECTED") { setGuardrailReason(typeof data.reason === "string" ? data.reason : ANALYZE_GUARDRAIL_DEFAULT_REASON); setGuardrailOpen(true); return; }
         const msg = typeof data.error === "string" ? data.error : "에러가 발생했습니다.";
-        if (res.status === 402 || msg.includes("크레딧")) { toast.error(msg, { action: { label: "충전하기", onClick: () => openBilling() } }); } else { toast.error(msg); }
+        toast.error(msg);
         return;
       }
       const { ok: _ok, ...rest } = data;
       try { sessionStorage.setItem("choiceResult", JSON.stringify(rest)); } catch (storageErr) { toast.error("저장 불가"); return; }
       router.push("/result");
     } catch (e) { toast.error("일시적 오류"); } finally { setIsAnalyzing(false); }
-  }, [selectedCategory, forms, router, openBilling, credits]);
+  }, [selectedCategory, forms, router]);
 
   const emojiAssets = CATEGORY_3D_EMOJI[selectedCategory];
 
@@ -267,10 +262,10 @@ export function CategoryDashboard() {
               <Gift className="size-10 text-primary animate-bounce" />
             </div>
             <h2 className="text-2xl font-black text-foreground mb-2">🎉 가입을 환영합니다!</h2>
-            <p className="text-muted-foreground mb-6">첫 가입 축하 선물로 <strong className="text-primary font-bold">무료 10 크레딧</strong>이 지급되었습니다.</p>
+            <p className="text-muted-foreground mb-6">가입을 환영합니다. 지금 바로 시작해보세요!</p>
             <div className="rounded-xl bg-primary/5 p-4 border border-primary/20 mb-6 text-left">
-              <p className="text-[14px] font-semibold text-foreground mb-1 text-center">🎁 보너스 크레딧 이벤트</p>
-              <p className="text-[13px] text-muted-foreground text-center">아래 링크를 친구들에게 전달해주세요!<br/>친구 가입 시 <strong className="text-primary">1 크레딧</strong>을 추가로 드립니다. (최대 50명)</p>
+              <p className="text-[14px] font-semibold text-foreground mb-1 text-center">🎁 친구 초대 이벤트</p>
+              <p className="text-[13px] text-muted-foreground text-center">아래 링크를 친구들에게 전달해주세요!<br/>친구 가입 시 특별한 혜택을 드립니다.</p>
             </div>
             <Button onClick={handleCopyShareLink} className="w-full h-12 text-[15px] font-bold mb-3 shadow-lg">
               <Share2 className="mr-2 size-5" /> 내 초대 링크 복사하기
@@ -312,7 +307,7 @@ export function CategoryDashboard() {
 
       <GuardrailRejectedModal open={guardrailOpen} reason={guardrailReason} onRetry={() => setGuardrailOpen(false)} />
       
-      {/* 🔥 메인 컨테이너 시작 (이 블록 '안쪽'에 배너를 넣어야 아이콘 바로 밑에 붙습니다!) */}
+      {/* 🔥 메인 컨테이너 시작 */}
       <div className={cn("flex flex-col items-center justify-center px-1 text-center", isFormOpen ? "min-h-0 pt-8 sm:pt-10" : "min-h-[calc(100dvh-5.5rem)] sm:min-h-[calc(100dvh-6rem)]")}>
         <h1 className="font-display max-w-4xl text-balance text-[1.65rem] font-semibold leading-[1.12] tracking-[-0.045em] text-foreground sm:text-4xl md:text-5xl md:leading-[1.08]">
           어떤 선택이 <span className="mt-1.5 block bg-gradient-to-br from-primary via-primary to-foreground/65 bg-clip-text text-transparent sm:mt-2.5">고민이신가요?</span>
@@ -331,7 +326,7 @@ export function CategoryDashboard() {
           })}
         </div>
 
-        {/* 🔥 임시 쿠팡 파트너스 배너 (여기로 쏙 들어왔습니다!) */}
+        {/* 🔥 임시 쿠팡 파트너스 배너 */}
         <div className="mx-auto mt-10 w-full max-w-[60rem] px-2 sm:px-0">
           <a
             href="https://link.coupang.com/a/euZhic"
@@ -370,14 +365,14 @@ export function CategoryDashboard() {
                 <span>{emojiAssets.formTitleLabel} · 입력</span>
                 {selectedCategory === "food" && (
                   <button onClick={() => setShowRouletteModal(true)} className="ml-2 animate-bounce rounded-full bg-gradient-to-r from-primary to-blue-500 px-3 py-1 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105">
-                    🎲 무료 랜덤뽑기
-                  </button>
+                  🎲 간단 랜덤뽑기
+                </button>
                 )}
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">{CATEGORY_DESC[selectedCategory]}</p>
             </div>
             <div className="pt-8">
-              <CategoryFormShell isAnalyzing={isAnalyzing} onAnalyze={handleAnalyze} expectedCredits={expectedCredits}>
+            <CategoryFormShell isAnalyzing={isAnalyzing} onAnalyze={handleAnalyze}>
                 <CategoryPanelForm categoryId={selectedCategory} forms={forms} onFormsChange={setForms} disabled={isAnalyzing} />
               </CategoryFormShell>
             </div>

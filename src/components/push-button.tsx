@@ -84,7 +84,7 @@ export function PushButton({ variant = "default" }: { variant?: "default" | "ico
       if (!res.ok) throw new Error("서버 DB 저장에 실패했습니다.");
 
       setIsSubscribed(true);
-      toast.success("🎉 알림 켜기 완료! 매일 1크레딧을 배달해 드릴게요!");
+toast.success("🎉 알림 켜기 완료! 매일 오늘의 선택을 도와드릴게요 🚀");
     } catch (e: any) {
       console.error(e);
       toast.error(`오류 발생: ${e.message}`);

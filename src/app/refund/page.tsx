@@ -21,7 +21,7 @@ export default function RefundPolicyPage() {
             따라서 유료 결제에 따른 취소 및 환불 규정이 적용되지 않습니다.
           </p>
           <p className="mt-4">
-            서비스 이용 중 문의 사항이 있으신 경우, 고객센터(admin@choiceflow.com)로 연락해 주시기 바랍니다.
+            서비스 이용 중 문의 사항이 있으신 경우, 고객센터(support@ymstudio.co.kr)로 연락해 주시기 바랍니다.
           </p>
         </section>
       </div>
