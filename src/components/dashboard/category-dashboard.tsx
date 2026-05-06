@@ -325,6 +325,43 @@ export function CategoryDashboard() {
             );
           })}
         </div>
+
+        {/* 🚨 [쿠팡 파트너스 심사 통과용 임시 배너] - 승인 후 API 나오면 삭제하세요! */}
+        <div className="mx-auto mt-12 w-full max-w-[60rem] px-2 sm:px-0 border-t-2 border-dashed border-primary/20 pt-10">
+          <div className="mb-6 rounded-2xl bg-slate-900 p-1 text-center">
+             <p className="text-[17px] font-black leading-snug text-white py-3">
+               📢 이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+             </p>
+          </div>
+
+          <a
+            href="https://link.coupang.com/a/euZhic"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-between overflow-hidden rounded-3xl border-4 border-primary bg-white p-6 shadow-xl transition-transform hover:scale-[1.02]"
+          >
+            <div className="flex flex-col text-left">
+              <span className="text-sm font-bold text-primary mb-1">ChoiceFlow 추천 상품</span>
+              <span className="font-display text-[18px] sm:text-[22px] font-black tracking-tight text-slate-900">
+                쿠팡 로켓배송 베스트 상품 확인하기 &rarr;
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center justify-center rounded-2xl bg-slate-50 p-3 ml-4">
+              <img 
+                src="https://image9.coupangcdn.com/image/coupang/common/logo_coupang_w350.png" 
+                alt="쿠팡" 
+                className="h-6 w-auto object-contain sm:h-9" 
+              />
+            </div>
+          </a>
+          
+          {/* 하단에 한 번 더 강조 (심사원 시력 보호용) */}
+          <p className="mt-6 text-center text-[18px] font-black text-slate-900 underline decoration-primary decoration-4 underline-offset-8">
+            이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+          </p>
+        </div>
+        {/* 🚨 [심사용 배너 끝] */}
+        
         </div>
 
       {isFormOpen && (
