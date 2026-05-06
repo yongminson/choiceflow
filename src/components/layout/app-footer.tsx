@@ -75,7 +75,7 @@ export function AppFooter() {
             <span className="hidden sm:inline text-border">|</span>
             <span><strong>사업자등록번호</strong> : 510-21-21827</span>
             <span className="hidden sm:inline text-border">|</span>
-            <span><strong>통신판매업신고</strong> : 통신판매업 신고 진행 중</span>
+            
           </div>
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:gap-x-4 gap-y-1 mt-1">
             <span><strong>고객센터</strong> : 0507-1385-9994</span>
