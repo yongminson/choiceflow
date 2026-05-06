@@ -325,36 +325,7 @@ export function CategoryDashboard() {
             );
           })}
         </div>
-
-        {/* 🔥 임시 쿠팡 파트너스 배너 */}
-        <div className="mx-auto mt-10 w-full max-w-[60rem] px-2 sm:px-0">
-          <a
-            href="https://link.coupang.com/a/euZhic"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-full items-center justify-between overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 p-4 sm:p-5 shadow-sm transition-transform hover:scale-[1.02] dark:border-blue-900 dark:from-blue-950/40 dark:to-blue-900/40"
-          >
-            <div className="flex flex-col text-left">
-              <span className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400">🔥 ChoiceFlow 런칭 기념</span>
-              <span className="mt-1 font-display text-[15px] sm:text-[17px] font-black tracking-tight text-slate-800 dark:text-slate-100">
-                로켓배송으로 생필품 구경가기 &rarr;
-              </span>
-            </div>
-            <div className="flex shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-sm ml-4">
-              <img 
-                src="https://image9.coupangcdn.com/image/coupang/common/logo_coupang_w350.png" 
-                alt="쿠팡 로켓배송" 
-                className="h-5 w-auto object-contain sm:h-7" 
-              />
-            </div>
-          </a>
-          <p className="mt-2.5 text-center text-[10px] sm:text-[11px] text-muted-foreground/60">
-            이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
-          </p>
         </div>
-        {/* 🔥 배너 끝 */}
-
-      </div>
 
       {isFormOpen && (
         <div ref={inputSectionRef} className="mt-5 animate-in fade-in slide-in-from-bottom-6 duration-500 fill-mode-both sm:mt-8">

@@ -112,7 +112,7 @@ export function AnalysisAffiliateSection({ data }: { data: AnalyzeApiResult }) {
 
       {showCoupangBlock ? (
         <p
-          className="mt-6 border-t border-amber-200/60 pt-4 text-[10px] leading-snug text-muted-foreground/90 dark:border-white/10"
+          className="mt-6 border-t border-amber-300 pt-5 text-[16px] sm:text-[17px] font-extrabold tracking-tight text-slate-900 dark:border-white/20 dark:text-white"
           role="note"
         >
           {COUPANG_DISCLOSURE}
