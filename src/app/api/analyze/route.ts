@@ -10,7 +10,7 @@ import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const SYSTEM_PROMPT = `당신은 최고 권위의 분석 전문가입니다.
 반드시 아래 규칙에 따라 판단하고 오직 JSON으로만 응답하세요.
