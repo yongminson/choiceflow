@@ -111,7 +111,15 @@ export async function POST(request: Request) {
   
   const supabase = createRouteHandlerSupabaseClient(request);
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ ok: false, error: "로그인 필요" }, { status: 401 });
+  // 이 부분을 통째로 지우거나 주석 처리!
+    /*
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+    */
 
   const urlA = (body as any).urlA || (body as any).linkA || (body as any).productUrlA || (body as any).optionAUrl || "없음";
   const urlB = (body as any).urlB || (body as any).linkB || (body as any).productUrlB || (body as any).optionBUrl || "없음";
@@ -171,7 +179,7 @@ export async function POST(request: Request) {
 
     // 🔥 전면 무료화: 분석 기록만 남기고 크레딧 차감은 절대 하지 않음!
     await supabase.from("analysis_history").insert({ 
-      user_id: user.id, 
+      user_id: user?.id || null,
       category: getCategoryDisplayLabel(categoryId), 
       input_data: body, 
       result_data: out, 

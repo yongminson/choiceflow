@@ -43,6 +43,7 @@ export function AppNavbar() {
           
           <PushButton variant="icon" />
 
+          {/* 나중에 사용할 수 있으므로 마이페이지(로그인) 버튼 주석 처리
           <Link
             href={userHref}
             prefetch={user !== null}
@@ -50,10 +51,12 @@ export function AppNavbar() {
               buttonVariants({ variant: "ghost", size: "icon-sm" }),
               "relative z-[9999] rounded-full bg-white/25 backdrop-blur-md touch-manipulation"
             )}
-            aria-label={user === null ? "로그인" : "마이페이지"}
           >
-            <UserRound className="size-4" />
+            <div className="flex items-center justify-center">
+              <UserRound className="h-5 w-5 text-foreground/80" />
+            </div>
           </Link>
+          */}
         </div>
       </div>
     </header>
