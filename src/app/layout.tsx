@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { VisitorTracker } from "@/components/visitor-tracker";
 import { AdminFloatingWidget } from "@/components/admin-floating-widget";
@@ -67,6 +68,7 @@ export default function RootLayout({
 
         {/* 🔥 [핵심] 여기에 대표님의 GA4 아이디가 삽입됩니다! */}
         <GoogleAnalytics gaId="G-QC4Z4BX84L" />
+        <Analytics />
       </body>
     </html>
   );
