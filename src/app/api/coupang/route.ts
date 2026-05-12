@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 export const dynamic = "force-dynamic";
+export const preferredRegion = 'icn1'; // 🔥 핵심 수술: Vercel 서버를 '서울'로 강제 지정! (쿠팡 해외 IP 차단 방어)
 
 // 쿠팡 API 필수 암호화(HMAC) 함수
 function generateHmac(method: string, url: string, secretKey: string, accessKey: string) {
@@ -10,7 +11,6 @@ function generateHmac(method: string, url: string, secretKey: string, accessKey:
   const query = parts[1] || '';
 
   const now = new Date();
-  // YYMMDDTHHMMSSZ 포맷 생성
   const year = String(now.getUTCFullYear()).slice(2);
   const month = String(now.getUTCMonth() + 1).padStart(2, '0');
   const date = String(now.getUTCDate()).padStart(2, '0');
@@ -33,14 +33,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect('https://www.coupang.com');
   }
 
-  // Vercel과 .env.local에 등록한 키를 불러옵니다.
-  const ACCESS_KEY = process.env.COUPANG_ACCESS_KEY;
-  const SECRET_KEY = process.env.COUPANG_SECRET_KEY;
+  // Vercel 환경변수 호출 (띄어쓰기 섞이지 않게 주의!)
+  const ACCESS_KEY = process.env.COUPANG_ACCESS_KEY?.trim();
+  const SECRET_KEY = process.env.COUPANG_SECRET_KEY?.trim();
   
   // 기본 쿠팡 검색 URL
   const originalUrl = `https://www.coupang.com/np/search?q=${encodeURIComponent(q)}`;
 
-  // 키가 없으면 그냥 일반 검색으로 넘깁니다 (에러 방지)
   if (!ACCESS_KEY || !SECRET_KEY) {
     return NextResponse.redirect(originalUrl);
   }
@@ -59,17 +58,18 @@ export async function GET(request: Request) {
       },
       body: JSON.stringify({
         coupangUrls: [originalUrl],
+        subId: "choiceflow" // 🔥 추가 수익 추적 태그 (선택장애 프로젝트에서 나온 수익임을 명시)
       }),
     });
 
     const data = await response.json();
 
-    // 정상적으로 수수료 링크(shortenUrl)가 발급되었다면 거기로 보냅니다!
+    // 정상 발급 시 수익 링크(shortenUrl)로 이동
     if (data.rCode === '0' && data.data && data.data.length > 0) {
       return NextResponse.redirect(data.data[0].shortenUrl);
     } else {
-      console.error("Coupang API Error:", data);
-      return NextResponse.redirect(originalUrl); // API 실패시 일반 링크로 안전하게 이동
+      console.error("Coupang API Error (서버 로그 확인):", data);
+      return NextResponse.redirect(originalUrl);
     }
   } catch (error) {
     console.error("Coupang DeepLink Exception:", error);
