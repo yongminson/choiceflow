@@ -12,7 +12,8 @@ import { BillingProvider } from "@/components/payment/billing-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 
-// 🔥 [추가됨] 구글 애널리틱스 공식 컴포넌트 불러오기
+// 🔥 [추가됨] Next.js 스크립트 컴포넌트 및 구글 애널리틱스
+import Script from 'next/script';
 import { GoogleAnalytics } from '@next/third-parties/google';
 
 const display = Plus_Jakarta_Sans({
@@ -34,8 +35,7 @@ export const metadata: Metadata = {
     default: "ChoiceFlow — 선택장애를 위한 AI",
     template: "%s · ChoiceFlow",
   },
-  description:
-    "망설임의 시간을 확신으로. AI 기반 선택 분석 서비스 ChoiceFlow.",
+  description: "망설임의 시간을 확신으로. AI 기반 선택 분석 서비스 ChoiceFlow.",
   verification: {
     google: "mTatlpiTN0G1CZ1XKfH_gHsYoV183kAtBlZVBxKp4fg",
     other: {
@@ -52,8 +52,8 @@ export default function RootLayout({
   return (
     <html lang="ko" className={cn(display.variable, notoSansKr.variable)}>
       <body className="min-h-screen antialiased">
-      <VisitorTracker />  {/* 👈 여기에 센서를 부착합니다! */}
-      <AdminFloatingWidget /> {/* 👈 추가된 부분 */}
+        <VisitorTracker />
+        <AdminFloatingWidget />
         <CreditsRefreshProvider>
           <BillingProvider>
             <MeshBackground />
@@ -66,7 +66,19 @@ export default function RootLayout({
           </BillingProvider>
         </CreditsRefreshProvider>
 
-        {/* 🔥 [핵심] 여기에 대표님의 GA4 아이디가 삽입됩니다! */}
+        {/* 🚀 네이버 애널리틱스 (선택장애 ID 적용) */}
+        <Script id="naver-analytics" strategy="afterInteractive">
+          {`
+            if(!wcs_add) var wcs_add = {};
+            wcs_add["wa"] = "1c9a01a88feab40";
+            if(window.wcs) {
+              wcs_do();
+            }
+          `}
+        </Script>
+        <Script src="//wcs.naver.net/wcslog.js" strategy="afterInteractive" />
+
+        {/* 구글 애널리틱스 및 Vercel 분석 */}
         <GoogleAnalytics gaId="G-QC4Z4BX84L" />
         <Analytics />
       </body>
