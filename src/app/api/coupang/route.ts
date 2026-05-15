@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 export const dynamic = "force-dynamic";
-export const preferredRegion = 'icn1'; // 🔥 핵심 수술: Vercel 서버를 '서울'로 강제 지정! (쿠팡 해외 IP 차단 방어)
+export const runtime = 'nodejs';
+export const preferredRegion = 'icn1';
+export const fetchCache = 'force-no-store'; // 🔥 캐시 완전 비활성화
 
-// 쿠팡 API 필수 암호화(HMAC) 함수
 function generateHmac(method: string, url: string, secretKey: string, accessKey: string) {
   const parts = url.split('?');
   const path = parts[0];
@@ -33,14 +34,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect('https://www.coupang.com');
   }
 
-  // Vercel 환경변수 호출 (띄어쓰기 섞이지 않게 주의!)
   const ACCESS_KEY = process.env.COUPANG_ACCESS_KEY?.trim();
   const SECRET_KEY = process.env.COUPANG_SECRET_KEY?.trim();
   
-  // 기본 쿠팡 검색 URL
   const originalUrl = `https://www.coupang.com/np/search?q=${encodeURIComponent(q)}`;
 
   if (!ACCESS_KEY || !SECRET_KEY) {
+    console.error("❌ 환경변수 없음");
     return NextResponse.redirect(originalUrl);
   }
 
@@ -49,30 +49,30 @@ export async function GET(request: Request) {
     const path = '/v2/providers/affiliate_open_api/apis/openapi/v1/deeplink';
     const authorization = generateHmac(method, path, SECRET_KEY, ACCESS_KEY);
 
-    // 쿠팡 딥링크 API 호출
     const response = await fetch(`https://api-gateway.coupang.com${path}`, {
       method: 'POST',
+      cache: 'no-store', // 🔥 캐시 비활성화
       headers: {
         'Authorization': authorization,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         coupangUrls: [originalUrl],
-        subId: "choiceflow" // 🔥 추가 수익 추적 태그 (선택장애 프로젝트에서 나온 수익임을 명시)
+        subId: "choiceflow"
       }),
     });
 
     const data = await response.json();
+    console.log("✅ rCode:", data.rCode, "| data:", JSON.stringify(data).slice(0, 200));
 
-    // 정상 발급 시 수익 링크(shortenUrl)로 이동
     if (data.rCode === '0' && data.data && data.data.length > 0) {
       return NextResponse.redirect(data.data[0].shortenUrl);
     } else {
-      console.error("Coupang API Error (서버 로그 확인):", data);
+      console.error("❌ Coupang API Error:", JSON.stringify(data));
       return NextResponse.redirect(originalUrl);
     }
   } catch (error) {
-    console.error("Coupang DeepLink Exception:", error);
+    console.error("❌ Exception:", error);
     return NextResponse.redirect(originalUrl);
   }
 }
