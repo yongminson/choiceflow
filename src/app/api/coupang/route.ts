@@ -1,22 +1,45 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+
+import {
+  buildCoupangSearchUrl,
+  CoupangApiError,
+  createCoupangDeepLink,
+  normalizeCoupangKeyword,
+} from "@/lib/monetization/coupang-server";
 
 export const dynamic = "force-dynamic";
-export const runtime = 'nodejs';
-export const preferredRegion = 'icn1';
-export const fetchCache = 'force-no-store';
+export const runtime = "nodejs";
+export const preferredRegion = "icn1";
+export const fetchCache = "force-no-store";
+
+function redirectWithoutCache(url: string, mode: "api" | "fallback") {
+  const response = NextResponse.redirect(url, 302);
+  response.headers.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate"
+  );
+  response.headers.set("X-ChoiceFlow-Coupang-Mode", mode);
+  return response;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const q = searchParams.get('q');
+  const keyword = normalizeCoupangKeyword(searchParams.get("q"));
+  const fallbackUrl = buildCoupangSearchUrl(keyword);
 
-  if (!q) {
-    return NextResponse.redirect('https://www.coupang.com');
+  if (!keyword) {
+    return redirectWithoutCache(fallbackUrl, "fallback");
   }
 
-  const PARTNER_ID = "AF7639883";
-  const now = Date.now();
-  
-  const trackingUrl = `https://www.coupang.com/np/search?q=${encodeURIComponent(q)}&src=1139000&spec=10799999&addtag=200&lptag=${PARTNER_ID}&itime=${now}&pageType=SEARCH&pageValue=${encodeURIComponent(q)}&wPcid=${now}&wRef=&wTime=${now}&redirect=landing&subid=choiceflow`;
-
-  return NextResponse.redirect(trackingUrl);
+  try {
+    const deepLink = await createCoupangDeepLink(keyword);
+    return redirectWithoutCache(deepLink, "api");
+  } catch (error) {
+    const details =
+      error instanceof CoupangApiError
+        ? { code: error.code, status: error.status }
+        : { code: "UNEXPECTED_ERROR" };
+    console.error("[coupang] Deep-link generation failed; using fallback.", details);
+    return redirectWithoutCache(fallbackUrl, "fallback");
+  }
 }

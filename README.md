@@ -34,3 +34,16 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Coupang Partners API diagnostics
+
+Copy the variable names in `.env.example` to `.env.local` or your serverless
+environment. `COUPANG_SECRET_KEY` and `COUPANG_DIAGNOSTIC_TOKEN` are server-only
+values and must never use a `NEXT_PUBLIC_` prefix.
+
+- `GET /api/coupang/health` checks whether the required server variables exist.
+- `POST /api/coupang/health` performs a live deep-link probe and requires
+  `Authorization: Bearer <COUPANG_DIAGNOSTIC_TOKEN>`.
+
+The live probe returns only status metadata. It never returns credentials,
+authorization headers, or the generated affiliate URL.

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "npm run test:coupang",
+    "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
