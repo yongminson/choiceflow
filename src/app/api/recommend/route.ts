@@ -9,6 +9,7 @@ import {
   QUICK_CATEGORY_LABELS,
   type QuickPriorityId,
 } from "@/lib/recommendation/quick-options";
+import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
 import type {
   AnalyzeApiResult,
   QuickRecommendation,
@@ -442,10 +443,6 @@ async function enrichProductPrices(
   candidates: Candidate[],
   maxBudgetWon?: number
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
-  const shoppingSearchUrl = (query: string) =>
-    `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(
-      query
-    )}`;
   const items: QuickRecommendation[] = await Promise.all(
     candidates.map(async (candidate, index): Promise<QuickRecommendation> => {
       try {
@@ -460,23 +457,19 @@ async function enrichProductPrices(
           price: Number.isFinite(price) && price > 0 ? price : undefined,
           priceLabel:
             Number.isFinite(price) && price > 0
-              ? "조회 시점 네이버 쇼핑 노출 최저가"
+              ? "네이버 조회 참고가 · 쿠팡 가격은 이동 후 확인"
               : undefined,
           seller: clean(product?.mallName, "", 80) || undefined,
-          sourceUrl:
-            safeUrl(product?.link) ||
-            shoppingSearchUrl(candidate.searchKeyword),
-          sourceLabel: product
-            ? "네이버 쇼핑"
-            : "네이버 쇼핑에서 최종 가격 확인",
+          sourceUrl: buildDirectCoupangNpSearchUrl(candidate.searchKeyword),
+          sourceLabel: "쿠팡에서 가격 확인",
           name: clean(product?.title, candidate.name, 100),
         } satisfies QuickRecommendation;
       } catch {
         return {
           rank: index + 1,
           ...candidate,
-          sourceUrl: shoppingSearchUrl(candidate.searchKeyword),
-          sourceLabel: "네이버 쇼핑에서 최종 가격 확인",
+          sourceUrl: buildDirectCoupangNpSearchUrl(candidate.searchKeyword),
+          sourceLabel: "쿠팡에서 가격 확인",
         } satisfies QuickRecommendation;
       }
     })
@@ -672,14 +665,12 @@ function buildFallbackNonFoodRecommendations(
     rank: index + 1,
     ...item,
     sourceUrl: shopping
-      ? `https://search.shopping.naver.com/search/all?query=${encodeURIComponent(
-          item.searchKeyword
-        )}`
+      ? buildDirectCoupangNpSearchUrl(item.searchKeyword)
       : `https://search.naver.com/search.naver?query=${encodeURIComponent(
           item.searchKeyword
         )}`,
     sourceLabel: shopping
-      ? "네이버 쇼핑에서 가격 확인"
+      ? "쿠팡에서 가격 확인"
       : "네이버에서 조건 확인",
   }));
 }

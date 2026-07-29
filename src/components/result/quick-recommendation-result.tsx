@@ -338,7 +338,8 @@ export function QuickRecommendationResult({
                     "mt-4 min-h-12 w-full rounded-xl"
                   )}
                 >
-                  {isFood ? "지도에서 최신 정보 보기" : "가격·판매 조건 확인"}
+                  {item.sourceLabel ||
+                    (isFood ? "지도에서 최신 정보 보기" : "가격·판매 조건 확인")}
                   <ExternalLink className="ml-2 size-4" />
                 </a>
               )}
@@ -371,16 +372,23 @@ export function QuickRecommendationResult({
           )
         ) : hasLivePrice ? (
           <p>
-            표시 가격은 조회 시점의 쇼핑 검색 최저가입니다. 배송비, 쿠폰, 옵션,
-            재고에 따라 최종 결제가는 달라질 수 있습니다.
+            표시 가격은 외부 쇼핑 검색의 조회 시점 참고가입니다. 구매 버튼은
+            쿠팡 파트너스 링크로 이동하며, 배송비·쿠폰·옵션·재고에 따라 쿠팡의
+            최종 결제가는 달라질 수 있습니다.
           </p>
         ) : (
           <p>
-            실시간 가격 연동을 사용할 수 없어 안전한 검색 링크를 제공합니다.
-            연결된 판매처에서 최종 가격과 판매 조건을 확인해 주세요.
+            실시간 참고가를 불러오지 못했습니다. 쿠팡에서 현재 가격과 판매
+            조건을 확인해 주세요.
           </p>
         )}
       </section>
+
+      {!isFood && (
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
+          쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+        </p>
+      )}
 
       <section className="mt-8 overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.08] to-sky-500/[0.06] p-5 sm:p-6">
         {!showAdvanced ? (

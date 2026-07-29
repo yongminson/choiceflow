@@ -60,6 +60,15 @@ const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
   asset: KeyRound,
 };
 
+const CATEGORY_ACCENTS: Record<CategoryId, string> = {
+  food: "bg-orange-100 text-orange-600 ring-orange-200/80",
+  gift: "bg-pink-100 text-pink-600 ring-pink-200/80",
+  appliance: "bg-sky-100 text-sky-600 ring-sky-200/80",
+  fashion: "bg-violet-100 text-violet-600 ring-violet-200/80",
+  date: "bg-emerald-100 text-emerald-600 ring-emerald-200/80",
+  asset: "bg-amber-100 text-amber-700 ring-amber-200/80",
+};
+
 function getLocation(): Promise<LocationPayload | undefined> {
   if (!("geolocation" in navigator)) return Promise.resolve(undefined);
 
@@ -225,7 +234,7 @@ export function QuickRecommendationDashboard() {
           : "최종 결제 가능한 범위를 기준으로 찾아볼게요.";
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col px-4 pb-24 pt-7 sm:px-6 sm:pt-12">
+    <main className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col bg-[radial-gradient(circle_at_8%_8%,rgba(254,215,170,0.5),transparent_30%),radial-gradient(circle_at_92%_12%,rgba(196,181,253,0.45),transparent_32%),radial-gradient(circle_at_50%_72%,rgba(186,230,253,0.38),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.72),rgba(239,246,255,0.5))] px-4 pb-24 pt-7 sm:rounded-[2.5rem] sm:px-8 sm:pt-12">
       <div className="mb-8">
         <div className="flex items-center justify-between gap-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
@@ -290,9 +299,14 @@ export function QuickRecommendationDashboard() {
                     setScenarioId(null);
                     setPriorityId(null);
                   }}
-                  className="group flex min-h-36 flex-col items-start justify-between rounded-[1.4rem] border border-foreground/[0.08] bg-background/80 p-5 text-left shadow-[0_12px_35px_-25px_rgba(15,23,42,0.45)] transition hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-[0_18px_42px_-24px_rgba(15,23,42,0.5)] active:translate-y-0"
+                  className="group flex min-h-36 flex-col items-start justify-between rounded-[1.4rem] border border-white/80 bg-white/85 p-5 text-left shadow-[0_18px_45px_-28px_rgba(59,130,246,0.42)] backdrop-blur-xl transition hover:-translate-y-1 hover:border-white hover:bg-white hover:shadow-[0_22px_50px_-26px_rgba(99,102,241,0.42)] active:translate-y-0"
                 >
-                  <span className="inline-flex size-10 items-center justify-center rounded-xl bg-foreground text-background transition-transform group-hover:scale-105">
+                  <span
+                    className={cn(
+                      "inline-flex size-11 items-center justify-center rounded-2xl ring-1 transition-transform group-hover:scale-110",
+                      CATEGORY_ACCENTS[id]
+                    )}
+                  >
                     <Icon className="size-5" />
                   </span>
                   <span>
@@ -478,7 +492,7 @@ function ChoiceButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="group flex min-h-24 items-center justify-between gap-4 rounded-[1.25rem] border border-foreground/[0.08] bg-background/80 p-5 text-left shadow-[0_10px_32px_-26px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-foreground/20 active:translate-y-0 disabled:cursor-wait disabled:opacity-50"
+      className="group flex min-h-24 items-center justify-between gap-4 rounded-[1.25rem] border border-white/80 bg-white/85 p-5 text-left shadow-[0_16px_40px_-28px_rgba(59,130,246,0.42)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-primary/20 hover:bg-white active:translate-y-0 disabled:cursor-wait disabled:opacity-50"
     >
       <span>
         <span className="block font-display text-lg font-bold">{label}</span>
