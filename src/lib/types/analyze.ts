@@ -47,6 +47,45 @@ export type AnalyzeApiResult = AnalyzeResponse & {
   categoryId?: string;
   /** 홈 폼에서 「명운 사주 연동」 체크 여부 — 프리미엄 리포트 표시에 사용 */
   myeongunDeepDataEnabled?: boolean;
+  recommendationMode?: "quick" | "compare";
+  quickScenarioLabel?: string;
+  quickPriorityLabel?: string;
+  quickBudgetLabel?: string;
+  quickMaxBudgetWon?: number;
+  quickCandidateCount?: number;
+  quickScenarioId?: string;
+  quickPriorityId?: string;
+  quickBudgetId?: string;
+  refinementAnswerCount?: number;
+  quickRecommendations?: QuickRecommendation[];
+  providerStatus?: {
+    ai: "live" | "fallback";
+    price: "live" | "unavailable";
+    places: "live" | "unavailable";
+  };
+  locationUsed?: boolean;
+  checkedAt?: string;
+};
+
+export type QuickRecommendation = {
+  rank: number;
+  name: string;
+  reason: string;
+  searchKeyword: string;
+  qualitySummary: string;
+  asSummary?: string;
+  depreciationSummary?: string;
+  price?: number;
+  priceLabel?: string;
+  seller?: string;
+  rating?: number;
+  reviewCount?: number;
+  address?: string;
+  sourceUrl?: string;
+  sourceLabel?: string;
+  priceLevel?: string;
+  selectionType?: "best" | "value" | "reliable" | "premium";
+  selectionLabel?: string;
 };
 
 /** POST /api/analyze 성공 시 본문 — 항상 JSON 객체 */

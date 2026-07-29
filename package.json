@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "npm run test:coupang",
-    "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts"
+    "test": "npm run test:coupang && npm run test:quick",
+    "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts",
+    "test:quick": "node --experimental-strip-types --test tests/quick-options.test.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",

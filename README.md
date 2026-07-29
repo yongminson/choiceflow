@@ -47,3 +47,31 @@ values and must never use a `NEXT_PUBLIC_` prefix.
 
 The live probe returns only status metadata. It never returns credentials,
 authorization headers, or the generated affiliate URL.
+
+## Quick recommendation data providers
+
+The button-first recommendation flow asks for a category and then three basic
+questions: detailed use, priority, and a category-specific budget. It returns
+four purpose-specific results (best overall, lowest-price/value, reliability,
+and premium). A user can optionally answer up to five additional button-only
+questions and request a refined result at any point. It works without optional
+providers and returns a non-empty fallback result when AI or external APIs
+fail. Recent conditions are stored only in the current browser so they can be
+run again without signing in.
+
+- `GEMINI_API_KEY`: creates four purpose-specific candidates. It does not invent live
+  prices, ratings, or review counts.
+- `NAVER_CLIENT_ID` and `NAVER_CLIENT_SECRET`: server-only Naver Shopping Search
+  credentials for the legacy integration. Product queries request ascending
+  price order. The displayed value is the lowest price exposed by the API at
+  lookup time; shipping, coupons, options, and stock can change the checkout
+  total. NAVER officially scheduled this Shopping Search API to end on
+  2026-07-31, so it must not be treated as the long-term price provider.
+- `GOOGLE_PLACES_API_KEY`: optional, server-only nearby restaurant provider.
+  Rating and review-count fields are billable Google Maps Platform fields.
+  Leave it blank until billing and quota limits are explicitly approved.
+
+`GET /api/recommend/health` reports only whether each provider is configured.
+It never returns key values. Browser geolocation is requested only after the
+user chooses a food scenario, and the precise location is not persisted by the
+quick recommendation route.

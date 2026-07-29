@@ -13,6 +13,7 @@ import { AnalysisAffiliateSection } from "@/components/result/analysis-affiliate
 
 // 🔥 방금 만든 고가자산 프리미엄 폼 가져오기
 import { ConsultationForm } from "@/components/result/consultation-form";
+import { QuickRecommendationResult } from "@/components/result/quick-recommendation-result";
 
 // 🔥 유저 정보를 가져와서 초대 링크를 만들기 위해 추가!
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
@@ -124,8 +125,12 @@ export function ResultDashboardView() {
         try {
           await navigator.share({ title: "ChoiceFlow AI 분석 결과", files: [file] });
           toast.success("공유창이 열렸습니다! 🚀");
-        } catch (shareError: any) {
-          if (shareError.name !== "AbortError") forceDownload(dataUrl);
+        } catch (shareError: unknown) {
+          const name =
+            shareError && typeof shareError === "object" && "name" in shareError
+              ? String(shareError.name)
+              : "";
+          if (name !== "AbortError") forceDownload(dataUrl);
         }
       } else {
         forceDownload(dataUrl);
@@ -168,6 +173,10 @@ export function ResultDashboardView() {
         </div>
       </div>
     );
+  }
+
+  if (data.recommendationMode === "quick") {
+    return <QuickRecommendationResult data={data} onResultUpdate={setData} />;
   }
 
   const m = data;
