@@ -89,7 +89,9 @@ export function QuickRecommendationResult({
   data: AnalyzeApiResult;
   onResultUpdate: (result: AnalyzeApiResult) => void;
 }) {
-  const recommendations = (data.quickRecommendations || []).slice(0, 4);
+  const recommendations = (data.quickRecommendations || []).slice(0, 3);
+  const winner = recommendations[0];
+  const alternative = recommendations[1];
   const isFood = data.categoryId === "food";
   const hasLivePrice = data.providerStatus?.price === "live";
   const hasLivePlaces = data.providerStatus?.places === "live";
@@ -184,14 +186,21 @@ export function QuickRecommendationResult({
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-3xl px-4 pb-20 pt-8 sm:px-6 sm:pt-14">
-      <header>
-        <p className="text-xs font-bold tracking-[0.18em] text-muted-foreground">
-          CHOICE NOTE
+      <header className="text-center">
+        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-primary">
+          Analysis result
         </p>
-        <h1 className="mt-2 text-balance font-display text-3xl font-black tracking-[-0.04em] sm:text-4xl">
-          {data.quickScenarioLabel} 추천
+        <p className="mt-5 text-sm font-bold text-muted-foreground">
+          AI 최종 선택
+        </p>
+        <h1 className="mt-2 text-balance bg-gradient-to-br from-primary via-sky-500 to-violet-500 bg-clip-text font-display text-4xl font-black tracking-[-0.05em] text-transparent sm:text-5xl">
+          {winner?.name || `${data.quickScenarioLabel} 추천`}
         </h1>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+          {winner?.reason ||
+            "선택한 조건을 기준으로 가장 적합한 후보를 정리했어요."}
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
           {data.quickPriorityLabel && (
             <span className="rounded-full border border-foreground/10 bg-background/80 px-3 py-1.5 text-xs font-bold">
               {data.quickPriorityLabel} 우선
@@ -208,18 +217,129 @@ export function QuickRecommendationResult({
             </span>
           )}
         </div>
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
-          같은 조건에서도 선택 목적은 다릅니다. 종합 적합도, 가격, 신뢰성,
-          프리미엄 기준으로 나누어 비교했어요.
-        </p>
-        {typeof data.quickCandidateCount === "number" && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            목적별 결과 {recommendations.length}개
-          </p>
-        )}
       </header>
 
-      <div className="mt-7 space-y-4">
+      <section className="mt-8 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-3xl border border-sky-200/70 bg-white/80 p-5 shadow-glass-sm backdrop-blur-xl">
+          <div className="flex items-end justify-between gap-4">
+            <span className="text-sm font-bold text-muted-foreground">
+              조건 일치도
+            </span>
+            <span className="text-3xl font-black text-primary">
+              {data.winPercentage ?? data.score}%
+            </span>
+          </div>
+          <div className="mt-3 h-3 overflow-hidden rounded-full bg-sky-100">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-sky-400 to-primary"
+              style={{ width: `${data.winPercentage ?? data.score}%` }}
+            />
+          </div>
+        </div>
+        <div className="rounded-3xl border border-rose-200/70 bg-white/80 p-5 shadow-glass-sm backdrop-blur-xl">
+          <div className="flex items-end justify-between gap-4">
+            <span className="text-sm font-bold text-muted-foreground">
+              추가 확인 필요도
+            </span>
+            <span className="text-3xl font-black text-rose-500">
+              {data.regretProbability ?? Math.max(0, 100 - data.score)}%
+            </span>
+          </div>
+          <div className="mt-3 h-3 overflow-hidden rounded-full bg-rose-100">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-rose-300 to-rose-500"
+              style={{
+                width: `${
+                  data.regretProbability ?? Math.max(0, 100 - data.score)
+                }%`,
+              }}
+            />
+          </div>
+        </div>
+      </section>
+
+      {winner && alternative && (
+        <section className="mt-6 overflow-hidden rounded-3xl border border-white/70 bg-white/75 shadow-glass-sm backdrop-blur-xl">
+          <div className="border-b border-foreground/10 px-5 py-4 text-center">
+            <h2 className="font-display text-lg font-black">
+              최종 선택과 가성비 대안 비교
+            </h2>
+          </div>
+          <div className="grid grid-cols-2">
+            {[winner, alternative].map((item, index) => (
+              <div
+                key={`${item.name}-summary`}
+                className={cn(
+                  "min-w-0 p-4 sm:p-6",
+                  index === 1 && "border-l border-foreground/10"
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold",
+                    index === 0
+                      ? "bg-primary/10 text-primary"
+                      : "bg-emerald-500/10 text-emerald-700"
+                  )}
+                >
+                  {index === 0 ? "최종 선택" : "가격 대안"}
+                </span>
+                <h3 className="mt-3 break-keep text-base font-black sm:text-lg">
+                  {item.name}
+                </h3>
+                {typeof item.price === "number" && (
+                  <p className="mt-2 text-sm font-black text-emerald-700">
+                    참고 {formatPrice(item.price)}원
+                  </p>
+                )}
+                <div className="mt-4 space-y-3 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                  <p className="flex items-start gap-2">
+                    <BadgeCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+                    {item.qualitySummary}
+                  </p>
+                  {item.asSummary && (
+                    <p className="flex items-start gap-2">
+                      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+                      {item.asSummary}
+                    </p>
+                  )}
+                  {item.depreciationSummary && (
+                    <p className="flex items-start gap-2">
+                      <TrendingDown className="mt-0.5 size-4 shrink-0 text-primary" />
+                      {item.depreciationSummary}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {winner && (
+        <section className="mt-6 rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/95 via-white/90 to-orange-50/90 p-6 shadow-glass-sm">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
+            핵심 판단
+          </p>
+          <p className="mt-3 text-[15px] font-medium leading-relaxed">
+            {data.killerInsight || winner.reason}
+          </p>
+          <p className="mt-4 border-t border-amber-200/70 pt-4 text-sm font-bold">
+            {data.summary}
+          </p>
+        </section>
+      )}
+
+      <div className="mb-4 mt-9 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold text-muted-foreground">추천 후보</p>
+          <h2 className="mt-1 font-display text-2xl font-black">
+            목적별 최대 3개
+          </h2>
+        </div>
+      </div>
+
+      <div className="space-y-4">
         {recommendations.map((item, index) => {
           const priceLevel = formatPriceLevel(item.priceLevel);
           const roleLabel =

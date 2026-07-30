@@ -347,13 +347,13 @@ JSON 배열만 응답:
 
   try {
     const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model:
+        process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
     });
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         responseMimeType: "application/json",
-        temperature: 0.15,
       },
     });
     const parsed = JSON.parse(result.response.text()) as unknown;
@@ -689,21 +689,53 @@ function toAnalyzeResult(
   status: AnalyzeApiResult["providerStatus"],
   locationUsed: boolean
 ): AnalyzeApiResult {
-  const first = recommendations[0];
+  const limitedRecommendations = recommendations.slice(0, 3);
+  const first = limitedRecommendations[0];
+  const second = limitedRecommendations[1];
+  const third = limitedRecommendations[2];
+  const conditionConfidence = Math.min(
+    94,
+    80 + refinementAnswerCount * 2
+  );
   return {
     winner: "A",
     winnerName: first?.name || "추천 후보",
-    score: 80,
-    winPercentage: 80,
-    regretProbability: 20,
+    score: conditionConfidence,
+    winPercentage: conditionConfidence,
+    regretProbability: 100 - conditionConfidence,
     realReviews: [],
-    table: { A: { pros: [], cons: [] }, B: { pros: [], cons: [] } },
+    comparisonMetrics: [],
+    optionC: third
+      ? {
+          name: third.name,
+          reason: third.reason,
+          searchKeyword: third.searchKeyword,
+        }
+      : undefined,
+    table: {
+      A: {
+        pros: [first?.qualitySummary, first?.asSummary].filter(
+          (item): item is string => Boolean(item)
+        ),
+        cons: [first?.depreciationSummary].filter(
+          (item): item is string => Boolean(item)
+        ),
+      },
+      B: {
+        pros: [second?.qualitySummary, second?.asSummary].filter(
+          (item): item is string => Boolean(item)
+        ),
+        cons: [second?.depreciationSummary].filter(
+          (item): item is string => Boolean(item)
+        ),
+      },
+    },
     killerInsight: first?.reason || "",
-    summary: `${scenarioLabel}에 맞는 목적별 후보 4개를 정리했어요.`,
+    summary: `${scenarioLabel}에 맞는 최종 선택과 대안 2개를 정리했어요.`,
     analysisText: first?.reason || "",
     searchKeyword: first?.searchKeyword || null,
     optionALabel: first?.name || "추천 후보",
-    optionBLabel: recommendations[1]?.name || "다른 후보",
+    optionBLabel: second?.name || "다른 후보",
     priceAManwon: first?.price ? Math.round(first.price / 10_000) : 0,
     priceBManwon: recommendations[1]?.price
       ? Math.round(recommendations[1].price! / 10_000)
@@ -718,9 +750,9 @@ function toAnalyzeResult(
     quickBudgetLabel: budgetLabel,
     quickBudgetId: budgetId,
     quickMaxBudgetWon: maxBudgetWon,
-    quickCandidateCount: recommendations.length,
+    quickCandidateCount: limitedRecommendations.length,
     refinementAnswerCount,
-    quickRecommendations: recommendations.slice(0, 4),
+    quickRecommendations: limitedRecommendations,
     providerStatus: status,
     locationUsed,
     checkedAt: new Date().toISOString(),
@@ -806,14 +838,15 @@ export async function POST(request: Request) {
             advancedAnswers
           ).catch(() => undefined)
         : undefined;
-      const recommendations =
+      const recommendations = (
         places ||
         buildFallbackFoodRecommendations(
           fallbacks,
           priority.label,
           budget.label,
           advancedContext
-        );
+        )
+      ).slice(0, 3);
       const result = toAnalyzeResult(
         rawCategory,
         scenarioId,
@@ -835,23 +868,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ...result });
     }
 
-    const generated = await generateCandidates(
-      rawCategory,
-      scenario.label,
-      priority.label,
-      budget.label,
-      budget.maxWon,
-      advancedContext,
-      fallbacks
-    );
+    const generated =
+      advancedAnswers.length > 0
+        ? await generateCandidates(
+            rawCategory,
+            scenario.label,
+            priority.label,
+            budget.label,
+            budget.maxWon,
+            advancedContext,
+            fallbacks
+          )
+        : {
+            candidates: segmentFallbackCandidates(rawCategory, fallbacks),
+            live: false,
+          };
+    const resultCandidates = generated.candidates.slice(0, 3);
     const supportsShopping = ["gift", "appliance", "fashion"].includes(rawCategory);
     const priced = supportsShopping
-      ? await enrichProductPrices(
-          generated.candidates,
-          budget.maxWon
-        )
+      ? advancedAnswers.length > 0
+        ? await enrichProductPrices(
+            resultCandidates,
+            budget.maxWon
+          )
+        : {
+            recommendations: resultCandidates.map((item, index) => ({
+              rank: index + 1,
+              ...item,
+              sourceUrl: buildDirectCoupangNpSearchUrl(item.searchKeyword),
+              sourceLabel: "쿠팡에서 가격 확인",
+            })),
+            live: false,
+          }
       : {
-          recommendations: generated.candidates.map((item, index) => ({
+          recommendations: resultCandidates.map((item, index) => ({
             rank: index + 1,
             ...item,
             sourceUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(
@@ -881,7 +931,7 @@ export async function POST(request: Request) {
     );
     return NextResponse.json({ ok: true, ...result });
   } catch {
-    const recommendations =
+    const recommendations = (
       rawCategory === "food"
         ? buildFallbackFoodRecommendations(
             fallbacks,
@@ -889,7 +939,8 @@ export async function POST(request: Request) {
             budget.label,
             advancedContext
           )
-        : buildFallbackNonFoodRecommendations(rawCategory, fallbacks);
+        : buildFallbackNonFoodRecommendations(rawCategory, fallbacks)
+    ).slice(0, 3);
     const result = toAnalyzeResult(
       rawCategory,
       scenarioId,

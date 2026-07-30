@@ -74,7 +74,9 @@ function inferWinner(optionA: string, optionB: string, winnerName: string, itemA
 
 async function generateGeminiJson(apiKey: string, prompt: string, base64Images: string[]) {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({
+    model: process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
+  });
 
   const parts: any[] = [{ text: prompt }];
 
@@ -95,8 +97,7 @@ async function generateGeminiJson(apiKey: string, prompt: string, base64Images: 
   const result = await model.generateContent({
     contents,
     generationConfig: { 
-      responseMimeType: "application/json",
-      temperature: 0.0
+      responseMimeType: "application/json"
     }
   });
 
