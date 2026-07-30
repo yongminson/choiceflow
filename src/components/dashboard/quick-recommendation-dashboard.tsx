@@ -30,6 +30,10 @@ import {
   QUICK_SCENARIOS,
   type QuickPriorityId,
 } from "@/lib/recommendation/quick-options";
+import {
+  readRecentRecommendationNames,
+  saveRecentRecommendationNames,
+} from "@/lib/recommendation/recent-recommendations";
 import { CATEGORY_ORDER, type CategoryId } from "@/lib/types/category";
 
 type LocationPayload = {
@@ -181,10 +185,13 @@ export function QuickRecommendationDashboard() {
           );
         }
 
+        const excludedNames = readRecentRecommendationNames(
+          selection.categoryId
+        );
         const response = await fetch("/api/recommend", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...selection, location }),
+          body: JSON.stringify({ ...selection, location, excludedNames }),
           cache: "no-store",
           credentials: "same-origin",
         });
@@ -201,6 +208,19 @@ export function QuickRecommendationDashboard() {
         }
 
         setRecentSelections(saveRecentSelection(selection));
+        const recommendationNames = Array.isArray(payload.quickRecommendations)
+          ? payload.quickRecommendations
+              .map((item) =>
+                item && typeof item === "object" && "name" in item
+                  ? String(item.name)
+                  : ""
+              )
+              .filter(Boolean)
+          : [];
+        saveRecentRecommendationNames(
+          selection.categoryId,
+          recommendationNames
+        );
         sessionStorage.setItem("choiceResult", JSON.stringify(payload));
         router.push("/result");
       } catch (reason) {

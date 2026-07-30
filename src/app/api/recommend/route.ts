@@ -9,6 +9,10 @@ import {
   QUICK_CATEGORY_LABELS,
   type QuickPriorityId,
 } from "@/lib/recommendation/quick-options";
+import {
+  categoryEvidence,
+  normalizeProductSearchKeyword,
+} from "@/lib/recommendation/recommendation-presentation";
 import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
 import type {
   AnalyzeApiResult,
@@ -36,6 +40,7 @@ type Candidate = {
   depreciationSummary?: string;
   selectionType?: SelectionType;
   selectionLabel?: string;
+  evidence?: QuickRecommendation["evidence"];
 };
 
 type SelectionType = "best" | "value" | "reliable" | "premium";
@@ -61,6 +66,14 @@ type GooglePlace = {
   userRatingCount?: number;
   priceLevel?: string;
   googleMapsUri?: string;
+  location?: { latitude?: number; longitude?: number };
+  currentOpeningHours?: { openNow?: boolean };
+  businessStatus?: string;
+};
+
+type WeatherContext = {
+  summary: string;
+  searchHint?: string;
 };
 
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -72,12 +85,51 @@ const SELECTION_ORDER: SelectionType[] = [
   "reliable",
   "premium",
 ];
-const SELECTION_LABELS: Record<SelectionType, string> = {
+const DEFAULT_SELECTION_LABELS: Record<SelectionType, string> = {
   best: "최종 선택",
   value: "최저가·가성비 선택",
-  reliable: "A/S·신뢰성 선택",
+  reliable: "검증 우선 선택",
   premium: "프리미엄 선택",
 };
+
+function selectionLabel(
+  categoryId: CategoryId,
+  selectionType: SelectionType
+): string {
+  if (categoryId === "food") {
+    return {
+      best: "지금 가장 잘 맞는 곳",
+      value: "가성비 후보",
+      reliable: "후기 검증 후보",
+      premium: "분위기 후보",
+    }[selectionType];
+  }
+  if (categoryId === "gift") {
+    return {
+      best: "가장 잘 맞는 선물",
+      value: "부담 적은 대안",
+      reliable: "실패 확률 낮은 선물",
+      premium: "특별한 선물",
+    }[selectionType];
+  }
+  if (categoryId === "fashion") {
+    return {
+      best: "가장 잘 맞는 선택",
+      value: "활용도 높은 대안",
+      reliable: "후기 검증 선택",
+      premium: "소재 우선 선택",
+    }[selectionType];
+  }
+  if (categoryId === "appliance") {
+    return {
+      best: "최종 선택",
+      value: "가성비 선택",
+      reliable: "A/S·신뢰성 선택",
+      premium: "성능 우선 선택",
+    }[selectionType];
+  }
+  return DEFAULT_SELECTION_LABELS[selectionType];
+}
 
 const FALLBACKS: Record<CategoryId, Record<string, Candidate[]>> = {
   food: {
@@ -113,28 +165,28 @@ const FALLBACKS: Record<CategoryId, Record<string, Candidate[]>> = {
     ],
   },
   gift: {
-    partner: productFallback("연인 기념일 선물", ["향수", "가죽 카드지갑", "무드 조명"]),
-    parents: productFallback("부모님 감사 선물", ["마사지기", "홍삼 선물세트", "전기포트"]),
-    friend: productFallback("친구 생일 선물", ["텀블러", "블루투스 스피커", "핸드크림 세트"]),
-    celebration: productFallback("집들이 선물", ["수건 세트", "디퓨저", "전기포트"]),
-    child: productFallback("아이·조카 선물", ["블록 장난감", "아동 도서 세트", "키즈 운동화"]),
-    business: productFallback("직장·비즈니스 선물", ["드립백 세트", "고급 볼펜", "핸드케어 세트"]),
+    partner: productFallback("gift", "연인 기념일 선물", ["향수", "가죽 카드지갑", "무드 조명"]),
+    parents: productFallback("gift", "부모님 감사 선물", ["마사지기", "홍삼 선물세트", "전기포트"]),
+    friend: productFallback("gift", "친구 생일 선물", ["텀블러", "블루투스 스피커", "핸드크림 세트"]),
+    celebration: productFallback("gift", "집들이 선물", ["수건 세트", "디퓨저", "전기포트"]),
+    child: productFallback("gift", "아이·조카 선물", ["블록 장난감", "아동 도서 세트", "키즈 운동화"]),
+    business: productFallback("gift", "직장·비즈니스 선물", ["드립백 세트", "고급 볼펜", "핸드케어 세트"]),
   },
   appliance: {
-    kitchen: productFallback("주방가전", ["에어프라이어", "전기포트", "핸드블렌더"]),
-    cleaning: productFallback("청소 세탁 가전", ["무선청소기", "로봇청소기", "의류관리기"]),
-    living: productFallback("생활가전", ["공기청정기", "선풍기", "가습기"]),
-    digital: productFallback("디지털 가전", ["스마트 모니터", "태블릿", "블루투스 스피커"]),
-    health: productFallback("건강 뷰티 가전", ["헤어드라이어", "전기면도기", "마사지기"]),
-    mobile: productFallback("모바일 PC 기기", ["무선 이어폰", "모니터", "태블릿"]),
+    kitchen: productFallback("appliance", "주방가전", ["에어프라이어", "전기포트", "핸드블렌더"]),
+    cleaning: productFallback("appliance", "청소 세탁 가전", ["무선청소기", "로봇청소기", "의류관리기"]),
+    living: productFallback("appliance", "생활가전", ["공기청정기", "선풍기", "가습기"]),
+    digital: productFallback("appliance", "디지털 가전", ["스마트 모니터", "태블릿", "블루투스 스피커"]),
+    health: productFallback("appliance", "건강 뷰티 가전", ["헤어드라이어", "전기면도기", "마사지기"]),
+    mobile: productFallback("appliance", "모바일 PC 기기", ["무선 이어폰", "모니터", "태블릿"]),
   },
   fashion: {
-    work: productFallback("출근 패션", ["옥스퍼드 셔츠", "슬랙스", "가죽 로퍼"]),
-    couple: productFallback("데이트 패션", ["니트 카디건", "미니 크로스백", "캐주얼 재킷"]),
-    travel: productFallback("여행 패션", ["경량 바람막이", "워킹화", "여행용 백팩"]),
-    event: productFallback("행사 모임 패션", ["블레이저", "원피스", "가죽 구두"]),
-    daily: productFallback("일상 기본 패션", ["기본 티셔츠", "데님 팬츠", "데일리 스니커즈"]),
-    outdoor: productFallback("운동 아웃도어 패션", ["러닝화", "경량 바람막이", "스포츠 백팩"]),
+    work: productFallback("fashion", "출근 패션", ["옥스퍼드 셔츠", "슬랙스", "가죽 로퍼"]),
+    couple: productFallback("fashion", "데이트 패션", ["니트 카디건", "미니 크로스백", "캐주얼 재킷"]),
+    travel: productFallback("fashion", "여행 패션", ["경량 바람막이", "워킹화", "여행용 백팩"]),
+    event: productFallback("fashion", "행사 모임 패션", ["블레이저", "원피스", "가죽 구두"]),
+    daily: productFallback("fashion", "일상 기본 패션", ["기본 티셔츠", "데님 팬츠", "데일리 스니커즈"]),
+    outdoor: productFallback("fashion", "운동 아웃도어 패션", ["러닝화", "경량 바람막이", "스포츠 백팩"]),
   },
   date: {
     restaurant: genericFallback("데이트 맛집", ["분위기 좋은 식당", "와인바", "브런치 카페"]),
@@ -163,14 +215,20 @@ function candidate(name: string, reason: string, searchKeyword: string): Candida
   };
 }
 
-function productFallback(context: string, names: string[]): Candidate[] {
+function productFallback(
+  categoryId: "gift" | "appliance" | "fashion",
+  context: string,
+  names: string[]
+): Candidate[] {
   return names.map((name) => ({
     name,
     reason: `${context}에서 활용도와 가격 비교가 쉬운 후보예요.`,
     searchKeyword: name,
-    qualitySummary: "후기 수, 최근 낮은 평점, 교환·반품 조건을 함께 확인하세요.",
-    asSummary: "국내 보증 주체와 서비스센터 접근성을 구매 전 확인하세요.",
-    depreciationSummary: "브랜드 수요와 소모품 비용에 따라 중고 가치가 달라질 수 있어요.",
+    qualitySummary: "후기 수와 최근 낮은 평점을 함께 확인하세요.",
+    evidence: categoryEvidence(
+      categoryId,
+      `${context} 용도와 선택한 우선조건에 맞춰 비교한 후보예요.`
+    ),
   }));
 }
 
@@ -224,7 +282,7 @@ function segmentFallbackCandidates(
   return roleCandidates.map((item, index) => ({
     ...item,
     selectionType: SELECTION_ORDER[index],
-    selectionLabel: SELECTION_LABELS[SELECTION_ORDER[index]],
+    selectionLabel: selectionLabel(categoryId, SELECTION_ORDER[index]),
   }));
 }
 
@@ -249,6 +307,15 @@ function readLocation(value: unknown): RequestLocation | undefined {
     longitude,
     accuracy: Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : undefined,
   };
+}
+
+function readExcludedNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => clean(item, "", 100))
+    .filter(Boolean)
+    .slice(0, 12);
 }
 
 function readAdvancedAnswers(
@@ -310,6 +377,25 @@ function safeUrl(value: unknown): string | undefined {
   }
 }
 
+function categoryDecisionRules(categoryId: CategoryId): string {
+  if (categoryId === "gift") {
+    return "받는 사람·관계·기념일 적합성, 포장과 배송, 취향 실패 시 교환 가능성을 판단한다. A/S와 중고 감가는 전자제품 후보가 아닌 한 언급하지 않는다.";
+  }
+  if (categoryId === "appliance") {
+    return "핵심 성능, 설치 환경, 국내 A/S와 보증, 소모품·전기료, 중고 감가를 판단한다.";
+  }
+  if (categoryId === "fashion") {
+    return "활용도, 핏과 소재, 세탁 난이도, 사이즈 교환·반품 조건을 판단한다. A/S는 언급하지 않는다.";
+  }
+  if (categoryId === "date") {
+    return "이동 시간, 예약·취소, 날씨 영향, 함께하는 사람에게 맞는 경험을 판단한다.";
+  }
+  if (categoryId === "asset") {
+    return "초기 비용보다 총비용, 계약·중도해지 위험, 보증, 환금성과 감가를 판단한다.";
+  }
+  return "선택한 상황과 우선조건에 직접 관련된 근거만 판단한다.";
+}
+
 async function generateCandidates(
   categoryId: CategoryId,
   scenarioLabel: string,
@@ -333,14 +419,14 @@ async function generateCandidates(
 아래 목적별로 정확히 4개 후보를 추천하라.
 - best: 전체 조건을 종합한 최종 선택
 - value: 실제 구매비용과 유지비가 낮은 최저가·가성비 선택
-- reliable: 보증, A/S망, 내구성과 후기 신뢰성을 우선한 선택
+- reliable: 이 카테고리에 맞는 실패 위험과 후기 신뢰성을 우선한 선택
 - premium: 예산 범위 안에서 성능·소재·경험을 높인 프리미엄 선택
 
-상품이면 낮은 총구매비용, 실제 사용 만족 가능성, 국내 A/S 접근성,
-보증, 소모품 비용, 중고 수요와 감가를 함께 고려한다. 자산·계약이면 유지비, 중도해지, 환금성,
-감가 위험을 우선한다. 확인하지 않은 실시간 평점·후기 수·가격은 절대 만들지 않는다.
+카테고리별 판단 규칙: ${categoryDecisionRules(categoryId)}
+확인하지 않은 실시간 평점·후기 수·가격은 절대 만들지 않는다.
 최우선 조건과 예산을 반드시 지키고, 서로 다른 유형을 검토한 뒤 검색 가능한 구체적인 일반 상품명
-또는 선택지로 작성한다. 예산 안에서 품질을 담보하기 어렵다면 그 위험을 reason에 명확히 적는다.
+또는 선택지로 작성한다. 상품명은 브랜드 광고 문구나 옵션을 붙이지 말고 24자 안의
+일반적인 검색어로 쓴다. 여러 상품을 쉼표로 연결하지 않는다.
 
 JSON 배열만 응답:
 [{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":""}]`;
@@ -375,18 +461,28 @@ JSON 배열만 응답:
         : fallback.selectionType!;
       return {
         selectionType,
-        selectionLabel: SELECTION_LABELS[selectionType],
-        name: clean(record.name, fallback.name, 80),
+        selectionLabel: selectionLabel(categoryId, selectionType),
+        name: clean(record.name, fallback.name, 44),
         reason: clean(record.reason, fallback.reason),
-        searchKeyword: clean(record.searchKeyword, fallback.searchKeyword, 100),
+        searchKeyword: normalizeProductSearchKeyword(
+          clean(record.searchKeyword, fallback.searchKeyword, 100),
+          fallback.searchKeyword
+        ),
         qualitySummary: clean(
           record.qualitySummary,
           fallback.qualitySummary
         ),
-        asSummary: clean(record.asSummary, fallback.asSummary),
-        depreciationSummary: clean(
-          record.depreciationSummary,
-          fallback.depreciationSummary
+        asSummary:
+          categoryId === "appliance" || categoryId === "asset"
+            ? clean(record.asSummary, fallback.asSummary)
+            : undefined,
+        depreciationSummary:
+          categoryId === "appliance" || categoryId === "asset"
+            ? clean(record.depreciationSummary, fallback.depreciationSummary)
+            : undefined,
+        evidence: categoryEvidence(
+          categoryId,
+          clean(record.reason, fallback.reason)
         ),
       };
     });
@@ -445,31 +541,37 @@ async function enrichProductPrices(
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
   const items: QuickRecommendation[] = await Promise.all(
     candidates.map(async (candidate, index): Promise<QuickRecommendation> => {
+      const searchKeyword = normalizeProductSearchKeyword(
+        candidate.searchKeyword,
+        candidate.name
+      );
       try {
         const product = await findNaverLowestPrice(
-          candidate.searchKeyword,
+          searchKeyword,
           maxBudgetWon
         );
         const price = Number(product?.lprice);
         return {
           rank: index + 1,
           ...candidate,
+          searchKeyword,
           price: Number.isFinite(price) && price > 0 ? price : undefined,
           priceLabel:
             Number.isFinite(price) && price > 0
               ? "네이버 조회 참고가 · 쿠팡 가격은 이동 후 확인"
               : undefined,
           seller: clean(product?.mallName, "", 80) || undefined,
-          sourceUrl: buildDirectCoupangNpSearchUrl(candidate.searchKeyword),
-          sourceLabel: "쿠팡에서 가격 확인",
-          name: clean(product?.title, candidate.name, 100),
+          sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
+          sourceLabel: "쿠팡에서 이 상품 검색",
+          name: candidate.name,
         } satisfies QuickRecommendation;
       } catch {
         return {
           rank: index + 1,
           ...candidate,
-          sourceUrl: buildDirectCoupangNpSearchUrl(candidate.searchKeyword),
-          sourceLabel: "쿠팡에서 가격 확인",
+          searchKeyword,
+          sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
+          sourceLabel: "쿠팡에서 이 상품 검색",
         } satisfies QuickRecommendation;
       }
     })
@@ -495,11 +597,104 @@ function priceLevelScore(priceLevel?: string): number {
   return 0.5;
 }
 
+function currentMealContext(): string {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date())
+  );
+  if (hour >= 5 && hour < 10) return "아침";
+  if (hour >= 10 && hour < 15) return "점심";
+  if (hour >= 15 && hour < 18) return "간식";
+  if (hour >= 18 && hour < 22) return "저녁";
+  return "늦은 시간";
+}
+
+function distanceMeters(
+  origin: RequestLocation,
+  destination?: { latitude?: number; longitude?: number }
+): number | undefined {
+  if (
+    typeof destination?.latitude !== "number" ||
+    typeof destination.longitude !== "number"
+  ) {
+    return undefined;
+  }
+  const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+  const latitudeDelta = toRadians(destination.latitude - origin.latitude);
+  const longitudeDelta = toRadians(destination.longitude - origin.longitude);
+  const startLatitude = toRadians(origin.latitude);
+  const endLatitude = toRadians(destination.latitude);
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(startLatitude) *
+      Math.cos(endLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  return Math.round(6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+async function findWeatherContext(
+  location: RequestLocation
+): Promise<WeatherContext | undefined> {
+  const apiKey = process.env.GOOGLE_WEATHER_API_KEY?.trim();
+  if (!apiKey) return undefined;
+  const url = new URL(
+    "https://weather.googleapis.com/v1/currentConditions:lookup"
+  );
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("location.latitude", String(location.latitude));
+  url.searchParams.set("location.longitude", String(location.longitude));
+  url.searchParams.set("languageCode", "ko");
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(3500),
+  });
+  if (!response.ok) {
+    console.warn("Google Weather lookup failed", response.status);
+    return undefined;
+  }
+  const payload = (await response.json()) as {
+    weatherCondition?: { description?: { text?: string }; type?: string };
+    temperature?: { degrees?: number };
+    precipitation?: { probability?: { percent?: number } };
+  };
+  const description = clean(
+    payload.weatherCondition?.description?.text,
+    "",
+    40
+  );
+  const temperature = payload.temperature?.degrees;
+  const type = payload.weatherCondition?.type || "";
+  const rainChance = payload.precipitation?.probability?.percent;
+  const details = [
+    description,
+    typeof temperature === "number" ? `${Math.round(temperature)}°C` : "",
+    typeof rainChance === "number" && rainChance >= 30
+      ? `강수확률 ${Math.round(rainChance)}%`
+      : "",
+  ].filter(Boolean);
+  const searchHint =
+    /RAIN|DRIZZLE|SNOW|SLEET/.test(type) || (rainChance || 0) >= 50
+      ? "따뜻한 음식"
+      : typeof temperature === "number" && temperature >= 29
+        ? "시원한 음식"
+        : typeof temperature === "number" && temperature <= 5
+          ? "따뜻한 음식"
+          : undefined;
+  return details.length > 0
+    ? { summary: `현재 날씨 ${details.join(" · ")}`, searchHint }
+    : undefined;
+}
+
 async function findGooglePlaces(
   scenarioLabel: string,
   priorityId: QuickPriorityId,
   location: RequestLocation,
-  advancedAnswers: ValidAdvancedAnswer[]
+  advancedAnswers: ValidAdvancedAnswer[],
+  excludedNames: string[],
+  weather?: WeatherContext
 ): Promise<QuickRecommendation[] | undefined> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim();
   if (!apiKey) return undefined;
@@ -517,6 +712,7 @@ async function findGooglePlaces(
     .filter((answer) => answer.questionId === "diet" || answer.questionId === "service")
     .map((answer) => answer.optionLabel)
     .join(" ");
+  const mealContext = currentMealContext();
 
   const response = await fetch(
     "https://places.googleapis.com/v1/places:searchText",
@@ -526,15 +722,19 @@ async function findGooglePlaces(
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask":
-          "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.googleMapsUri",
+          "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.googleMapsUri,places.location,places.currentOpeningHours.openNow,places.businessStatus",
       },
       body: JSON.stringify({
-        textQuery: `${scenarioLabel} ${searchDetails} 맛집`.trim(),
+        textQuery: `${weather?.searchHint || ""} restaurants ${searchDetails}`
+          .replace(/\s+/g, " ")
+          .trim(),
         includedType: "restaurant",
         strictTypeFiltering: true,
         languageCode: "ko",
         regionCode: "KR",
-        pageSize: 10,
+        pageSize: 15,
+        rankPreference:
+          priorityId === "convenience" ? "DISTANCE" : "RELEVANCE",
         locationBias: {
           circle: {
             center: {
@@ -549,10 +749,20 @@ async function findGooglePlaces(
       signal: AbortSignal.timeout(8000),
     }
   );
-  if (!response.ok) return undefined;
+  if (!response.ok) {
+    console.warn("Google Places text search failed", response.status);
+    return undefined;
+  }
   const payload = (await response.json()) as { places?: GooglePlace[] };
+  const excluded = new Set(excludedNames.map((name) => name.toLocaleLowerCase("ko")));
   const places = (payload.places || [])
-    .filter((place) => (place.rating || 0) >= 4 || !place.rating)
+    .filter(
+      (place) =>
+        place.businessStatus !== "CLOSED_PERMANENTLY" &&
+        !excluded.has(
+          clean(place.displayName?.text, "", 100).toLocaleLowerCase("ko")
+        )
+    )
     .map((place, index, all) => {
       const price = priceLevelScore(place.priceLevel);
       const rating = (place.rating || 3.5) / 5;
@@ -561,20 +771,33 @@ async function findGooglePlaces(
         Math.log10((place.userRatingCount || 0) + 1) / 3
       );
       const relevance = Math.max(0, 1 - index / Math.max(all.length, 1));
+      const distance = distanceMeters(location, place.location);
+      const proximity =
+        typeof distance === "number" ? Math.max(0, 1 - distance / radius) : 0.4;
+      const open = place.currentOpeningHours?.openNow === true ? 1 : 0.45;
       const priorityScore =
         priorityId === "price"
           ? price * 0.55 + rating * 0.3 + reviews * 0.15
           : priorityId === "performance"
             ? price * 0.1 + rating * 0.55 + reviews * 0.3 + relevance * 0.05
             : priorityId === "convenience"
-              ? price * 0.2 + rating * 0.35 + reviews * 0.2 + relevance * 0.25
+              ? price * 0.1 + rating * 0.25 + reviews * 0.15 + proximity * 0.35 + open * 0.15
               : price * 0.15 + rating * 0.5 + reviews * 0.3 + relevance * 0.05;
-      return { place, price, rating, reviews, relevance, priorityScore };
+      return {
+        place,
+        price,
+        rating,
+        reviews,
+        relevance,
+        proximity,
+        distance,
+        priorityScore,
+      };
     });
 
-  if (places.length < 4) return undefined;
+  if (places.length === 0) return undefined;
   const used = new Set<string>();
-  const selected = SELECTION_ORDER.map((selectionType) => {
+  const selected = SELECTION_ORDER.slice(0, 3).map((selectionType) => {
     const ranked = [...places].sort((a, b) => {
       const score = (item: (typeof places)[number]) => {
         if (selectionType === "best") return item.priorityScore;
@@ -609,34 +832,68 @@ async function findGooglePlaces(
       Boolean(item)
   );
 
-  if (selected.length !== 4) return undefined;
-  return selected.map(({ place, selectionType }, index) => ({
-    rank: index + 1,
-    selectionType,
-    selectionLabel: SELECTION_LABELS[selectionType],
-    name: clean(place.displayName?.text, "주변 음식점", 100),
-    reason:
-      selectionType === "value"
-        ? "주변 후보 중 낮은 가격대와 기본 평점을 함께 확인한 가성비 선택이에요."
-        : selectionType === "reliable"
-          ? "평점과 누적 후기 수를 가장 크게 반영한 신뢰성 선택이에요."
-          : selectionType === "premium"
-            ? "가격보다 평점과 경험 수준을 더 크게 본 프리미엄 선택이에요."
-            : "거리, 선택한 우선조건, 평점과 후기 수를 종합한 최종 선택이에요.",
-    searchKeyword: clean(place.displayName?.text, `${scenarioLabel} 맛집`, 100),
-    qualitySummary:
+  return selected.map(({ place, selectionType, distance }, index) => {
+    const verifiedFacts = [
+      typeof distance === "number"
+        ? `현재 위치에서 직선거리 약 ${distance < 1000 ? `${distance}m` : `${(distance / 1000).toFixed(1)}km`}`
+        : "",
       typeof place.rating === "number"
-        ? `Google 평점 ${place.rating.toFixed(1)} · 후기 ${(
-            place.userRatingCount || 0
-          ).toLocaleString("ko-KR")}개`
-        : "Google 지도에서 최신 후기를 확인해 주세요.",
-    rating: place.rating,
-    reviewCount: place.userRatingCount,
-    priceLevel: place.priceLevel,
-    address: clean(place.formattedAddress, "", 160) || undefined,
-    sourceUrl: safeUrl(place.googleMapsUri),
-    sourceLabel: "Google Maps",
-  }));
+        ? `Google 평점 ${place.rating.toFixed(1)}`
+        : "",
+      typeof place.userRatingCount === "number"
+        ? `후기 ${place.userRatingCount.toLocaleString("ko-KR")}개`
+        : "",
+      place.currentOpeningHours?.openNow === true
+        ? "현재 영업 중"
+        : place.currentOpeningHours?.openNow === false
+          ? "현재 영업 종료"
+          : "",
+    ].filter(Boolean);
+    const roleReason =
+      selectionType === "value"
+        ? "주변 후보 중 가격대와 평점을 함께 본 가성비 후보예요."
+        : selectionType === "reliable"
+          ? "평점과 누적 후기 수를 크게 반영한 후기 검증 후보예요."
+          : "거리, 선택 조건, 평점과 후기 수를 종합해 지금 가장 잘 맞는 후보로 골랐어요.";
+    return {
+      rank: index + 1,
+      selectionType,
+      selectionLabel: selectionLabel("food", selectionType),
+      name: clean(place.displayName?.text, "주변 음식점", 100),
+      reason: `${roleReason} ${mealContext} 시간대${weather ? `와 ${weather.summary.replace("현재 날씨 ", "")}` : ""}를 함께 고려했어요.`,
+      searchKeyword: clean(place.displayName?.text, `${scenarioLabel} 맛집`, 100),
+      qualitySummary:
+        verifiedFacts.join(" · ") || "Google 지도에서 최신 정보를 확인해 주세요.",
+      evidence: [
+        {
+          label: "선택 이유",
+          text: roleReason,
+          kind: "guide" as const,
+        },
+        {
+          label: "확인된 정보",
+          text:
+            verifiedFacts.join(" · ") ||
+            "평점·영업시간 정보가 없어 지도에서 직접 확인이 필요해요.",
+          kind: "verified" as const,
+        },
+        {
+          label: "상황 반영",
+          text: `${mealContext} 시간대${weather ? ` · ${weather.summary}` : ""}`,
+          kind: "guide" as const,
+        },
+      ],
+      rating: place.rating,
+      reviewCount: place.userRatingCount,
+      priceLevel: place.priceLevel,
+      address: clean(place.formattedAddress, "", 160) || undefined,
+      distanceMeters: distance,
+      openNow: place.currentOpeningHours?.openNow,
+      sourceUrl: safeUrl(place.googleMapsUri),
+      sourceLabel: "이 음식점 지도에서 보기",
+      dataStatus: "verified-place" as const,
+    };
+  });
 }
 
 function buildFallbackFoodRecommendations(
@@ -648,11 +905,24 @@ function buildFallbackFoodRecommendations(
   return segmentFallbackCandidates("food", candidates).map((item, index) => ({
     rank: index + 1,
     ...item,
-    reason: `${item.reason} ${priorityLabel}을 우선하고 ${budgetLabel} 조건으로 지도에서 다시 확인해 주세요.`,
-    sourceUrl: `https://map.naver.com/p/search/${encodeURIComponent(
-      `${item.searchKeyword} ${budgetLabel} ${advancedContext}`
+    reason: `${item.reason} 다만 실제 주변 음식점 데이터는 확인하지 못했으므로, 아래 지도 검색에서 영업 중인 매장을 골라야 해요.`,
+    evidence: [
+      {
+        label: "메뉴를 고른 이유",
+        text: `${priorityLabel} 우선 · ${budgetLabel}${advancedContext ? ` · ${advancedContext}` : ""}`,
+        kind: "guide" as const,
+      },
+      {
+        label: "확인 필요",
+        text: "현재 위치의 실제 매장명·평점·후기는 확인되지 않았어요. 지도 결과를 추천 매장으로 오해하면 안 됩니다.",
+        kind: "caution" as const,
+      },
+    ],
+    sourceUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      item.searchKeyword
     )}`,
-    sourceLabel: "네이버 지도에서 평점·후기 확인",
+    sourceLabel: "Google 지도에서 이 메뉴 주변 검색",
+    dataStatus: "category-guide" as const,
   }));
 }
 
@@ -664,8 +934,11 @@ function buildFallbackNonFoodRecommendations(
   return segmentFallbackCandidates(categoryId, candidates).map((item, index) => ({
     rank: index + 1,
     ...item,
+    evidence: item.evidence || categoryEvidence(categoryId, item.reason),
     sourceUrl: shopping
-      ? buildDirectCoupangNpSearchUrl(item.searchKeyword)
+      ? buildDirectCoupangNpSearchUrl(
+          normalizeProductSearchKeyword(item.searchKeyword, item.name)
+        )
       : `https://search.naver.com/search.naver?query=${encodeURIComponent(
           item.searchKeyword
         )}`,
@@ -687,7 +960,8 @@ function toAnalyzeResult(
   refinementAnswerCount: number,
   recommendations: QuickRecommendation[],
   status: AnalyzeApiResult["providerStatus"],
-  locationUsed: boolean
+  locationUsed: boolean,
+  recommendationContext: string[] = []
 ): AnalyzeApiResult {
   const limitedRecommendations = recommendations.slice(0, 3);
   const first = limitedRecommendations[0];
@@ -755,6 +1029,7 @@ function toAnalyzeResult(
     quickRecommendations: limitedRecommendations,
     providerStatus: status,
     locationUsed,
+    recommendationContext,
     checkedAt: new Date().toISOString(),
   };
 }
@@ -827,15 +1102,21 @@ export async function POST(request: Request) {
 
   const fallbacks = FALLBACKS[rawCategory][scenarioId];
   const location = readLocation(body.location);
+  const excludedNames = readExcludedNames(body.excludedNames);
 
   try {
     if (rawCategory === "food") {
+      const weather = location
+        ? await findWeatherContext(location).catch(() => undefined)
+        : undefined;
       const places = location
         ? await findGooglePlaces(
             scenario.label,
             priority.id,
             location,
-            advancedAnswers
+            advancedAnswers,
+            excludedNames,
+            weather
           ).catch(() => undefined)
         : undefined;
       const recommendations = (
@@ -862,8 +1143,14 @@ export async function POST(request: Request) {
           ai: "fallback",
           price: "unavailable",
           places: places ? "live" : "unavailable",
+          weather: weather ? "live" : "unavailable",
         },
-        Boolean(location)
+        Boolean(location),
+        [
+          `${currentMealContext()} 시간대`,
+          ...(weather ? [weather.summary] : []),
+          ...(excludedNames.length > 0 ? ["최근 추천과 다른 후보 우선"] : []),
+        ]
       );
       return NextResponse.json({ ok: true, ...result });
     }
@@ -895,8 +1182,16 @@ export async function POST(request: Request) {
             recommendations: resultCandidates.map((item, index) => ({
               rank: index + 1,
               ...item,
-              sourceUrl: buildDirectCoupangNpSearchUrl(item.searchKeyword),
-              sourceLabel: "쿠팡에서 가격 확인",
+              searchKeyword: normalizeProductSearchKeyword(
+                item.searchKeyword,
+                item.name
+              ),
+              evidence:
+                item.evidence || categoryEvidence(rawCategory, item.reason),
+              sourceUrl: buildDirectCoupangNpSearchUrl(
+                normalizeProductSearchKeyword(item.searchKeyword, item.name)
+              ),
+              sourceLabel: "쿠팡에서 이 상품 검색",
             })),
             live: false,
           }

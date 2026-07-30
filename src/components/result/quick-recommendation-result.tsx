@@ -10,10 +10,8 @@ import {
   Loader2,
   MapPin,
   RotateCcw,
-  ShieldCheck,
   Sparkles,
   Star,
-  TrendingDown,
 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -21,6 +19,10 @@ import {
   getQuickAdvancedQuestions,
   type QuickAdvancedOption,
 } from "@/lib/recommendation/quick-options";
+import {
+  readRecentRecommendationNames,
+  saveRecentRecommendationNames,
+} from "@/lib/recommendation/recent-recommendations";
 import { isCategoryId } from "@/lib/types/category";
 import type { AnalyzeApiResult, QuickRecommendation } from "@/lib/types/analyze";
 import { cn } from "@/lib/utils";
@@ -49,9 +51,22 @@ const ROLE_STYLES: Record<
 const FALLBACK_ROLE_LABELS = [
   "최종 선택",
   "최저가·가성비",
-  "A/S·신뢰성",
+  "검증 우선",
   "프리미엄",
 ];
+
+function recommendationEvidence(item: QuickRecommendation) {
+  if (item.evidence?.length) return item.evidence;
+  return [
+    { label: "판단 근거", text: item.qualitySummary },
+    ...(item.asSummary
+      ? [{ label: "보증·신뢰성", text: item.asSummary }]
+      : []),
+    ...(item.depreciationSummary
+      ? [{ label: "유지비·감가", text: item.depreciationSummary }]
+      : []),
+  ];
+}
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("ko-KR").format(price);
@@ -144,6 +159,12 @@ export function QuickRecommendationResult({
     setRefineError("");
     try {
       const location = categoryId === "food" ? await getLocation() : undefined;
+      const excludedNames = Array.from(
+        new Set([
+          ...readRecentRecommendationNames(categoryId),
+          ...recommendations.map((item) => item.name),
+        ])
+      ).slice(0, 12);
       const response = await fetch("/api/recommend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,6 +175,7 @@ export function QuickRecommendationResult({
           budgetId: data.quickBudgetId,
           advancedAnswers: answers,
           location,
+          excludedNames,
         }),
         cache: "no-store",
         credentials: "same-origin",
@@ -169,6 +191,10 @@ export function QuickRecommendationResult({
       }
 
       sessionStorage.setItem("choiceResult", JSON.stringify(payload));
+      saveRecentRecommendationNames(
+        categoryId,
+        (payload.quickRecommendations || []).map((item) => item.name)
+      );
       onResultUpdate(payload);
       setShowAdvanced(false);
       setQuestionIndex(0);
@@ -188,10 +214,10 @@ export function QuickRecommendationResult({
     <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-3xl px-4 pb-20 pt-8 sm:px-6 sm:pt-14">
       <header className="text-center">
         <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-primary">
-          Analysis result
+          ChoiceFlow recommendation
         </p>
         <p className="mt-5 text-sm font-bold text-muted-foreground">
-          AI 최종 선택
+          선택한 조건으로 고른 첫 번째 후보
         </p>
         <h1 className="mt-2 text-balance bg-gradient-to-br from-primary via-sky-500 to-violet-500 bg-clip-text font-display text-4xl font-black tracking-[-0.05em] text-transparent sm:text-5xl">
           {winner?.name || `${data.quickScenarioLabel} 추천`}
@@ -221,40 +247,34 @@ export function QuickRecommendationResult({
 
       <section className="mt-8 grid gap-3 sm:grid-cols-2">
         <div className="rounded-3xl border border-sky-200/70 bg-white/80 p-5 shadow-glass-sm backdrop-blur-xl">
-          <div className="flex items-end justify-between gap-4">
-            <span className="text-sm font-bold text-muted-foreground">
-              조건 일치도
-            </span>
-            <span className="text-3xl font-black text-primary">
-              {data.winPercentage ?? data.score}%
-            </span>
-          </div>
-          <div className="mt-3 h-3 overflow-hidden rounded-full bg-sky-100">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-sky-400 to-primary"
-              style={{ width: `${data.winPercentage ?? data.score}%` }}
-            />
-          </div>
+          <p className="text-sm font-bold text-primary">이번 추천에 반영</p>
+          <p className="mt-2 text-sm font-semibold leading-relaxed">
+            {[data.quickScenarioLabel, data.quickPriorityLabel, data.quickBudgetLabel]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+          {Boolean(data.refinementAnswerCount) && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              정밀 조건 {data.refinementAnswerCount}개까지 반영했어요.
+            </p>
+          )}
         </div>
-        <div className="rounded-3xl border border-rose-200/70 bg-white/80 p-5 shadow-glass-sm backdrop-blur-xl">
-          <div className="flex items-end justify-between gap-4">
-            <span className="text-sm font-bold text-muted-foreground">
-              추가 확인 필요도
-            </span>
-            <span className="text-3xl font-black text-rose-500">
-              {data.regretProbability ?? Math.max(0, 100 - data.score)}%
-            </span>
-          </div>
-          <div className="mt-3 h-3 overflow-hidden rounded-full bg-rose-100">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-rose-300 to-rose-500"
-              style={{
-                width: `${
-                  data.regretProbability ?? Math.max(0, 100 - data.score)
-                }%`,
-              }}
-            />
-          </div>
+        <div className="rounded-3xl border border-emerald-200/70 bg-white/80 p-5 shadow-glass-sm backdrop-blur-xl">
+          <p className="text-sm font-bold text-emerald-700">데이터 확인 수준</p>
+          <p className="mt-2 text-sm font-semibold leading-relaxed">
+            {isFood
+              ? hasLivePlaces
+                ? "실제 주변 음식점 · 평점 · 후기 확인"
+                : "메뉴 아이디어만 제공 · 실제 매장은 지도 확인 필요"
+              : hasLivePrice
+                ? "외부 참고 가격 확인 · 쿠팡 가격은 이동 후 확인"
+                : "후보 비교 완료 · 판매 가격은 쿠팡에서 확인"}
+          </p>
+          {data.recommendationContext?.length ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {data.recommendationContext.join(" · ")}
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -262,7 +282,7 @@ export function QuickRecommendationResult({
         <section className="mt-6 overflow-hidden rounded-3xl border border-white/70 bg-white/75 shadow-glass-sm backdrop-blur-xl">
           <div className="border-b border-foreground/10 px-5 py-4 text-center">
             <h2 className="font-display text-lg font-black">
-              최종 선택과 가성비 대안 비교
+              두 후보를 다른 관점에서 비교
             </h2>
           </div>
           <div className="grid grid-cols-2">
@@ -282,7 +302,7 @@ export function QuickRecommendationResult({
                       : "bg-emerald-500/10 text-emerald-700"
                   )}
                 >
-                  {index === 0 ? "최종 선택" : "가격 대안"}
+                  {index === 0 ? "가장 잘 맞는 후보" : "다른 관점의 대안"}
                 </span>
                 <h3 className="mt-3 break-keep text-base font-black sm:text-lg">
                   {item.name}
@@ -293,22 +313,22 @@ export function QuickRecommendationResult({
                   </p>
                 )}
                 <div className="mt-4 space-y-3 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                  <p className="flex items-start gap-2">
-                    <BadgeCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                    {item.qualitySummary}
-                  </p>
-                  {item.asSummary && (
-                    <p className="flex items-start gap-2">
-                      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                      {item.asSummary}
-                    </p>
-                  )}
-                  {item.depreciationSummary && (
-                    <p className="flex items-start gap-2">
-                      <TrendingDown className="mt-0.5 size-4 shrink-0 text-primary" />
-                      {item.depreciationSummary}
-                    </p>
-                  )}
+                  {recommendationEvidence(item)
+                    .slice(0, 2)
+                    .map((evidence) => (
+                      <p
+                        key={`${item.name}-${evidence.label}`}
+                        className="flex items-start gap-2"
+                      >
+                        <BadgeCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+                        <span>
+                          <strong className="text-foreground">
+                            {evidence.label}
+                          </strong>
+                          <span className="block">{evidence.text}</span>
+                        </span>
+                      </p>
+                    ))}
                 </div>
               </div>
             ))}
@@ -424,25 +444,23 @@ export function QuickRecommendationResult({
 
               <details className="group mt-4 rounded-2xl border border-black/5 bg-black/[0.025] p-4 dark:border-white/10 dark:bg-white/[0.03]">
                 <summary className="cursor-pointer list-none text-sm font-bold">
-                  {isFood ? "선택 근거 보기" : "품질·A/S·감가 판단 보기"}
+                  왜 이 후보를 골랐나요?
                 </summary>
                 <div className="mt-4 space-y-3 text-sm leading-relaxed text-muted-foreground">
-                  <p className="flex items-start gap-2">
-                    <BadgeCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                    {item.qualitySummary}
-                  </p>
-                  {item.asSummary && (
-                    <p className="flex items-start gap-2">
-                      <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                      {item.asSummary}
+                  {recommendationEvidence(item).map((evidence) => (
+                    <p
+                      key={`${item.name}-detail-${evidence.label}`}
+                      className="flex items-start gap-2"
+                    >
+                      <BadgeCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+                      <span>
+                        <strong className="text-foreground">
+                          {evidence.label}
+                        </strong>
+                        <span className="block">{evidence.text}</span>
+                      </span>
                     </p>
-                  )}
-                  {item.depreciationSummary && (
-                    <p className="flex items-start gap-2">
-                      <TrendingDown className="mt-0.5 size-4 shrink-0 text-primary" />
-                      {item.depreciationSummary}
-                    </p>
-                  )}
+                  ))}
                 </div>
               </details>
 

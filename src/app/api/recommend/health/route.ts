@@ -14,10 +14,13 @@ export function GET() {
           process.env.NAVER_CLIENT_SECRET?.trim()
       ),
       googlePlaces: Boolean(process.env.GOOGLE_PLACES_API_KEY?.trim()),
+      googleWeather: Boolean(process.env.GOOGLE_WEATHER_API_KEY?.trim()),
     },
     notes: {
       googlePlaces:
         "평점·후기 필드는 Google Maps Platform 과금 및 할당량 설정이 필요합니다.",
+      googleWeather:
+        "날씨 반영은 별도 Weather API 키가 있을 때만 사용하며, 없으면 시간대·위치·후기 기준으로 추천합니다.",
       prices:
         "네이버 쇼핑 최저가는 배송비·쿠폰·옵션을 제외할 수 있는 조회 시점 노출가입니다.",
       naverShoppingSunset:

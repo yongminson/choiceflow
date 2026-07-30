@@ -62,9 +62,17 @@ export type AnalyzeApiResult = AnalyzeResponse & {
     ai: "live" | "fallback";
     price: "live" | "unavailable";
     places: "live" | "unavailable";
+    weather?: "live" | "unavailable";
   };
   locationUsed?: boolean;
+  recommendationContext?: string[];
   checkedAt?: string;
+};
+
+export type RecommendationEvidence = {
+  label: string;
+  text: string;
+  kind?: "verified" | "guide" | "caution";
 };
 
 export type QuickRecommendation = {
@@ -86,6 +94,10 @@ export type QuickRecommendation = {
   priceLevel?: string;
   selectionType?: "best" | "value" | "reliable" | "premium";
   selectionLabel?: string;
+  evidence?: RecommendationEvidence[];
+  distanceMeters?: number;
+  openNow?: boolean;
+  dataStatus?: "verified-place" | "category-guide";
 };
 
 /** POST /api/analyze 성공 시 본문 — 항상 JSON 객체 */
