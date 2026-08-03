@@ -10,11 +10,13 @@ import {
   Loader2,
   MapPin,
   RotateCcw,
+  ShoppingBag,
   Sparkles,
   Star,
 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
 import {
   getQuickAdvancedQuestions,
   type QuickAdvancedOption,
@@ -54,6 +56,16 @@ const FALLBACK_ROLE_LABELS = [
   "검증 우선",
   "프리미엄",
 ];
+
+/** 음식 상황별로 쿠팡에서 실제로 잘 잡히는 상품 검색어 */
+const FOOD_RELATED_KEYWORDS: Record<string, string> = {
+  solo: "혼밥 간편식 도시락",
+  couple: "홈파티 밀키트 2인",
+  group: "모임용 대용량 밀키트",
+  family: "가족 밀키트 4인분",
+  delivery: "야식 냉동 간편식",
+  healthy: "샐러드 도시락 다이어트 식단",
+};
 
 function recommendationEvidence(item: QuickRecommendation) {
   if (item.evidence?.length) return item.evidence;
@@ -97,6 +109,26 @@ function getLocation(): Promise<LocationPayload | undefined> {
   });
 }
 
+/** 제휴 링크 클릭을 GA로 남긴다. 어떤 카테고리·후보가 수익을 내는지 봐야 개선할 수 있다. */
+function trackOutboundClick(params: {
+  categoryId?: string;
+  selectionType?: string;
+  name: string;
+  keyword: string;
+  position: number;
+}) {
+  if (typeof window === "undefined") return;
+  const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag;
+  if (typeof gtag !== "function") return;
+  gtag("event", "affiliate_click", {
+    category_id: params.categoryId || "unknown",
+    selection_type: params.selectionType || "unknown",
+    item_name: params.name,
+    search_keyword: params.keyword,
+    position: params.position,
+  });
+}
+
 export function QuickRecommendationResult({
   data,
   onResultUpdate,
@@ -104,12 +136,21 @@ export function QuickRecommendationResult({
   data: AnalyzeApiResult;
   onResultUpdate: (result: AnalyzeApiResult) => void;
 }) {
-  const recommendations = (data.quickRecommendations || []).slice(0, 3);
+  const recommendations = (data.quickRecommendations || []).slice(0, 4);
   const winner = recommendations[0];
   const alternative = recommendations[1];
   const isFood = data.categoryId === "food";
+  // 음식은 결과 링크가 지도로 나가 제휴 수익이 발생하지 않는다.
+  // 후보 이름을 그대로 쓰면 "백반 맛집 밀키트" 같은 검색어가 되므로 상황별로 고정한다.
+  const relatedKeyword = isFood
+    ? FOOD_RELATED_KEYWORDS[data.quickScenarioId || ""] || "간편 밀키트 세트"
+    : "";
   const hasLivePrice = data.providerStatus?.price === "live";
   const hasLivePlaces = data.providerStatus?.places === "live";
+  // AI가 폴백이면 정밀 질문을 답해도 같은 후보가 나온다. 빈 약속을 하지 않는다.
+  const aiAvailable = isFood
+    ? hasLivePlaces
+    : data.providerStatus?.ai === "live";
   const resultCategoryId = data.categoryId || null;
   const categoryId = isCategoryId(resultCategoryId) ? resultCategoryId : null;
   const advancedQuestions = useMemo(
@@ -243,6 +284,34 @@ export function QuickRecommendationResult({
             </span>
           )}
         </div>
+
+        {winner?.sourceUrl && (
+          <a
+            href={winner.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            onClick={() =>
+              trackOutboundClick({
+                categoryId: data.categoryId,
+                selectionType: winner.selectionType,
+                name: winner.name,
+                keyword: winner.searchKeyword,
+                position: 0,
+              })
+            }
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              "mt-7 min-h-14 w-full rounded-2xl text-[16px] font-black shadow-xl sm:w-auto sm:min-w-[300px] sm:px-10",
+              !isFood &&
+                "bg-[#ae0000] text-white shadow-[0_14px_36px_-12px_rgba(174,0,0,0.65)] hover:bg-[#8f0000]"
+            )}
+          >
+            {isFood
+              ? `${winner.name} 지도에서 보기`
+              : `${winner.name} 쿠팡에서 보기`}
+            <ExternalLink className="ml-2 size-4" />
+          </a>
+        )}
       </header>
 
       <section className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -354,7 +423,7 @@ export function QuickRecommendationResult({
         <div>
           <p className="text-xs font-bold text-muted-foreground">추천 후보</p>
           <h2 className="mt-1 font-display text-2xl font-black">
-            목적별 최대 3개
+            목적별 {recommendations.length}개
           </h2>
         </div>
       </div>
@@ -469,17 +538,31 @@ export function QuickRecommendationResult({
                   href={item.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer sponsored"
+                  onClick={() =>
+                    trackOutboundClick({
+                      categoryId: data.categoryId,
+                      selectionType: item.selectionType,
+                      name: item.name,
+                      keyword: item.searchKeyword,
+                      position: index + 1,
+                    })
+                  }
                   className={cn(
-                    buttonVariants({
-                      variant: index === 0 ? "default" : "outline",
-                    }),
-                    "mt-4 min-h-12 w-full rounded-xl"
+                    buttonVariants({ variant: "default" }),
+                    "mt-5 min-h-14 w-full rounded-2xl text-[15px] font-black shadow-lg",
+                    !isFood &&
+                      "bg-[#ae0000] text-white shadow-[0_10px_30px_-10px_rgba(174,0,0,0.6)] hover:bg-[#8f0000]"
                   )}
                 >
                   {item.sourceLabel ||
-                    (isFood ? "지도에서 최신 정보 보기" : "가격·판매 조건 확인")}
+                    (isFood ? "지도에서 최신 정보 보기" : "쿠팡에서 최저가 확인")}
                   <ExternalLink className="ml-2 size-4" />
                 </a>
+              )}
+              {!isFood && item.sourceUrl && (
+                <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                  검색어 &lsquo;{item.searchKeyword}&rsquo; 로 이동합니다
+                </p>
               )}
             </article>
           );
@@ -522,7 +605,47 @@ export function QuickRecommendationResult({
         )}
       </section>
 
+      {isFood && relatedKeyword && (
+        <section className="mt-6 rounded-3xl border border-[#ae0000]/20 bg-[#ae0000]/[0.04] p-5 sm:p-6">
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="size-5 text-[#ae0000]" />
+            <h2 className="font-display text-lg font-black">
+              집에서 준비한다면
+            </h2>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            밖에 나가기 애매한 날이라면 재료나 밀키트로 해결하는 방법도 있어요.
+          </p>
+          <a
+            href={buildDirectCoupangNpSearchUrl(relatedKeyword)}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            onClick={() =>
+              trackOutboundClick({
+                categoryId: data.categoryId,
+                selectionType: "related",
+                name: relatedKeyword,
+                keyword: relatedKeyword,
+                position: 90,
+              })
+            }
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              "mt-4 min-h-13 w-full rounded-2xl bg-[#ae0000] text-[15px] font-black text-white hover:bg-[#8f0000]"
+            )}
+          >
+            &lsquo;{relatedKeyword}&rsquo; 쿠팡에서 보기
+            <ExternalLink className="ml-2 size-4" />
+          </a>
+        </section>
+      )}
+
       {!isFood && (
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
+          쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+        </p>
+      )}
+      {isFood && relatedKeyword && (
         <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
           쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
         </p>
@@ -542,7 +665,7 @@ export function QuickRecommendationResult({
             <Button
               type="button"
               className="mt-5 min-h-12 w-full rounded-xl"
-              disabled={!canRefine}
+              disabled={!canRefine || !aiAvailable}
               onClick={() => {
                 setRefineError("");
                 setShowAdvanced(true);
@@ -554,6 +677,12 @@ export function QuickRecommendationResult({
               <p className="mt-3 text-xs text-muted-foreground">
                 이전 형식의 결과입니다. 새 추천을 시작하면 정밀 질문을 사용할 수
                 있어요.
+              </p>
+            )}
+            {canRefine && !aiAvailable && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                지금은 AI 추천 서버에 연결되지 않아 기본 후보만 보여드리고
+                있어요. 질문을 더 답해도 결과가 달라지지 않아 잠시 잠가 두었습니다.
               </p>
             )}
           </>

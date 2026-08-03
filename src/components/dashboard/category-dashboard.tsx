@@ -215,7 +215,8 @@ export function CategoryDashboard() {
   }, [isAnalyzing]);
 
   const openCategory = useCallback((id: CategoryId) => {
-    setSelectedCategory(id); setIsFormOpen(true); router.replace(`/?tab=${id}`, { scroll: false });
+    // details=1 을 빼먹으면 HomeClient가 빠른추천 화면으로 되돌아가 버린다.
+    setSelectedCategory(id); setIsFormOpen(true); router.replace(`/?details=1&tab=${id}`, { scroll: false });
     
     setTimeout(() => {
       inputSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });

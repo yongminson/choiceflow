@@ -72,11 +72,15 @@ function inferWinner(optionA: string, optionB: string, winnerName: string, itemA
   return "A";
 }
 
+/** /api/recommend 와 동일한 모델 폴백 정책 */
+const GEMINI_MODEL_CANDIDATES = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+];
+
 async function generateGeminiJson(apiKey: string, prompt: string, base64Images: string[]) {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
-  });
 
   const parts: any[] = [{ text: prompt }];
 
@@ -94,14 +98,24 @@ async function generateGeminiJson(apiKey: string, prompt: string, base64Images: 
 
   const contents = [{ role: "user", parts }];
 
-  const result = await model.generateContent({
-    contents,
-    generationConfig: { 
-      responseMimeType: "application/json"
-    }
-  });
+  const override = process.env.GEMINI_MODEL?.trim();
+  const models = override ? [override] : GEMINI_MODEL_CANDIDATES;
 
-  return result.response.text();
+  let lastError: unknown;
+  for (const modelName of models) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent({
+        contents,
+        generationConfig: { responseMimeType: "application/json" },
+      });
+      return result.response.text();
+    } catch (error) {
+      lastError = error;
+      console.warn(`[analyze] Gemini model ${modelName} failed`, error);
+    }
+  }
+  throw lastError ?? new Error("No Gemini model available");
 }
 
 export async function POST(request: Request) {

@@ -2,13 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
-
-// Supabase 클라이언트 연결
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 export function VisitorTracker() {
   const pathname = usePathname();
@@ -19,6 +13,8 @@ export function VisitorTracker() {
 
     const logVisit = async () => {
       try {
+        // 쿠키 세션을 공유하는 클라이언트여야 user_id 가 실제로 기록된다.
+        const supabase = createBrowserSupabaseClient();
         // 로그인한 유저라면 ID도 같이 수집 (누가 어느 메뉴를 눌렀는지 확인용)
         const { data: { user } } = await supabase.auth.getUser();
         
