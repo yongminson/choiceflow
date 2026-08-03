@@ -72,13 +72,6 @@ function inferWinner(optionA: string, optionB: string, winnerName: string, itemA
   return "A";
 }
 
-/** /api/recommend 와 동일한 모델 폴백 정책 */
-const GEMINI_MODEL_CANDIDATES = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-2.0-flash",
-];
-
 async function generateGeminiJson(apiKey: string, prompt: string, base64Images: string[]) {
   const genAI = new GoogleGenerativeAI(apiKey);
 
@@ -98,8 +91,11 @@ async function generateGeminiJson(apiKey: string, prompt: string, base64Images: 
 
   const contents = [{ role: "user", parts }];
 
+  // 이미지 입력이 필요해 Gemini 전용 경로를 유지한다(2026-08 기준 GA 모델).
   const override = process.env.GEMINI_MODEL?.trim();
-  const models = override ? [override] : GEMINI_MODEL_CANDIDATES;
+  const models = override
+    ? [override]
+    : ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-2.5-flash-lite"];
 
   let lastError: unknown;
   for (const modelName of models) {

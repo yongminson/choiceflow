@@ -1,5 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+
+import { generateJson } from "@/lib/ai/generate-json";
 
 import {
   getQuickAdvancedAnswer,
@@ -81,16 +82,6 @@ const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 20;
 const RATE_BUCKET_MAX = 5_000;
 
-/**
- * 사용할 Gemini 모델 후보. 앞에서부터 시도해 처음 성공한 모델을 기억한다.
- * 모델명이 하나 바뀌어도 추천이 통째로 폴백으로 떨어지지 않도록 하기 위함.
- */
-const GEMINI_MODEL_CANDIDATES = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-2.0-flash",
-] as const;
-let resolvedGeminiModel: string | null = null;
 const SELECTION_ORDER: SelectionType[] = [
   "best",
   "value",
@@ -516,41 +507,6 @@ function categoryDecisionRules(categoryId: CategoryId): string {
 }
 
 /**
- * 모델 후보를 순서대로 시도한다. 성공한 모델명은 프로세스 안에서 재사용한다.
- * 실패 원인을 삼키지 않고 마지막 에러를 던져 호출부가 폴백을 선택하게 한다.
- */
-async function generateGeminiJson(
-  apiKey: string,
-  prompt: string
-): Promise<unknown> {
-  const override = process.env.GEMINI_MODEL?.trim();
-  const models = override
-    ? [override]
-    : resolvedGeminiModel
-      ? [resolvedGeminiModel, ...GEMINI_MODEL_CANDIDATES]
-      : [...GEMINI_MODEL_CANDIDATES];
-
-  let lastError: unknown;
-  for (const modelName of models) {
-    try {
-      const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({
-        model: modelName,
-      });
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" },
-      });
-      resolvedGeminiModel = modelName;
-      return JSON.parse(result.response.text()) as unknown;
-    } catch (error) {
-      lastError = error;
-      console.warn(`[recommend] Gemini model ${modelName} failed`, error);
-    }
-  }
-  throw lastError ?? new Error("No Gemini model available");
-}
-
-/**
  * 쇼핑 카테고리는 검색어가 곧 매출이다. 쿠팡 검색 결과가 한 가지 상품군으로
  * 좁혀지도록 "제품군 + 구분 조건" 형태를 요구한다.
  */
@@ -578,11 +534,6 @@ async function generateCandidates(
   fallbacks: Candidate[]
 ): Promise<{ candidates: Candidate[]; live: boolean }> {
   const segmentedFallbacks = segmentFallbackCandidates(categoryId, fallbacks);
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    console.warn("[recommend] GEMINI_API_KEY is not set; serving static fallback.");
-    return { candidates: segmentedFallbacks, live: false };
-  }
 
   const prompt = `당신은 한국 소비자의 선택을 돕는 구매·생활 의사결정 전문가다.
 카테고리: ${QUICK_CATEGORY_LABELS[categoryId]}
@@ -611,8 +562,17 @@ JSON 배열만 응답:
 [{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":""}]`;
 
   try {
-    const parsed = await generateGeminiJson(apiKey, prompt);
-    if (!Array.isArray(parsed)) {
+    const generated = await generateJson(prompt);
+    // 배열을 요구했지만 provider에 따라 {items:[...]} 형태로 감싸 오는 경우가 있다.
+    const raw = generated?.parsed;
+    const parsed = Array.isArray(raw)
+      ? raw
+      : Array.isArray((raw as { items?: unknown })?.items)
+        ? (raw as { items: unknown[] }).items
+        : Array.isArray((raw as { results?: unknown })?.results)
+          ? (raw as { results: unknown[] }).results
+          : null;
+    if (!parsed) {
       return { candidates: segmentedFallbacks, live: false };
     }
     const candidates = parsed.slice(0, 4).map((item, index) => {
