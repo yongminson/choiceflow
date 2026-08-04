@@ -164,6 +164,15 @@ export function isDiagnosticTokenConfigured(): boolean {
   return Boolean(process.env.COUPANG_DIAGNOSTIC_TOKEN?.trim());
 }
 
+/**
+ * 같은 검색어로 매번 딥링크를 새로 만들면 클릭마다 외부 API 왕복이 생기고,
+ * 그 호출이 실패하면 추적 안 되는 폴백 링크로 나가 수수료가 사라진다.
+ * 짧게 캐싱해 왕복과 실패 확률을 함께 줄인다.
+ */
+const deepLinkCache = new Map<string, { url: string; expiresAt: number }>();
+const DEEPLINK_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const DEEPLINK_CACHE_MAX = 500;
+
 export async function createCoupangDeepLink(
   keyword: string
 ): Promise<string> {
@@ -173,6 +182,17 @@ export async function createCoupangDeepLink(
       "INVALID_KEYWORD",
       "A non-empty Coupang search keyword is required."
     );
+  }
+
+  const cached = deepLinkCache.get(normalizedKeyword);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
+  }
+  if (deepLinkCache.size > DEEPLINK_CACHE_MAX) {
+    const now = Date.now();
+    deepLinkCache.forEach((entry, key) => {
+      if (entry.expiresAt <= now) deepLinkCache.delete(key);
+    });
   }
 
   const config = getCoupangConfig();
@@ -218,9 +238,22 @@ export async function createCoupangDeepLink(
   }
 
   if (!response.ok) {
+    // 쿠팡은 실패 사유를 본문(rCode/rMessage)에 담아 준다. 본문을 버리면
+    // "왜 딥링크가 안 만들어지는지"를 영영 알 수 없다. 키/권한/한도 문제를
+    // 구분하려면 이 값이 필요하므로 잘라서 로그에 남긴다.
+    let upstreamDetail = "";
+    try {
+      upstreamDetail = (await response.text()).slice(0, 300);
+    } catch {
+      // 본문을 못 읽어도 상태 코드만으로 계속 진행한다.
+    }
+    console.error("[coupang] Deep-link API HTTP error", {
+      status: response.status,
+      body: upstreamDetail,
+    });
     throw new CoupangApiError(
       "UPSTREAM_HTTP",
-      "Coupang Partners API returned a non-success HTTP status.",
+      `Coupang Partners API returned HTTP ${response.status}. ${upstreamDetail}`,
       response.status
     );
   }
@@ -237,11 +270,22 @@ export async function createCoupangDeepLink(
 
   const shortenUrl = payload.data?.[0]?.shortenUrl;
   if (payload.rCode !== "0" || !isAllowedCoupangRedirectUrl(shortenUrl)) {
+    console.error("[coupang] Deep-link API rejected the request", {
+      rCode: payload.rCode,
+      rMessage: payload.rMessage,
+      hasData: Array.isArray(payload.data),
+    });
     throw new CoupangApiError(
       "UPSTREAM_RESPONSE",
-      "Coupang Partners API returned an invalid deep-link response."
+      `Coupang Partners API returned rCode=${payload.rCode ?? "?"} ${
+        payload.rMessage ?? ""
+      }`.trim()
     );
   }
 
+  deepLinkCache.set(normalizedKeyword, {
+    url: shortenUrl,
+    expiresAt: Date.now() + DEEPLINK_CACHE_TTL_MS,
+  });
   return shortenUrl;
 }
