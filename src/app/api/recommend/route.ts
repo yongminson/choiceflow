@@ -531,6 +531,7 @@ async function generateCandidates(
   maxBudgetWon: number | undefined,
   advancedContext: string,
   excludedNames: string[],
+  userWish: string,
   fallbacks: Candidate[]
 ): Promise<{ candidates: Candidate[]; live: boolean }> {
   const segmentedFallbacks = segmentFallbackCandidates(categoryId, fallbacks);
@@ -541,6 +542,7 @@ async function generateCandidates(
 최우선 조건: ${priorityLabel}
 예산: ${budgetLabel}${maxBudgetWon ? ` (${maxBudgetWon.toLocaleString("ko-KR")}원 이하)` : ""}
 정밀 조건: ${advancedContext || "추가 조건 없음"}
+${userWish ? `사용자가 직접 적은 요청(가장 중요, 반드시 반영): "${userWish}"` : ""}
 ${excludedNames.length > 0 ? `이미 추천한 후보(반드시 제외): ${excludedNames.join(", ")}` : ""}
 
 아래 목적별로 정확히 4개 후보를 추천하라.
@@ -553,6 +555,8 @@ ${excludedNames.length > 0 ? `이미 추천한 후보(반드시 제외): ${exclu
 ${keywordRules(categoryId)}
 
 확인하지 않은 실시간 평점·후기 수·가격은 절대 만들지 않는다.
+사용자가 직접 적은 요청이 있으면 그것을 다른 어떤 조건보다 우선한다.
+요청에 "~말고", "~빼고" 같은 제외 조건이 있으면 그 항목은 후보에서 완전히 뺀다.
 최우선 조건과 예산을 반드시 지킨다. 4개 후보는 서로 뚜렷하게 다른 제품군이어야 한다.
 reason은 이 사용자의 상황(${scenarioLabel} · ${priorityLabel} 우선)에 직접 연결해 40~80자로 쓰고,
 4개의 reason이 서로 다른 근거를 담게 한다. 같은 문장을 반복하지 않는다.
@@ -826,6 +830,7 @@ async function findGooglePlaces(
   location: RequestLocation,
   advancedAnswers: ValidAdvancedAnswer[],
   excludedNames: string[],
+  userWish: string,
   weather?: WeatherContext
 ): Promise<QuickRecommendation[] | undefined> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim();
@@ -859,7 +864,8 @@ async function findGooglePlaces(
       body: JSON.stringify({
         // 상황(혼밥·데이트·회식…)이 쿼리에 들어가지 않으면 어떤 시나리오를 골라도
         // 같은 결과가 나온다.
-        textQuery: `${scenarioLabel} ${weather?.searchHint || ""} 맛집 ${searchDetails}`
+        // 사용자가 직접 적은 요청을 검색어 맨 앞에 둔다. 이게 실제로 먹고 싶은 것이다.
+        textQuery: `${userWish} ${scenarioLabel} ${weather?.searchHint || ""} 맛집 ${searchDetails}`
           .replace(/\s+/g, " ")
           .trim(),
         includedType: "restaurant",
@@ -1094,6 +1100,7 @@ function toAnalyzeResult(
   budgetLabel: string,
   maxBudgetWon: number | undefined,
   refinementAnswerCount: number,
+  userWish: string,
   recommendations: QuickRecommendation[],
   status: AnalyzeApiResult["providerStatus"],
   locationUsed: boolean,
@@ -1161,6 +1168,7 @@ function toAnalyzeResult(
     quickPriorityId: priorityId,
     quickBudgetLabel: budgetLabel,
     quickBudgetId: budgetId,
+    quickUserWish: userWish || undefined,
     quickMaxBudgetWon: maxBudgetWon,
     quickCandidateCount: limitedRecommendations.length,
     refinementAnswerCount,
@@ -1241,6 +1249,8 @@ export async function POST(request: Request) {
   const fallbacks = FALLBACKS[rawCategory][scenarioId];
   const location = readLocation(body.location);
   const excludedNames = readExcludedNames(body.excludedNames);
+  // 버튼만으로는 담기지 않는 실제 의도("매운 국물", "향수 말고")를 받는다.
+  const userWish = clean(body.userWish, "", 100);
 
   try {
     if (rawCategory === "food") {
@@ -1254,6 +1264,7 @@ export async function POST(request: Request) {
             location,
             advancedAnswers,
             excludedNames,
+            userWish,
             weather
           ).catch(() => undefined)
         : undefined;
@@ -1276,6 +1287,7 @@ export async function POST(request: Request) {
         budget.label,
         budget.maxWon,
         advancedAnswers.length,
+        userWish,
         recommendations,
         {
           ai: "fallback",
@@ -1285,6 +1297,7 @@ export async function POST(request: Request) {
         },
         Boolean(location),
         [
+          ...(userWish ? [`요청: ${userWish}`] : []),
           `${currentMealContext()} 시간대`,
           ...(weather ? [weather.summary] : []),
           ...(excludedNames.length > 0 ? ["최근 추천과 다른 후보 우선"] : []),
@@ -1303,6 +1316,7 @@ export async function POST(request: Request) {
       budget.maxWon,
       advancedContext,
       excludedNames,
+      userWish,
       fallbacks
     );
     const resultCandidates = generated.candidates.slice(0, 4);
@@ -1332,6 +1346,7 @@ export async function POST(request: Request) {
       budget.label,
       budget.maxWon,
       advancedAnswers.length,
+      userWish,
       priced.recommendations,
       {
         ai: generated.live ? "live" : "fallback",
@@ -1362,6 +1377,7 @@ export async function POST(request: Request) {
       budget.label,
       budget.maxWon,
       advancedAnswers.length,
+      userWish,
       recommendations,
       { ai: "fallback", price: "unavailable", places: "unavailable" },
       Boolean(location)

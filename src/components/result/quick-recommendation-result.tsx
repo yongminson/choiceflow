@@ -44,10 +44,10 @@ const ROLE_STYLES: Record<
   NonNullable<QuickRecommendation["selectionType"]>,
   string
 > = {
-  best: "border-primary/45 bg-primary/10 text-primary",
-  value: "border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  reliable: "border-sky-500/35 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  premium: "border-violet-500/35 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+  best: "border-[#ae0000]/25 bg-[#ae0000]/[0.06] text-[#ae0000] dark:text-red-400",
+  value: "border-emerald-600/25 bg-emerald-600/[0.06] text-emerald-700 dark:text-emerald-400",
+  reliable: "border-sky-600/25 bg-sky-600/[0.06] text-sky-700 dark:text-sky-400",
+  premium: "border-neutral-500/25 bg-neutral-500/[0.06] text-neutral-700 dark:text-neutral-300",
 };
 
 const FALLBACK_ROLE_LABELS = [
@@ -214,6 +214,7 @@ export function QuickRecommendationResult({
           scenarioId: data.quickScenarioId,
           priorityId: data.quickPriorityId,
           budgetId: data.quickBudgetId,
+          userWish: data.quickUserWish,
           advancedAnswers: answers,
           location,
           excludedNames,
@@ -252,38 +253,27 @@ export function QuickRecommendationResult({
   };
 
   return (
-    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-3xl px-4 pb-20 pt-8 sm:px-6 sm:pt-14">
-      <header className="text-center">
-        <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-primary">
-          ChoiceFlow recommendation
+    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-2xl bg-white px-4 pb-16 pt-6 dark:bg-neutral-950 sm:px-6">
+      <header>
+        <p className="text-xs font-bold text-muted-foreground">
+          {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
-        <p className="mt-5 text-sm font-bold text-muted-foreground">
-          선택한 조건으로 고른 첫 번째 후보
-        </p>
-        <h1 className="mt-2 text-balance bg-gradient-to-br from-primary via-sky-500 to-violet-500 bg-clip-text font-display text-4xl font-black tracking-[-0.05em] text-transparent sm:text-5xl">
+        <h1 className="mt-2 break-keep text-[28px] font-black leading-[1.2] tracking-[-0.03em] sm:text-[34px]">
           {winner?.name || `${data.quickScenarioLabel} 추천`}
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+        <p className="mt-2 line-clamp-2 text-[15px] leading-relaxed text-muted-foreground">
           {winner?.reason ||
             "선택한 조건을 기준으로 가장 적합한 후보를 정리했어요."}
         </p>
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
-          {data.quickPriorityLabel && (
-            <span className="rounded-full border border-foreground/10 bg-background/80 px-3 py-1.5 text-xs font-bold">
-              {data.quickPriorityLabel} 우선
-            </span>
-          )}
-          {data.quickBudgetLabel && (
-            <span className="rounded-full border border-foreground/10 bg-background/80 px-3 py-1.5 text-xs font-bold">
-              {data.quickBudgetLabel}
-            </span>
-          )}
-          {Boolean(data.refinementAnswerCount) && (
-            <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-xs font-bold text-violet-700 dark:text-violet-300">
-              정밀 조건 {data.refinementAnswerCount}개 반영
-            </span>
-          )}
-        </div>
+
+        {data.quickUserWish && (
+          <p className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">
+            <Sparkles className="size-3.5 shrink-0" />
+            <span className="truncate">요청 반영: {data.quickUserWish}</span>
+          </p>
+        )}
 
         {winner?.sourceUrl && (
           <a
@@ -300,135 +290,34 @@ export function QuickRecommendationResult({
               })
             }
             className={cn(
-              buttonVariants({ variant: "default" }),
-              "mt-7 min-h-14 w-full rounded-2xl text-[16px] font-black shadow-xl sm:w-auto sm:min-w-[300px] sm:px-10",
-              !isFood &&
-                "bg-[#ae0000] text-white shadow-[0_14px_36px_-12px_rgba(174,0,0,0.65)] hover:bg-[#8f0000]"
+              "mt-5 flex min-h-[52px] w-full items-center justify-center rounded-lg text-[16px] font-black text-white transition",
+              isFood
+                ? "bg-emerald-600 hover:bg-emerald-700"
+                : "bg-[#ae0000] hover:bg-[#8f0000]"
             )}
           >
-            {isFood
-              ? `${winner.name} 지도에서 보기`
-              : `${winner.name} 쿠팡에서 보기`}
+            {isFood ? "지도에서 보기" : "쿠팡 최저가 보기"}
             <ExternalLink className="ml-2 size-4" />
           </a>
         )}
       </header>
 
-      <section className="mt-8 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-3xl border border-sky-200/70 bg-white/80 p-5 shadow-glass-sm backdrop-blur-xl">
-          <p className="text-sm font-bold text-primary">이번 추천에 반영</p>
-          <p className="mt-2 text-sm font-semibold leading-relaxed">
-            {[data.quickScenarioLabel, data.quickPriorityLabel, data.quickBudgetLabel]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-          {Boolean(data.refinementAnswerCount) && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              정밀 조건 {data.refinementAnswerCount}개까지 반영했어요.
-            </p>
-          )}
-        </div>
-        <div className="rounded-3xl border border-emerald-200/70 bg-white/80 p-5 shadow-glass-sm backdrop-blur-xl">
-          <p className="text-sm font-bold text-emerald-700">데이터 확인 수준</p>
-          <p className="mt-2 text-sm font-semibold leading-relaxed">
-            {isFood
-              ? hasLivePlaces
-                ? "실제 주변 음식점 · 평점 · 후기 확인"
-                : "메뉴 아이디어만 제공 · 실제 매장은 지도 확인 필요"
-              : hasLivePrice
-                ? "외부 참고 가격 확인 · 쿠팡 가격은 이동 후 확인"
-                : "후보 비교 완료 · 판매 가격은 쿠팡에서 확인"}
-          </p>
-          {data.recommendationContext?.length ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              {data.recommendationContext.join(" · ")}
-            </p>
-          ) : null}
-        </div>
-      </section>
+      <p className="mt-4 border-y border-foreground/10 py-3 text-xs leading-relaxed text-muted-foreground">
+        {isFood
+          ? hasLivePlaces
+            ? "현재 위치 주변 매장의 평점·후기를 반영했어요. 영업 상태는 방문 전 확인하세요."
+            : "주변 매장 데이터를 불러오지 못해 메뉴 후보만 제안해요. 지도에서 확인하세요."
+          : "가격·재고는 쿠팡에서 최종 확인하세요."}
+        {data.recommendationContext?.length
+          ? ` · ${data.recommendationContext.join(" · ")}`
+          : ""}
+      </p>
 
-      {winner && alternative && (
-        <section className="mt-6 overflow-hidden rounded-3xl border border-white/70 bg-white/75 shadow-glass-sm backdrop-blur-xl">
-          <div className="border-b border-foreground/10 px-5 py-4 text-center">
-            <h2 className="font-display text-lg font-black">
-              두 후보를 다른 관점에서 비교
-            </h2>
-          </div>
-          <div className="grid grid-cols-2">
-            {[winner, alternative].map((item, index) => (
-              <div
-                key={`${item.name}-summary`}
-                className={cn(
-                  "min-w-0 p-4 sm:p-6",
-                  index === 1 && "border-l border-foreground/10"
-                )}
-              >
-                <span
-                  className={cn(
-                    "inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold",
-                    index === 0
-                      ? "bg-primary/10 text-primary"
-                      : "bg-emerald-500/10 text-emerald-700"
-                  )}
-                >
-                  {index === 0 ? "가장 잘 맞는 후보" : "다른 관점의 대안"}
-                </span>
-                <h3 className="mt-3 break-keep text-base font-black sm:text-lg">
-                  {item.name}
-                </h3>
-                {typeof item.price === "number" && (
-                  <p className="mt-2 text-sm font-black text-emerald-700">
-                    참고 {formatPrice(item.price)}원
-                  </p>
-                )}
-                <div className="mt-4 space-y-3 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                  {recommendationEvidence(item)
-                    .slice(0, 2)
-                    .map((evidence) => (
-                      <p
-                        key={`${item.name}-${evidence.label}`}
-                        className="flex items-start gap-2"
-                      >
-                        <BadgeCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                        <span>
-                          <strong className="text-foreground">
-                            {evidence.label}
-                          </strong>
-                          <span className="block">{evidence.text}</span>
-                        </span>
-                      </p>
-                    ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <h2 className="mb-3 mt-7 text-lg font-black">
+        추천 후보 {recommendations.length}개
+      </h2>
 
-      {winner && (
-        <section className="mt-6 rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/95 via-white/90 to-orange-50/90 p-6 shadow-glass-sm">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
-            핵심 판단
-          </p>
-          <p className="mt-3 text-[15px] font-medium leading-relaxed">
-            {data.killerInsight || winner.reason}
-          </p>
-          <p className="mt-4 border-t border-amber-200/70 pt-4 text-sm font-bold">
-            {data.summary}
-          </p>
-        </section>
-      )}
-
-      <div className="mb-4 mt-9 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold text-muted-foreground">추천 후보</p>
-          <h2 className="mt-1 font-display text-2xl font-black">
-            목적별 {recommendations.length}개
-          </h2>
-        </div>
-      </div>
-
-      <div className="space-y-4">
+      <div className="space-y-3">
         {recommendations.map((item, index) => {
           const priceLevel = formatPriceLevel(item.priceLevel);
           const roleLabel =
@@ -440,43 +329,36 @@ export function QuickRecommendationResult({
             <article
               key={`${item.selectionType || index}-${item.name}`}
               className={cn(
-                "overflow-hidden rounded-3xl border bg-white/60 p-5 shadow-glass-sm backdrop-blur-xl dark:bg-white/[0.07] sm:p-6",
+                "rounded-xl border bg-white p-4 dark:bg-neutral-900 sm:p-5",
                 index === 0
-                  ? "border-primary/50 ring-2 ring-primary/15"
-                  : "border-white/40 dark:border-white/10"
+                  ? "border-[#ae0000]/30"
+                  : "border-foreground/10"
               )}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <span
-                    className={cn(
-                      "inline-flex rounded-full border px-2.5 py-1 text-xs font-bold",
-                      roleStyle
-                    )}
-                  >
-                    {roleLabel}
-                  </span>
-                  <h2 className="mt-3 break-keep text-xl font-black leading-tight">
-                    {item.name}
-                  </h2>
-                </div>
-                <span className="shrink-0 text-2xl font-black text-primary/25">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-              </div>
+              <span
+                className={cn(
+                  "inline-flex rounded border px-2 py-0.5 text-[11px] font-bold",
+                  roleStyle
+                )}
+              >
+                {roleLabel}
+              </span>
+              <h3 className="mt-2 break-keep text-[19px] font-black leading-snug">
+                {item.name}
+              </h3>
 
               {(typeof item.price === "number" || priceLevel) && (
-                <div className="mt-4 rounded-2xl bg-emerald-500/10 p-4">
-                  <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                <div className="mt-3 rounded-lg bg-neutral-100 p-3 dark:bg-white/5">
+                  <p className="text-[11px] font-bold text-muted-foreground">
                     {item.priceLabel || "가격대"}
                   </p>
-                  <p className="mt-1 text-2xl font-black text-emerald-800 dark:text-emerald-200">
+                  <p className="mt-0.5 text-xl font-black">
                     {typeof item.price === "number"
                       ? `${formatPrice(item.price)}원`
                       : priceLevel}
                   </p>
                   {item.seller && (
-                    <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-200/75">
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
                       판매처 {item.seller}
                     </p>
                   )}
@@ -507,15 +389,15 @@ export function QuickRecommendationResult({
                 </p>
               )}
 
-              <p className="mt-4 text-[15px] font-medium leading-relaxed">
+              <p className="mt-3 line-clamp-2 text-[14px] leading-relaxed text-muted-foreground">
                 {item.reason}
               </p>
 
-              <details className="group mt-4 rounded-2xl border border-black/5 bg-black/[0.025] p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <summary className="cursor-pointer list-none text-sm font-bold">
+              <details className="group mt-3">
+                <summary className="cursor-pointer list-none text-[13px] font-bold text-muted-foreground underline underline-offset-4">
                   왜 이 후보를 골랐나요?
                 </summary>
-                <div className="mt-4 space-y-3 text-sm leading-relaxed text-muted-foreground">
+                <div className="mt-3 space-y-2 text-[13px] leading-relaxed text-muted-foreground">
                   {recommendationEvidence(item).map((evidence) => (
                     <p
                       key={`${item.name}-detail-${evidence.label}`}
@@ -548,10 +430,10 @@ export function QuickRecommendationResult({
                     })
                   }
                   className={cn(
-                    buttonVariants({ variant: "default" }),
-                    "mt-5 min-h-14 w-full rounded-2xl text-[15px] font-black shadow-lg",
-                    !isFood &&
-                      "bg-[#ae0000] text-white shadow-[0_10px_30px_-10px_rgba(174,0,0,0.6)] hover:bg-[#8f0000]"
+                    "mt-3 flex min-h-[48px] w-full items-center justify-center rounded-lg text-[15px] font-black transition",
+                    isFood
+                      ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                      : "bg-[#ae0000] text-white hover:bg-[#8f0000]"
                   )}
                 >
                   {item.sourceLabel ||
@@ -560,8 +442,8 @@ export function QuickRecommendationResult({
                 </a>
               )}
               {!isFood && item.sourceUrl && (
-                <p className="mt-2 text-center text-[11px] text-muted-foreground">
-                  검색어 &lsquo;{item.searchKeyword}&rsquo; 로 이동합니다
+                <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+                  검색어 &lsquo;{item.searchKeyword}&rsquo;
                 </p>
               )}
             </article>
