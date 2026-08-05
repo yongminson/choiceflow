@@ -2,12 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 export function AdminFloatingWidget() {
   const user = useSupabaseUser();
@@ -28,6 +23,7 @@ export function AdminFloatingWidget() {
 
   const fetchStats = async () => {
     try {
+      const supabase = createBrowserSupabaseClient();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 

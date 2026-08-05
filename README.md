@@ -53,20 +53,32 @@ authorization headers, or the generated affiliate URL.
 The button-first recommendation flow asks for a category and then three basic
 questions: detailed use, priority, and a category-specific budget. It returns
 four purpose-specific results (best overall, lowest-price/value, reliability,
-and premium). A user can optionally answer up to five additional button-only
-questions and request a refined result at any point. It works without optional
-providers and returns a non-empty fallback result when AI or external APIs
-fail. Recent conditions are stored only in the current browser so they can be
-run again without signing in.
+and premium), and all four are shown. The AI is called on the first request, not
+only on refinement. A user can optionally answer up to five additional
+button-only questions and request a refined result at any point; that button is
+disabled when the AI is unavailable, because the refined result would be
+identical to the fallback. It works without optional providers and returns a
+non-empty fallback result when AI or external APIs fail. Recent conditions are
+stored only in the current browser so they can be run again without signing in.
+
+Shopping categories (gift, appliance, fashion) send every result through
+`/api/coupang`, which builds a Coupang Partners deep link server-side and falls
+back to a plain Coupang search URL when credentials are missing. Search keywords
+are generated as "product type + distinguishing condition" so the Coupang result
+page is narrow enough to convert. Outbound clicks emit a `affiliate_click`
+Google Analytics event with the category, selection type, and position.
 
 - `GEMINI_API_KEY`: creates four purpose-specific candidates. It does not invent live
-  prices, ratings, or review counts.
+  prices, ratings, or review counts. `GEMINI_MODEL` is optional; when unset the
+  route tries several known model ids and remembers the first that responds, so a
+  renamed model does not silently drop every recommendation to the static fallback.
 - `NAVER_CLIENT_ID` and `NAVER_CLIENT_SECRET`: server-only Naver Shopping Search
   credentials for the legacy integration. Product queries request ascending
   price order. The displayed value is the lowest price exposed by the API at
   lookup time; shipping, coupons, options, and stock can change the checkout
-  total. NAVER officially scheduled this Shopping Search API to end on
-  2026-07-31, so it must not be treated as the long-term price provider.
+  total. NAVER ended this Shopping Search API on 2026-07-31, so price lookups no
+  longer return data. The lookup is kept behind a short timeout and the UI now
+  drives users to Coupang for the current price instead of showing a stale one.
 - `GOOGLE_PLACES_API_KEY`: optional, server-only nearby restaurant provider.
   Rating and review-count fields are billable Google Maps Platform fields.
   Leave it blank until billing and quota limits are explicitly approved.

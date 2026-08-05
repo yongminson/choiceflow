@@ -56,6 +56,8 @@ export type AnalyzeApiResult = AnalyzeResponse & {
   quickScenarioId?: string;
   quickPriorityId?: string;
   quickBudgetId?: string;
+  /** 사용자가 직접 입력한 요청 ("매운 국물", "향수 말고") */
+  quickUserWish?: string;
   refinementAnswerCount?: number;
   quickRecommendations?: QuickRecommendation[];
   providerStatus?: {

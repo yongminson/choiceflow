@@ -74,9 +74,6 @@ function inferWinner(optionA: string, optionB: string, winnerName: string, itemA
 
 async function generateGeminiJson(apiKey: string, prompt: string, base64Images: string[]) {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
-  });
 
   const parts: any[] = [{ text: prompt }];
 
@@ -94,14 +91,27 @@ async function generateGeminiJson(apiKey: string, prompt: string, base64Images: 
 
   const contents = [{ role: "user", parts }];
 
-  const result = await model.generateContent({
-    contents,
-    generationConfig: { 
-      responseMimeType: "application/json"
-    }
-  });
+  // 이미지 입력이 필요해 Gemini 전용 경로를 유지한다(2026-08 기준 GA 모델).
+  const override = process.env.GEMINI_MODEL?.trim();
+  const models = override
+    ? [override]
+    : ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-2.5-flash-lite"];
 
-  return result.response.text();
+  let lastError: unknown;
+  for (const modelName of models) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent({
+        contents,
+        generationConfig: { responseMimeType: "application/json" },
+      });
+      return result.response.text();
+    } catch (error) {
+      lastError = error;
+      console.warn(`[analyze] Gemini model ${modelName} failed`, error);
+    }
+  }
+  throw lastError ?? new Error("No Gemini model available");
 }
 
 export async function POST(request: Request) {

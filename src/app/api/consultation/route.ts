@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+export const dynamic = "force-dynamic";
+
+// 요청 시점에 생성한다. 모듈 최상단 생성은 환경변수가 없는 빌드 단계에서 실패한다.
+function createAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST(req: Request) {
   try {
+    const supabase = createAdminClient();
     const body = await req.json();
     const { category, name, phone, details } = body;
 

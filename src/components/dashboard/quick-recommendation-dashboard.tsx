@@ -47,6 +47,17 @@ type QuickSelection = {
   scenarioId: string;
   priorityId: QuickPriorityId;
   budgetId: string;
+  userWish?: string;
+};
+
+/** 카테고리별 자유 입력 예시. 무엇을 적어야 할지 모르면 아무도 안 적는다. */
+const WISH_PLACEHOLDER: Record<CategoryId, string> = {
+  food: "예: 매운 국물 요리, 느끼한 건 빼고",
+  gift: "예: 향수 말고 실용적인 걸로",
+  appliance: "예: 원룸이라 작고 조용한 걸로",
+  fashion: "예: 어깨 넓어 보이는 핏 말고",
+  date: "예: 실내 위주, 많이 걷는 건 힘들어요",
+  asset: "예: 3년 뒤 되팔 생각이에요",
 };
 
 type RecentSelection = QuickSelection & {
@@ -133,6 +144,7 @@ export function QuickRecommendationDashboard() {
   const [categoryId, setCategoryId] = useState<CategoryId | null>(null);
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [priorityId, setPriorityId] = useState<QuickPriorityId | null>(null);
+  const [userWish, setUserWish] = useState("");
   const [recentSelections, setRecentSelections] = useState<RecentSelection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
@@ -159,6 +171,7 @@ export function QuickRecommendationDashboard() {
       setCategoryId(null);
       setScenarioId(null);
       setPriorityId(null);
+      setUserWish("");
     } else if (target === 2) {
       setScenarioId(null);
       setPriorityId(null);
@@ -251,7 +264,7 @@ export function QuickRecommendationDashboard() {
         ? "구체적인 상황 하나만 골라주세요."
         : step === 3
           ? "한 가지 기준을 먼저 세우면 결과가 훨씬 선명해져요."
-          : "최종 결제 가능한 범위를 기준으로 찾아볼게요.";
+          : "예산을 고르면 바로 추천을 시작해요.";
 
   return (
     <main className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col bg-[radial-gradient(circle_at_8%_8%,rgba(254,215,170,0.5),transparent_30%),radial-gradient(circle_at_92%_12%,rgba(196,181,253,0.45),transparent_32%),radial-gradient(circle_at_50%_72%,rgba(186,230,253,0.38),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.72),rgba(239,246,255,0.5))] px-4 pb-24 pt-7 sm:rounded-[2.5rem] sm:px-8 sm:pt-12">
@@ -371,6 +384,29 @@ export function QuickRecommendationDashboard() {
 
         {step === 4 && categoryId && scenarioId && priorityId && (
           <>
+            <div className="mb-5 rounded-2xl border border-foreground/10 bg-background/80 p-4">
+              <label
+                htmlFor="user-wish"
+                className="block text-sm font-bold"
+              >
+                더 원하는 게 있나요?{" "}
+                <span className="font-medium text-muted-foreground">(선택)</span>
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                한 줄만 적어도 추천이 확 달라져요. 빼고 싶은 것도 적을 수 있어요.
+              </p>
+              <input
+                id="user-wish"
+                type="text"
+                value={userWish}
+                maxLength={100}
+                disabled={isLoading}
+                onChange={(event) => setUserWish(event.target.value)}
+                placeholder={WISH_PLACEHOLDER[categoryId]}
+                className="mt-3 h-12 w-full rounded-xl border border-foreground/15 bg-white px-4 text-[15px] outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-50 dark:bg-white/10"
+              />
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-3">
               {budgets.map((budget) => (
                 <ChoiceButton
@@ -384,6 +420,7 @@ export function QuickRecommendationDashboard() {
                       scenarioId,
                       priorityId,
                       budgetId: budget.id,
+                      userWish: userWish.trim() || undefined,
                     })
                   }
                 />

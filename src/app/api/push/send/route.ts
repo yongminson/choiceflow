@@ -5,11 +5,16 @@ import webpush from "web-push";
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store"; // 🔥 Vercel 캐시 영구 박멸!
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// 요청 시점에 생성한다. 모듈 최상단 생성은 환경변수가 없는 빌드 단계에서 실패한다.
+function createAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(req: Request) {
+  const supabase = createAdminClient();
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 401 });

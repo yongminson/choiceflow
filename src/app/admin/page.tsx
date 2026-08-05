@@ -2,12 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 export default function AdminDashboard() {
   const user = useSupabaseUser();
@@ -24,6 +19,9 @@ export default function AdminDashboard() {
   }, [user]);
 
   const fetchLogs = async () => {
+    // @supabase/supabase-js 의 createClient 는 쿠키 세션을 공유하지 않아
+    // RLS가 걸린 테이블을 비로그인으로 조회하게 된다. ssr 브라우저 클라이언트를 쓴다.
+    const supabase = createBrowserSupabaseClient();
     const { data } = await supabase
       .from("visitor_logs")
       .select("*")

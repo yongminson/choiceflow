@@ -5,7 +5,7 @@ import { Loader2, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { createBrowserSupabaseClient } from "@/lib/supabase";
 
 export function SajuImportButton() {
   const [loading, setLoading] = useState(false);

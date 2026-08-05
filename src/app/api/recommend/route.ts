@@ -1,5 +1,6 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+
+import { generateJson } from "@/lib/ai/generate-json";
 
 import {
   getQuickAdvancedAnswer,
@@ -79,6 +80,8 @@ type WeatherContext = {
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 20;
+const RATE_BUCKET_MAX = 5_000;
+
 const SELECTION_ORDER: SelectionType[] = [
   "best",
   "value",
@@ -165,28 +168,118 @@ const FALLBACKS: Record<CategoryId, Record<string, Candidate[]>> = {
     ],
   },
   gift: {
-    partner: productFallback("gift", "연인 기념일 선물", ["향수", "가죽 카드지갑", "무드 조명"]),
-    parents: productFallback("gift", "부모님 감사 선물", ["마사지기", "홍삼 선물세트", "전기포트"]),
-    friend: productFallback("gift", "친구 생일 선물", ["텀블러", "블루투스 스피커", "핸드크림 세트"]),
-    celebration: productFallback("gift", "집들이 선물", ["수건 세트", "디퓨저", "전기포트"]),
-    child: productFallback("gift", "아이·조카 선물", ["블록 장난감", "아동 도서 세트", "키즈 운동화"]),
-    business: productFallback("gift", "직장·비즈니스 선물", ["드립백 세트", "고급 볼펜", "핸드케어 세트"]),
+    partner: productFallback("gift", "연인 기념일 선물", [
+      ["향수", "남녀공용 선물용 향수 50ml"],
+      ["가죽 카드지갑", "소가죽 카드지갑 선물포장"],
+      ["무드 조명", "충전식 인테리어 무드등"],
+      ["가죽 미니 백", "소가죽 미니 크로스백 선물"],
+    ]),
+    parents: productFallback("gift", "부모님 감사 선물", [
+      ["안마기", "목어깨 전동 안마기"],
+      ["홍삼 선물세트", "홍삼정 스틱 선물세트"],
+      ["전기포트", "스테인리스 전기포트 1.7L"],
+      ["안마의자 쿠션", "가정용 안마 쿠션 등마사지"],
+    ]),
+    friend: productFallback("gift", "친구 생일 선물", [
+      ["보온 텀블러", "보온 스테인리스 텀블러 500ml"],
+      ["블루투스 스피커", "휴대용 방수 블루투스 스피커"],
+      ["핸드크림 세트", "핸드크림 선물세트 기프트박스"],
+      ["무선 충전기", "고속 무선 충전 거치대"],
+    ]),
+    celebration: productFallback("gift", "집들이 선물", [
+      ["수건 세트", "호텔 수건 선물세트 10장"],
+      ["디퓨저", "대용량 리드 디퓨저 200ml"],
+      ["전기포트", "스테인리스 전기포트 1.7L"],
+      ["커피 머신", "가정용 캡슐 커피머신"],
+    ]),
+    child: productFallback("gift", "아이·조카 선물", [
+      ["블록 장난감", "유아 대형 블록 장난감 세트"],
+      ["아동 도서 세트", "초등 저학년 전집 세트"],
+      ["키즈 운동화", "아동 경량 운동화"],
+      ["학습 태블릿", "유아 학습 태블릿 완구"],
+    ]),
+    business: productFallback("gift", "직장·비즈니스 선물", [
+      ["드립백 커피 세트", "드립백 커피 선물세트"],
+      ["고급 볼펜", "각인 가능 메탈 볼펜 선물"],
+      ["핸드케어 세트", "핸드크림 선물세트 기프트박스"],
+      ["가죽 다이어리", "가죽 커버 다이어리 각인"],
+    ]),
   },
   appliance: {
-    kitchen: productFallback("appliance", "주방가전", ["에어프라이어", "전기포트", "핸드블렌더"]),
-    cleaning: productFallback("appliance", "청소 세탁 가전", ["무선청소기", "로봇청소기", "의류관리기"]),
-    living: productFallback("appliance", "생활가전", ["공기청정기", "선풍기", "가습기"]),
-    digital: productFallback("appliance", "디지털 가전", ["스마트 모니터", "태블릿", "블루투스 스피커"]),
-    health: productFallback("appliance", "건강 뷰티 가전", ["헤어드라이어", "전기면도기", "마사지기"]),
-    mobile: productFallback("appliance", "모바일 PC 기기", ["무선 이어폰", "모니터", "태블릿"]),
+    kitchen: productFallback("appliance", "주방가전", [
+      ["에어프라이어", "대용량 에어프라이어 5L"],
+      ["전기포트", "스테인리스 전기포트 1.7L"],
+      ["핸드블렌더", "무선 핸드블렌더 세트"],
+      ["전기레인지", "2구 하이라이트 전기레인지"],
+    ]),
+    cleaning: productFallback("appliance", "청소 세탁 가전", [
+      ["무선청소기", "가정용 무선 스틱청소기"],
+      ["로봇청소기", "물걸레 겸용 로봇청소기"],
+      ["의류관리기", "가정용 의류관리기 스타일러"],
+      ["건조기", "10kg 히트펌프 건조기"],
+    ]),
+    living: productFallback("appliance", "생활가전", [
+      ["공기청정기", "30평형 공기청정기"],
+      ["서큘레이터", "저소음 리모컨 서큘레이터"],
+      ["가습기", "대용량 가열식 가습기"],
+      ["제습기", "가정용 저소음 제습기 16L"],
+    ]),
+    digital: productFallback("appliance", "디지털 가전", [
+      ["스마트 모니터", "32인치 4K 스마트 모니터"],
+      ["태블릿", "10인치 안드로이드 태블릿"],
+      ["사운드바", "TV용 블루투스 사운드바"],
+      ["프로젝터", "가정용 4K 미니 빔프로젝터"],
+    ]),
+    health: productFallback("appliance", "건강 뷰티 가전", [
+      ["헤어드라이어", "저소음 음이온 헤어드라이어"],
+      ["전기면도기", "방수 3중날 전기면도기"],
+      ["안마기", "목어깨 전동 안마기"],
+      ["두피 마사지기", "전동 두피 마사지기 방수"],
+    ]),
+    mobile: productFallback("appliance", "모바일 PC 기기", [
+      ["무선 이어폰", "노이즈캔슬링 무선 이어폰"],
+      ["모니터", "27인치 QHD 모니터"],
+      ["태블릿", "10인치 안드로이드 태블릿"],
+      ["노트북", "사무용 15인치 가벼운 노트북"],
+    ]),
   },
   fashion: {
-    work: productFallback("fashion", "출근 패션", ["옥스퍼드 셔츠", "슬랙스", "가죽 로퍼"]),
-    couple: productFallback("fashion", "데이트 패션", ["니트 카디건", "미니 크로스백", "캐주얼 재킷"]),
-    travel: productFallback("fashion", "여행 패션", ["경량 바람막이", "워킹화", "여행용 백팩"]),
-    event: productFallback("fashion", "행사 모임 패션", ["블레이저", "원피스", "가죽 구두"]),
-    daily: productFallback("fashion", "일상 기본 패션", ["기본 티셔츠", "데님 팬츠", "데일리 스니커즈"]),
-    outdoor: productFallback("fashion", "운동 아웃도어 패션", ["러닝화", "경량 바람막이", "스포츠 백팩"]),
+    work: productFallback("fashion", "출근 패션", [
+      ["옥스퍼드 셔츠", "남성 구김방지 옥스퍼드 셔츠"],
+      ["슬랙스", "여름 냉감 슬랙스"],
+      ["가죽 로퍼", "소가죽 페니 로퍼"],
+      ["트렌치 코트", "남성 클래식 트렌치 코트"],
+    ]),
+    couple: productFallback("fashion", "데이트 패션", [
+      ["니트 카디건", "봄가을 얇은 니트 카디건"],
+      ["미니 크로스백", "여성 미니 크로스백"],
+      ["캐주얼 재킷", "남성 캐주얼 블루종 재킷"],
+      ["가죽 자켓", "여성 램스킨 가죽 자켓"],
+    ]),
+    travel: productFallback("fashion", "여행 패션", [
+      ["경량 바람막이", "초경량 패커블 바람막이"],
+      ["워킹화", "쿠션 좋은 경량 워킹화"],
+      ["여행용 백팩", "기내반입 여행용 백팩 30L"],
+      ["여행 캐리어", "기내용 20인치 캐리어"],
+    ]),
+    event: productFallback("fashion", "행사 모임 패션", [
+      ["블레이저", "남성 세미정장 블레이저"],
+      ["원피스", "하객 원피스 미디"],
+      ["가죽 구두", "남성 정장 가죽 구두"],
+      ["정장 세트", "남성 슬림핏 정장 세트"],
+    ]),
+    daily: productFallback("fashion", "일상 기본 패션", [
+      ["기본 티셔츠", "무지 반팔 티셔츠 3팩"],
+      ["데님 팬츠", "남성 스트레이트 데님 팬츠"],
+      ["데일리 스니커즈", "화이트 데일리 스니커즈"],
+      ["가죽 스니커즈", "천연가죽 데일리 스니커즈"],
+    ]),
+    outdoor: productFallback("fashion", "운동 아웃도어 패션", [
+      ["러닝화", "쿠션 러닝화 경량"],
+      ["경량 바람막이", "초경량 패커블 바람막이"],
+      ["스포츠 백팩", "등산 경량 백팩 25L"],
+      ["기능성 재킷", "고어텍스 등산 재킷"],
+    ]),
   },
   date: {
     restaurant: genericFallback("데이트 맛집", ["분위기 좋은 식당", "와인바", "브런치 카페"]),
@@ -215,20 +308,27 @@ function candidate(name: string, reason: string, searchKeyword: string): Candida
   };
 }
 
+/**
+ * 폴백 후보. `[표시 이름, 쿠팡 검색어]` 형태로 받는다.
+ * 검색어가 일반명사면 쿠팡에서 수만 건이 잡혀 제휴 전환이 사실상 0이 된다.
+ */
 function productFallback(
   categoryId: "gift" | "appliance" | "fashion",
   context: string,
-  names: string[]
+  entries: Array<[string, string]>
 ): Candidate[] {
-  return names.map((name) => ({
+  const reasons = [
+    `${context} 상황에서 가장 무난하게 만족도가 높은 선택이에요.`,
+    `${context}에서 부담 없는 가격대로 실패 확률이 낮아요.`,
+    `${context} 용도로 후기 수가 많아 품질 예측이 쉬운 편이에요.`,
+    `${context}에서 예산을 조금 더 쓰면 체감 차이가 큰 선택이에요.`,
+  ];
+  return entries.map(([name, searchKeyword], index) => ({
     name,
-    reason: `${context}에서 활용도와 가격 비교가 쉬운 후보예요.`,
-    searchKeyword: name,
+    reason: reasons[index % reasons.length],
+    searchKeyword,
     qualitySummary: "후기 수와 최근 낮은 평점을 함께 확인하세요.",
-    evidence: categoryEvidence(
-      categoryId,
-      `${context} 용도와 선택한 우선조건에 맞춰 비교한 후보예요.`
-    ),
+    evidence: categoryEvidence(categoryId, reasons[index % reasons.length]),
   }));
 }
 
@@ -266,7 +366,9 @@ function segmentFallbackCandidates(
     base[0],
     base[1] || base[0],
     base[2] || base[0],
-    {
+    // 프리미엄 슬롯에 별도 상품이 있으면 그대로 쓴다.
+    // 없을 때만 대표 후보에 수식어를 붙여 파생시킨다(같은 링크 중복을 피하기 위함).
+    base[3] || {
       ...premiumBase,
       name:
         categoryId === "food"
@@ -353,6 +455,14 @@ function isRateLimited(request: Request): boolean {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const key = forwarded || request.headers.get("x-real-ip") || "unknown";
   const now = Date.now();
+
+  // 만료 버킷을 청소하지 않으면 인스턴스가 살아 있는 동안 계속 쌓인다.
+  if (rateBuckets.size > RATE_BUCKET_MAX) {
+    rateBuckets.forEach((bucket, bucketKey) => {
+      if (bucket.resetAt <= now) rateBuckets.delete(bucketKey);
+    });
+  }
+
   const current = rateBuckets.get(key);
   if (!current || current.resetAt <= now) {
     rateBuckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
@@ -396,6 +506,23 @@ function categoryDecisionRules(categoryId: CategoryId): string {
   return "선택한 상황과 우선조건에 직접 관련된 근거만 판단한다.";
 }
 
+/**
+ * 쇼핑 카테고리는 검색어가 곧 매출이다. 쿠팡 검색 결과가 한 가지 상품군으로
+ * 좁혀지도록 "제품군 + 구분 조건" 형태를 요구한다.
+ */
+function keywordRules(categoryId: CategoryId): string {
+  if (categoryId === "gift" || categoryId === "appliance" || categoryId === "fashion") {
+    return `searchKeyword는 쿠팡 검색창에 그대로 넣었을 때 원하는 상품이 첫 화면에 나오도록 쓴다.
+- "제품군 + 핵심 구분 조건" 형태로 8~24자. 예: "텀블러"(X) → "보온 스테인리스 텀블러 500ml"(O)
+- 예: "블루투스 스피커"(X) → "휴대용 방수 블루투스 스피커"(O)
+- 널리 팔리는 브랜드가 명확하면 브랜드를 앞에 붙여도 된다. 확실하지 않으면 붙이지 않는다.
+- 광고 문구(최저가·정품·무료배송), 옵션 나열, 쉼표 연결은 금지한다.
+- name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.`;
+  }
+  return `searchKeyword는 네이버에서 조건을 확인할 수 있는 구체적인 검색어로 8~24자로 쓴다.
+광고 문구와 쉼표 연결은 금지한다.`;
+}
+
 async function generateCandidates(
   categoryId: CategoryId,
   scenarioLabel: string,
@@ -403,11 +530,11 @@ async function generateCandidates(
   budgetLabel: string,
   maxBudgetWon: number | undefined,
   advancedContext: string,
+  excludedNames: string[],
+  userWish: string,
   fallbacks: Candidate[]
 ): Promise<{ candidates: Candidate[]; live: boolean }> {
   const segmentedFallbacks = segmentFallbackCandidates(categoryId, fallbacks);
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) return { candidates: segmentedFallbacks, live: false };
 
   const prompt = `당신은 한국 소비자의 선택을 돕는 구매·생활 의사결정 전문가다.
 카테고리: ${QUICK_CATEGORY_LABELS[categoryId]}
@@ -415,6 +542,8 @@ async function generateCandidates(
 최우선 조건: ${priorityLabel}
 예산: ${budgetLabel}${maxBudgetWon ? ` (${maxBudgetWon.toLocaleString("ko-KR")}원 이하)` : ""}
 정밀 조건: ${advancedContext || "추가 조건 없음"}
+${userWish ? `사용자가 직접 적은 요청(가장 중요, 반드시 반영): "${userWish}"` : ""}
+${excludedNames.length > 0 ? `이미 추천한 후보(반드시 제외): ${excludedNames.join(", ")}` : ""}
 
 아래 목적별로 정확히 4개 후보를 추천하라.
 - best: 전체 조건을 종합한 최종 선택
@@ -423,27 +552,31 @@ async function generateCandidates(
 - premium: 예산 범위 안에서 성능·소재·경험을 높인 프리미엄 선택
 
 카테고리별 판단 규칙: ${categoryDecisionRules(categoryId)}
+${keywordRules(categoryId)}
+
 확인하지 않은 실시간 평점·후기 수·가격은 절대 만들지 않는다.
-최우선 조건과 예산을 반드시 지키고, 서로 다른 유형을 검토한 뒤 검색 가능한 구체적인 일반 상품명
-또는 선택지로 작성한다. 상품명은 브랜드 광고 문구나 옵션을 붙이지 말고 24자 안의
-일반적인 검색어로 쓴다. 여러 상품을 쉼표로 연결하지 않는다.
+사용자가 직접 적은 요청이 있으면 그것을 다른 어떤 조건보다 우선한다.
+요청에 "~말고", "~빼고" 같은 제외 조건이 있으면 그 항목은 후보에서 완전히 뺀다.
+최우선 조건과 예산을 반드시 지킨다. 4개 후보는 서로 뚜렷하게 다른 제품군이어야 한다.
+reason은 이 사용자의 상황(${scenarioLabel} · ${priorityLabel} 우선)에 직접 연결해 40~80자로 쓰고,
+4개의 reason이 서로 다른 근거를 담게 한다. 같은 문장을 반복하지 않는다.
+qualitySummary는 구매 전에 직접 확인해야 할 항목을 40자 내외로 쓴다.
 
 JSON 배열만 응답:
 [{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":""}]`;
 
   try {
-    const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({
-      model:
-        process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
-    });
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
-    const parsed = JSON.parse(result.response.text()) as unknown;
-    if (!Array.isArray(parsed)) {
+    const generated = await generateJson(prompt);
+    // 배열을 요구했지만 provider에 따라 {items:[...]} 형태로 감싸 오는 경우가 있다.
+    const raw = generated?.parsed;
+    const parsed = Array.isArray(raw)
+      ? raw
+      : Array.isArray((raw as { items?: unknown })?.items)
+        ? (raw as { items: unknown[] }).items
+        : Array.isArray((raw as { results?: unknown })?.results)
+          ? (raw as { results: unknown[] }).results
+          : null;
+    if (!parsed) {
       return { candidates: segmentedFallbacks, live: false };
     }
     const candidates = parsed.slice(0, 4).map((item, index) => {
@@ -499,7 +632,8 @@ JSON 배열만 응답:
           live: true,
         }
       : { candidates: segmentedFallbacks, live: false };
-  } catch {
+  } catch (error) {
+    console.error("[recommend] Candidate generation failed", error);
     return { candidates: segmentedFallbacks, live: false };
   }
 }
@@ -525,7 +659,9 @@ async function findNaverLowestPrice(
       "X-Naver-Client-Secret": clientSecret,
     },
     cache: "no-store",
-    signal: AbortSignal.timeout(8000),
+    // NAVER 쇼핑검색 API는 2026-07-31 종료됐다. 키가 남아 있어도 실패하므로
+    // 응답 지연을 만들지 않도록 타임아웃을 짧게 잡는다.
+    signal: AbortSignal.timeout(4000),
   });
   if (!response.ok) return undefined;
   const payload = (await response.json()) as { items?: NaverShopItem[] };
@@ -694,6 +830,7 @@ async function findGooglePlaces(
   location: RequestLocation,
   advancedAnswers: ValidAdvancedAnswer[],
   excludedNames: string[],
+  userWish: string,
   weather?: WeatherContext
 ): Promise<QuickRecommendation[] | undefined> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim();
@@ -725,7 +862,10 @@ async function findGooglePlaces(
           "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.priceLevel,places.googleMapsUri,places.location,places.currentOpeningHours.openNow,places.businessStatus",
       },
       body: JSON.stringify({
-        textQuery: `${weather?.searchHint || ""} restaurants ${searchDetails}`
+        // 상황(혼밥·데이트·회식…)이 쿼리에 들어가지 않으면 어떤 시나리오를 골라도
+        // 같은 결과가 나온다.
+        // 사용자가 직접 적은 요청을 검색어 맨 앞에 둔다. 이게 실제로 먹고 싶은 것이다.
+        textQuery: `${userWish} ${scenarioLabel} ${weather?.searchHint || ""} 맛집 ${searchDetails}`
           .replace(/\s+/g, " ")
           .trim(),
         includedType: "restaurant",
@@ -797,7 +937,7 @@ async function findGooglePlaces(
 
   if (places.length === 0) return undefined;
   const used = new Set<string>();
-  const selected = SELECTION_ORDER.slice(0, 3).map((selectionType) => {
+  const selected = SELECTION_ORDER.map((selectionType) => {
     const ranked = [...places].sort((a, b) => {
       const score = (item: (typeof places)[number]) => {
         if (selectionType === "best") return item.priorityScore;
@@ -854,7 +994,9 @@ async function findGooglePlaces(
         ? "주변 후보 중 가격대와 평점을 함께 본 가성비 후보예요."
         : selectionType === "reliable"
           ? "평점과 누적 후기 수를 크게 반영한 후기 검증 후보예요."
-          : "거리, 선택 조건, 평점과 후기 수를 종합해 지금 가장 잘 맞는 후보로 골랐어요.";
+          : selectionType === "premium"
+            ? "가격보다 분위기와 경험을 우선해 고른 후보예요."
+            : "거리, 선택 조건, 평점과 후기 수를 종합해 지금 가장 잘 맞는 후보로 골랐어요.";
     return {
       rank: index + 1,
       selectionType,
@@ -958,12 +1100,15 @@ function toAnalyzeResult(
   budgetLabel: string,
   maxBudgetWon: number | undefined,
   refinementAnswerCount: number,
+  userWish: string,
   recommendations: QuickRecommendation[],
   status: AnalyzeApiResult["providerStatus"],
   locationUsed: boolean,
   recommendationContext: string[] = []
 ): AnalyzeApiResult {
-  const limitedRecommendations = recommendations.slice(0, 3);
+  // 목적별 4개(best·value·reliable·premium)를 모두 노출한다.
+  // 후보 1개 = 제휴 링크 1개이므로 임의로 잘라내지 않는다.
+  const limitedRecommendations = recommendations.slice(0, 4);
   const first = limitedRecommendations[0];
   const second = limitedRecommendations[1];
   const third = limitedRecommendations[2];
@@ -1023,6 +1168,7 @@ function toAnalyzeResult(
     quickPriorityId: priorityId,
     quickBudgetLabel: budgetLabel,
     quickBudgetId: budgetId,
+    quickUserWish: userWish || undefined,
     quickMaxBudgetWon: maxBudgetWon,
     quickCandidateCount: limitedRecommendations.length,
     refinementAnswerCount,
@@ -1103,6 +1249,8 @@ export async function POST(request: Request) {
   const fallbacks = FALLBACKS[rawCategory][scenarioId];
   const location = readLocation(body.location);
   const excludedNames = readExcludedNames(body.excludedNames);
+  // 버튼만으로는 담기지 않는 실제 의도("매운 국물", "향수 말고")를 받는다.
+  const userWish = clean(body.userWish, "", 100);
 
   try {
     if (rawCategory === "food") {
@@ -1116,6 +1264,7 @@ export async function POST(request: Request) {
             location,
             advancedAnswers,
             excludedNames,
+            userWish,
             weather
           ).catch(() => undefined)
         : undefined;
@@ -1127,7 +1276,7 @@ export async function POST(request: Request) {
           budget.label,
           advancedContext
         )
-      ).slice(0, 3);
+      ).slice(0, 4);
       const result = toAnalyzeResult(
         rawCategory,
         scenarioId,
@@ -1138,6 +1287,7 @@ export async function POST(request: Request) {
         budget.label,
         budget.maxWon,
         advancedAnswers.length,
+        userWish,
         recommendations,
         {
           ai: "fallback",
@@ -1147,6 +1297,7 @@ export async function POST(request: Request) {
         },
         Boolean(location),
         [
+          ...(userWish ? [`요청: ${userWish}`] : []),
           `${currentMealContext()} 시간대`,
           ...(weather ? [weather.summary] : []),
           ...(excludedNames.length > 0 ? ["최근 추천과 다른 후보 우선"] : []),
@@ -1155,50 +1306,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ...result });
     }
 
-    const generated =
-      advancedAnswers.length > 0
-        ? await generateCandidates(
-            rawCategory,
-            scenario.label,
-            priority.label,
-            budget.label,
-            budget.maxWon,
-            advancedContext,
-            fallbacks
-          )
-        : {
-            candidates: segmentFallbackCandidates(rawCategory, fallbacks),
-            live: false,
-          };
-    const resultCandidates = generated.candidates.slice(0, 3);
+    // 첫 요청부터 AI를 호출한다. 정적 폴백 상품명은 쿠팡 검색 정확도가 낮아
+    // 제휴 전환이 사실상 일어나지 않는다.
+    const generated = await generateCandidates(
+      rawCategory,
+      scenario.label,
+      priority.label,
+      budget.label,
+      budget.maxWon,
+      advancedContext,
+      excludedNames,
+      userWish,
+      fallbacks
+    );
+    const resultCandidates = generated.candidates.slice(0, 4);
     const supportsShopping = ["gift", "appliance", "fashion"].includes(rawCategory);
     const priced = supportsShopping
-      ? advancedAnswers.length > 0
-        ? await enrichProductPrices(
-            resultCandidates,
-            budget.maxWon
-          )
-        : {
-            recommendations: resultCandidates.map((item, index) => ({
-              rank: index + 1,
-              ...item,
-              searchKeyword: normalizeProductSearchKeyword(
-                item.searchKeyword,
-                item.name
-              ),
-              evidence:
-                item.evidence || categoryEvidence(rawCategory, item.reason),
-              sourceUrl: buildDirectCoupangNpSearchUrl(
-                normalizeProductSearchKeyword(item.searchKeyword, item.name)
-              ),
-              sourceLabel: "쿠팡에서 이 상품 검색",
-            })),
-            live: false,
-          }
+      ? await enrichProductPrices(resultCandidates, budget.maxWon)
       : {
           recommendations: resultCandidates.map((item, index) => ({
             rank: index + 1,
             ...item,
+            evidence:
+              item.evidence || categoryEvidence(rawCategory, item.reason),
             sourceUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(
               item.searchKeyword
             )}`,
@@ -1216,6 +1346,7 @@ export async function POST(request: Request) {
       budget.label,
       budget.maxWon,
       advancedAnswers.length,
+      userWish,
       priced.recommendations,
       {
         ai: generated.live ? "live" : "fallback",
@@ -1235,7 +1366,7 @@ export async function POST(request: Request) {
             advancedContext
           )
         : buildFallbackNonFoodRecommendations(rawCategory, fallbacks)
-    ).slice(0, 3);
+    ).slice(0, 4);
     const result = toAnalyzeResult(
       rawCategory,
       scenarioId,
@@ -1246,6 +1377,7 @@ export async function POST(request: Request) {
       budget.label,
       budget.maxWon,
       advancedAnswers.length,
+      userWish,
       recommendations,
       { ai: "fallback", price: "unavailable", places: "unavailable" },
       Boolean(location)
