@@ -10,14 +10,14 @@ import {
   LocateFixed,
   Plane,
   RefreshCw,
+  Scale,
   Shirt,
-  SlidersHorizontal,
   Utensils,
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   getQuickBudget,
@@ -76,12 +76,12 @@ const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
 };
 
 const CATEGORY_ACCENTS: Record<CategoryId, string> = {
-  food: "bg-orange-100 text-orange-600 ring-orange-200/80",
-  gift: "bg-pink-100 text-pink-600 ring-pink-200/80",
-  appliance: "bg-sky-100 text-sky-600 ring-sky-200/80",
-  fashion: "bg-violet-100 text-violet-600 ring-violet-200/80",
-  date: "bg-emerald-100 text-emerald-600 ring-emerald-200/80",
-  asset: "bg-amber-100 text-amber-700 ring-amber-200/80",
+  food: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
+  gift: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
+  appliance: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
+  fashion: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
+  date: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
+  asset: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
 };
 
 function getLocation(): Promise<LocationPayload | undefined> {
@@ -251,7 +251,7 @@ export function QuickRecommendationDashboard() {
 
   const heading =
     step === 1
-      ? "무엇을 찾고 있나요?"
+      ? "무엇을 고민 중이신가요?"
       : step === 2
         ? "어떤 용도인가요?"
         : step === 3
@@ -259,7 +259,7 @@ export function QuickRecommendationDashboard() {
           : "예산은 어느 정도인가요?";
   const description =
     step === 1
-      ? "지금 필요한 분야를 고르면 선택지를 빠르게 좁혀드려요."
+      ? "고르지 못하고 미뤄둔 선택, 여기서 끝내세요."
       : step === 2
         ? "구체적인 상황 하나만 골라주세요."
         : step === 3
@@ -267,42 +267,34 @@ export function QuickRecommendationDashboard() {
           : "예산을 고르면 바로 추천을 시작해요.";
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col bg-[radial-gradient(circle_at_8%_8%,rgba(254,215,170,0.5),transparent_30%),radial-gradient(circle_at_92%_12%,rgba(196,181,253,0.45),transparent_32%),radial-gradient(circle_at_50%_72%,rgba(186,230,253,0.38),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.72),rgba(239,246,255,0.5))] px-4 pb-24 pt-7 sm:rounded-[2.5rem] sm:px-8 sm:pt-12">
-      <div className="mb-8">
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-            Choice guide
+    <main className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-xl flex-col bg-white px-5 pb-20 pt-7 dark:bg-neutral-950">
+      {step > 1 && (
+        <div className="mb-7">
+          <p className="text-[12px] font-bold text-neutral-400">
+            {questionStep} / 3
           </p>
-          <p className="text-xs font-semibold tabular-nums text-muted-foreground">
-            {questionStep === 0 ? "분야 선택" : `${questionStep} / 3`}
-          </p>
+          <div className="mt-2 flex gap-1">
+            {[1, 2, 3].map((item) => (
+              <span
+                key={item}
+                className={cn(
+                  "h-1 flex-1 rounded-full transition-colors",
+                  item <= questionStep
+                    ? "bg-neutral-900 dark:bg-white"
+                    : "bg-neutral-200 dark:bg-neutral-800"
+                )}
+              />
+            ))}
+          </div>
         </div>
-        <div
-          className="mt-3 grid grid-cols-3 gap-1.5"
-          aria-label={
-            questionStep === 0
-              ? "빠른 추천 시작"
-              : `기본 질문 ${questionStep} / 전체 3개`
-          }
-        >
-          {[1, 2, 3].map((item) => (
-            <span
-              key={item}
-              className={cn(
-                "h-1 rounded-full transition-colors",
-                item <= questionStep ? "bg-foreground" : "bg-foreground/10"
-              )}
-            />
-          ))}
-        </div>
-      </div>
+      )}
 
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-balance font-display text-[2rem] font-black leading-[1.1] tracking-[-0.05em] sm:text-4xl">
+          <h1 className="text-balance text-[26px] font-black leading-tight tracking-[-0.03em] sm:text-[30px]">
             {heading}
           </h1>
-          <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+          <p className="mt-2 text-[15px] leading-relaxed text-neutral-500">
             {description}
           </p>
         </div>
@@ -310,7 +302,7 @@ export function QuickRecommendationDashboard() {
           <button
             type="button"
             onClick={() => resetToStep(step - 1)}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-foreground/10 bg-background/80 transition hover:bg-muted"
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-neutral-300 transition hover:border-neutral-900 dark:border-neutral-700 dark:hover:border-white"
             aria-label="이전 질문으로 돌아가기"
           >
             <ArrowLeft className="size-5" />
@@ -320,7 +312,34 @@ export function QuickRecommendationDashboard() {
 
       <section className="mt-8" aria-live="polite">
         {step === 1 && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <>
+            <a
+              href="/compare"
+              className="mb-6 flex items-center justify-between gap-4 rounded-xl bg-neutral-900 p-5 text-white transition hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold opacity-70">
+                  <Scale className="size-3.5" />
+                  이미 후보가 정해졌다면
+                </span>
+                <span className="mt-1.5 block text-[17px] font-black leading-snug">
+                  A랑 B 중에 못 고르겠어요
+                </span>
+                <span className="mt-1 block text-[12px] opacity-70">
+                  두 개만 적으면 왜 그걸 골라야 하는지까지 알려드려요
+                </span>
+              </span>
+              <ArrowUpRight className="size-5 shrink-0" />
+            </a>
+
+            <p className="mb-3 text-[13px] font-bold text-neutral-400">
+              아직 뭘 살지 모르겠다면
+            </p>
+          </>
+        )}
+
+        {step === 1 && (
+          <div className="grid gap-2">
             {CATEGORY_ORDER.map((id) => {
               const Icon = CATEGORY_ICONS[id];
               return (
@@ -332,21 +351,21 @@ export function QuickRecommendationDashboard() {
                     setScenarioId(null);
                     setPriorityId(null);
                   }}
-                  className="group flex min-h-36 flex-col items-start justify-between rounded-[1.4rem] border border-white/80 bg-white/85 p-5 text-left shadow-[0_18px_45px_-28px_rgba(59,130,246,0.42)] backdrop-blur-xl transition hover:-translate-y-1 hover:border-white hover:bg-white hover:shadow-[0_22px_50px_-26px_rgba(99,102,241,0.42)] active:translate-y-0"
+                  className="flex items-center gap-3 rounded-xl border border-neutral-200 p-4 text-left transition hover:border-neutral-900 dark:border-neutral-800 dark:hover:border-white"
                 >
                   <span
                     className={cn(
-                      "inline-flex size-11 items-center justify-center rounded-2xl ring-1 transition-transform group-hover:scale-110",
+                      "inline-flex size-10 shrink-0 items-center justify-center rounded-lg",
                       CATEGORY_ACCENTS[id]
                     )}
                   >
                     <Icon className="size-5" />
                   </span>
-                  <span>
-                    <span className="block font-display text-lg font-bold">
+                  <span className="min-w-0">
+                    <span className="block text-[15px] font-black">
                       {QUICK_CATEGORY_LABELS[id]}
                     </span>
-                    <span className="mt-1 block text-xs leading-snug text-muted-foreground">
+                    <span className="mt-0.5 block truncate text-[12px] text-neutral-500">
                       {QUICK_CATEGORY_DESCRIPTION[id]}
                     </span>
                   </span>
@@ -357,7 +376,7 @@ export function QuickRecommendationDashboard() {
         )}
 
         {step === 2 && categoryId && (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2">
             {QUICK_SCENARIOS[categoryId].map((scenario) => (
               <ChoiceButton
                 key={scenario.id}
@@ -370,7 +389,7 @@ export function QuickRecommendationDashboard() {
         )}
 
         {step === 3 && categoryId && (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-2">
             {QUICK_PRIORITIES[categoryId].map((priority) => (
               <ChoiceButton
                 key={priority.id}
@@ -407,7 +426,7 @@ export function QuickRecommendationDashboard() {
               />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-2">
               {budgets.map((budget) => (
                 <ChoiceButton
                   key={budget.id}
@@ -521,13 +540,9 @@ export function QuickRecommendationDashboard() {
 
       <a
         href={categoryId ? `/?details=1&tab=${categoryId}` : "/?details=1"}
-        className={cn(
-          buttonVariants({ variant: "ghost" }),
-          "mt-8 min-h-12 self-center rounded-full px-5 text-muted-foreground"
-        )}
+        className="mt-8 self-center text-[13px] font-medium text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-white"
       >
-        <SlidersHorizontal className="mr-2 size-4" />
-        직접 조건을 입력해서 비교
+        직접 조건을 입력해서 비교하기
       </a>
     </main>
   );
@@ -549,15 +564,15 @@ function ChoiceButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="group flex min-h-24 items-center justify-between gap-4 rounded-[1.25rem] border border-white/80 bg-white/85 p-5 text-left shadow-[0_16px_40px_-28px_rgba(59,130,246,0.42)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-primary/20 hover:bg-white active:translate-y-0 disabled:cursor-wait disabled:opacity-50"
+      className="flex min-h-[68px] items-center justify-between gap-4 rounded-xl border border-neutral-200 p-4 text-left transition hover:border-neutral-900 disabled:cursor-wait disabled:opacity-50 dark:border-neutral-800 dark:hover:border-white"
     >
       <span>
-        <span className="block font-display text-lg font-bold">{label}</span>
-        <span className="mt-1 block text-sm text-muted-foreground">
+        <span className="block text-[15px] font-black">{label}</span>
+        <span className="mt-0.5 block text-[13px] text-neutral-500">
           {description}
         </span>
       </span>
-      <ArrowUpRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      <ArrowUpRight className="size-4 shrink-0 text-neutral-400" />
     </button>
   );
 }
