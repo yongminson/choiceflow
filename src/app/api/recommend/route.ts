@@ -42,6 +42,7 @@ type Candidate = {
   selectionType?: SelectionType;
   selectionLabel?: string;
   evidence?: QuickRecommendation["evidence"];
+  scores?: QuickRecommendation["scores"];
 };
 
 type SelectionType = "best" | "value" | "reliable" | "premium";
@@ -388,6 +389,28 @@ function segmentFallbackCandidates(
   }));
 }
 
+/** AI가 준 상대 점수를 정해진 축·범위로 정리한다. */
+function readScores(
+  value: unknown,
+  categoryId: CategoryId
+): QuickRecommendation["scores"] {
+  const axes = scoreAxes(categoryId);
+  if (!Array.isArray(value)) return undefined;
+  const parsed = value
+    .map((item) => {
+      const record =
+        item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      const label = clean(record.label, "", 20);
+      const raw = Number(record.value);
+      if (!label || !Number.isFinite(raw)) return null;
+      return { label, value: Math.max(0, Math.min(100, Math.round(raw))) };
+    })
+    .filter((item): item is { label: string; value: number } => item !== null)
+    .filter((item) => axes.includes(item.label))
+    .slice(0, axes.length);
+  return parsed.length >= 2 ? parsed : undefined;
+}
+
 function readLocation(value: unknown): RequestLocation | undefined {
   if (!value || typeof value !== "object") return undefined;
   const input = value as Record<string, unknown>;
@@ -487,6 +510,21 @@ function safeUrl(value: unknown): string | undefined {
   }
 }
 
+/** 후보 비교 그래프의 축. 카테고리마다 사용자가 실제로 저울질하는 기준이 다르다. */
+function scoreAxes(categoryId: CategoryId): string[] {
+  if (categoryId === "food") return ["가격 부담", "맛 만족도", "접근성"];
+  if (categoryId === "gift") return ["받는 사람 만족", "가격 부담", "실패 위험 낮음"];
+  if (categoryId === "appliance") return ["성능", "가격 부담", "관리 편의", "A/S 안심도"];
+  if (categoryId === "fashion") return ["활용도", "가격 부담", "관리 편의"];
+  if (categoryId === "date") return ["경험 만족", "비용 부담", "이동 편의"];
+  return ["총비용 유리", "안정성", "환금성", "계약 유연성"];
+}
+
+/** 고가·렌탈은 외부 구매 링크로 넘기지 않고 판단만 제공한다. */
+function isAdvisoryOnly(categoryId: CategoryId): boolean {
+  return categoryId === "asset";
+}
+
 function categoryDecisionRules(categoryId: CategoryId): string {
   if (categoryId === "gift") {
     return "받는 사람·관계·기념일 적합성, 포장과 배송, 취향 실패 시 교환 가능성을 판단한다. A/S와 중고 감가는 전자제품 후보가 아닌 한 언급하지 않는다.";
@@ -558,12 +596,19 @@ ${keywordRules(categoryId)}
 사용자가 직접 적은 요청이 있으면 그것을 다른 어떤 조건보다 우선한다.
 요청에 "~말고", "~빼고" 같은 제외 조건이 있으면 그 항목은 후보에서 완전히 뺀다.
 최우선 조건과 예산을 반드시 지킨다. 4개 후보는 서로 뚜렷하게 다른 제품군이어야 한다.
-reason은 이 사용자의 상황(${scenarioLabel} · ${priorityLabel} 우선)에 직접 연결해 40~80자로 쓰고,
-4개의 reason이 서로 다른 근거를 담게 한다. 같은 문장을 반복하지 않는다.
+reason은 이 사용자의 상황(${scenarioLabel} · ${priorityLabel} 우선)에 직접 연결해 70~110자로 쓴다.
+"무난해요" 같은 뭉뚱그린 표현 대신, 무엇이 어떻게 좋은지 한 가지는 구체적으로 짚는다.
+4개의 reason이 서로 다른 근거를 담게 하고 같은 문장을 반복하지 않는다.
 qualitySummary는 구매 전에 직접 확인해야 할 항목을 40자 내외로 쓴다.
 
+scores: 아래 축으로 후보끼리 비교한 상대 점수를 0~100으로 매긴다.
+축: ${scoreAxes(categoryId).join(", ")}
+- 절대 수치가 아니라 이 4개 후보 사이의 상대 비교다.
+- 같은 축에서 4개가 모두 비슷한 값이면 의미가 없다. 실제 차이를 반영해 벌린다.
+- 가격 부담 축은 "부담이 적을수록 높은 점수"다.
+
 JSON 배열만 응답:
-[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":""}]`;
+[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","scores":[{"label":"축 이름","value":0}]}]`;
 
   try {
     const generated = await generateJson(prompt);
@@ -617,6 +662,7 @@ JSON 배열만 응답:
           categoryId,
           clean(record.reason, fallback.reason)
         ),
+        scores: readScores(record.scores, categoryId),
       };
     });
     const uniqueRoles = new Set(
@@ -1077,16 +1123,21 @@ function buildFallbackNonFoodRecommendations(
     rank: index + 1,
     ...item,
     evidence: item.evidence || categoryEvidence(categoryId, item.reason),
-    sourceUrl: shopping
-      ? buildDirectCoupangNpSearchUrl(
-          normalizeProductSearchKeyword(item.searchKeyword, item.name)
-        )
-      : `https://search.naver.com/search.naver?query=${encodeURIComponent(
-          item.searchKeyword
-        )}`,
-    sourceLabel: shopping
-      ? "쿠팡에서 가격 확인"
-      : "네이버에서 조건 확인",
+    ...(shopping
+      ? {
+          sourceUrl: buildDirectCoupangNpSearchUrl(
+            normalizeProductSearchKeyword(item.searchKeyword, item.name)
+          ),
+          sourceLabel: "쿠팡에서 가격 확인",
+        }
+      : isAdvisoryOnly(categoryId)
+        ? {}
+        : {
+            sourceUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(
+              item.searchKeyword
+            )}`,
+            sourceLabel: "네이버에서 조건 확인",
+          }),
   }));
 }
 
@@ -1176,6 +1227,9 @@ function toAnalyzeResult(
     providerStatus: status,
     locationUsed,
     recommendationContext,
+    advisory: isAdvisoryOnly(categoryId)
+      ? "이 분야는 계약 조건과 개인 상황에 따라 유불리가 크게 갈립니다. 위 판단은 방향을 좁히는 참고용이며, 실제 계약 전에는 총비용·중도해지 비용·보증 범위를 반드시 서면으로 확인하세요. 한 번의 서명이 수년간의 비용을 결정합니다."
+      : undefined,
     checkedAt: new Date().toISOString(),
   };
 }
@@ -1329,10 +1383,16 @@ export async function POST(request: Request) {
             ...item,
             evidence:
               item.evidence || categoryEvidence(rawCategory, item.reason),
-            sourceUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(
-              item.searchKeyword
-            )}`,
-            sourceLabel: "네이버에서 조건 확인",
+            // 고가·렌탈은 외부 판매 링크로 넘기지 않는다. 계약 조건이 개인마다
+            // 달라 검색 결과로 넘기는 것이 오히려 잘못된 판단을 부른다.
+            ...(isAdvisoryOnly(rawCategory)
+              ? {}
+              : {
+                  sourceUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(
+                    item.searchKeyword
+                  )}`,
+                  sourceLabel: "네이버에서 조건 확인",
+                }),
           })),
           live: false,
         };

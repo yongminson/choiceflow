@@ -67,6 +67,79 @@ const FOOD_RELATED_KEYWORDS: Record<string, string> = {
   healthy: "샐러드 도시락 다이어트 식단",
 };
 
+/**
+ * 후보 간 상대 비교 그래프.
+ * 절대 수치가 아니라 "이 4개 중에서의 상대 평가"임을 반드시 함께 표시한다.
+ * 근거 없는 숫자를 사실처럼 보여주면 신뢰가 무너진다.
+ */
+function ScoreChart({
+  items,
+  accent,
+}: {
+  items: QuickRecommendation[];
+  accent: string;
+}) {
+  const axes = items[0]?.scores?.map((score) => score.label) ?? [];
+  if (axes.length < 2) return null;
+  const scored = items.filter((item) => item.scores?.length);
+  if (scored.length < 2) return null;
+
+  return (
+    <section className="mt-6 rounded-2xl border border-foreground/10 p-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[15px] font-black">후보 비교</h2>
+        <span className="text-[11px] text-muted-foreground">
+          AI 상대 평가 · 절대 수치 아님
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-5">
+        {axes.map((axis) => {
+          const values = scored.map((item) => ({
+            name: item.name,
+            value: item.scores?.find((s) => s.label === axis)?.value ?? 0,
+          }));
+          const best = Math.max(...values.map((v) => v.value));
+          return (
+            <div key={axis}>
+              <p className="text-[12px] font-bold text-muted-foreground">{axis}</p>
+              <div className="mt-2 space-y-1.5">
+                {values.map((entry) => {
+                  const isBest = entry.value === best && best > 0;
+                  return (
+                    <div key={entry.name} className="flex items-center gap-2">
+                      <span className="w-[86px] shrink-0 truncate text-[11px] font-medium sm:w-[110px]">
+                        {entry.name}
+                      </span>
+                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/[0.07]">
+                        <span
+                          className={cn(
+                            "block h-full rounded-full transition-[width] duration-700",
+                            isBest ? accent : "bg-foreground/25"
+                          )}
+                          style={{ width: `${Math.max(4, entry.value)}%` }}
+                        />
+                      </span>
+                      <span
+                        className={cn(
+                          "w-7 shrink-0 text-right text-[11px] font-bold tabular-nums",
+                          isBest ? "text-foreground" : "text-muted-foreground"
+                        )}
+                      >
+                        {entry.value}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function recommendationEvidence(item: QuickRecommendation) {
   if (item.evidence?.length) return item.evidence;
   return [
@@ -140,6 +213,12 @@ export function QuickRecommendationResult({
   const winner = recommendations[0];
   const alternative = recommendations[1];
   const isFood = data.categoryId === "food";
+  // 라벨과 실제 링크가 어긋나면 신뢰가 무너진다. 카테고리별로 나눠 쓴다.
+  const isCoupang =
+    data.categoryId === "gift" ||
+    data.categoryId === "appliance" ||
+    data.categoryId === "fashion";
+  const isAdvisory = data.categoryId === "asset";
   // 음식은 결과 링크가 지도로 나가 제휴 수익이 발생하지 않는다.
   // 후보 이름을 그대로 쓰면 "백반 맛집 밀키트" 같은 검색어가 되므로 상황별로 고정한다.
   const relatedKeyword = isFood
@@ -293,10 +372,16 @@ export function QuickRecommendationResult({
               "mt-5 flex min-h-[52px] w-full items-center justify-center rounded-lg text-[16px] font-black text-white transition",
               isFood
                 ? "bg-emerald-600 hover:bg-emerald-700"
-                : "bg-[#ae0000] hover:bg-[#8f0000]"
+                : isCoupang
+                  ? "bg-[#ae0000] hover:bg-[#8f0000]"
+                  : "bg-[#03c75a] hover:bg-[#02a94b]"
             )}
           >
-            {isFood ? "지도에서 보기" : "쿠팡 최저가 보기"}
+            {isFood
+              ? "지도에서 보기"
+              : isCoupang
+                ? "쿠팡 최저가 보기"
+                : "네이버에서 조건 보기"}
             <ExternalLink className="ml-2 size-4" />
           </a>
         )}
@@ -307,11 +392,26 @@ export function QuickRecommendationResult({
           ? hasLivePlaces
             ? "현재 위치 주변 매장의 평점·후기를 반영했어요. 영업 상태는 방문 전 확인하세요."
             : "주변 매장 데이터를 불러오지 못해 메뉴 후보만 제안해요. 지도에서 확인하세요."
-          : "가격·재고는 쿠팡에서 최종 확인하세요."}
+          : isCoupang
+            ? "가격·재고는 쿠팡에서 최종 확인하세요."
+            : isAdvisory
+              ? "판단 방향만 제시합니다. 계약 조건은 반드시 직접 확인하세요."
+              : "예약 조건과 취소 규정은 이동 후 직접 확인하세요."}
         {data.recommendationContext?.length
           ? ` · ${data.recommendationContext.join(" · ")}`
           : ""}
       </p>
+
+      <ScoreChart
+        items={recommendations}
+        accent={
+          isFood
+            ? "bg-emerald-600"
+            : isCoupang
+              ? "bg-[#ae0000]"
+              : "bg-foreground"
+        }
+      />
 
       <h2 className="mb-3 mt-7 text-lg font-black">
         추천 후보 {recommendations.length}개
@@ -433,15 +533,21 @@ export function QuickRecommendationResult({
                     "mt-3 flex min-h-[48px] w-full items-center justify-center rounded-lg text-[15px] font-black transition",
                     isFood
                       ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                      : "bg-[#ae0000] text-white hover:bg-[#8f0000]"
+                      : isCoupang
+                        ? "bg-[#ae0000] text-white hover:bg-[#8f0000]"
+                        : "border border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a]/5"
                   )}
                 >
                   {item.sourceLabel ||
-                    (isFood ? "지도에서 최신 정보 보기" : "쿠팡에서 최저가 확인")}
+                    (isFood
+                      ? "지도에서 최신 정보 보기"
+                      : isCoupang
+                        ? "쿠팡에서 최저가 확인"
+                        : "네이버에서 조건 확인")}
                   <ExternalLink className="ml-2 size-4" />
                 </a>
               )}
-              {!isFood && item.sourceUrl && (
+              {isCoupang && item.sourceUrl && (
                 <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
                   검색어 &lsquo;{item.searchKeyword}&rsquo;
                 </p>
@@ -473,6 +579,16 @@ export function QuickRecommendationResult({
               거리·평점·최근 후기를 확인해 주세요.
             </p>
           )
+        ) : isAdvisory ? (
+          <p>
+            이 분야는 판매처를 연결하지 않습니다. 위 정리는 판단 방향을 좁히기
+            위한 참고이며, 실제 계약 조건은 사업자에게 직접 확인해야 합니다.
+          </p>
+        ) : !isCoupang ? (
+          <p>
+            예약 가능 여부, 취소·환불 규정, 최종 비용은 이동한 페이지에서 직접
+            확인해 주세요.
+          </p>
         ) : hasLivePrice ? (
           <p>
             표시 가격은 외부 쇼핑 검색의 조회 시점 참고가입니다. 구매 버튼은
@@ -486,6 +602,21 @@ export function QuickRecommendationResult({
           </p>
         )}
       </section>
+
+      {isAdvisory && data.advisory && (
+        <section className="mt-7 rounded-2xl border-l-4 border-amber-500 bg-amber-50/60 p-5 dark:bg-amber-950/25">
+          <p className="text-[13px] font-black text-amber-900 dark:text-amber-200">
+            결정 전에 꼭 확인하세요
+          </p>
+          <p className="mt-2 text-[14px] leading-relaxed text-amber-900/85 dark:text-amber-100/85">
+            {data.advisory}
+          </p>
+          <p className="mt-4 border-t border-amber-500/20 pt-3 text-[12px] text-amber-900/70 dark:text-amber-100/60">
+            ChoiceFlow는 이 분야에서 판매·중개를 하지 않습니다. 판단에 도움이 되는
+            정리만 제공합니다.
+          </p>
+        </section>
+      )}
 
       {isFood && relatedKeyword && (
         <section className="mt-6 rounded-3xl border border-[#ae0000]/20 bg-[#ae0000]/[0.04] p-5 sm:p-6">
@@ -522,7 +653,7 @@ export function QuickRecommendationResult({
         </section>
       )}
 
-      {!isFood && (
+      {isCoupang && (
         <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
           쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
         </p>
