@@ -15,6 +15,7 @@ import {
   normalizeProductSearchKeyword,
 } from "@/lib/recommendation/recommendation-presentation";
 import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
+import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
 import type {
   AnalyzeApiResult,
   QuickRecommendation,
@@ -762,21 +763,28 @@ async function enrichProductPrices(
         candidate.name
       );
       try {
-        const product = await findNaverLowestPrice(
-          searchKeyword,
-          maxBudgetWon
-        );
-        const price = Number(product?.lprice);
+        // 쿠팡 상품 검색은 썸네일·실가격과 함께 제휴 추적이 포함된 상품 상세
+        // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
+        const product = await searchCoupangProduct(searchKeyword, maxBudgetWon);
+        if (product) {
+          return {
+            rank: index + 1,
+            ...candidate,
+            searchKeyword,
+            price: product.productPrice,
+            priceLabel: product.isRocket ? "쿠팡 · 로켓배송" : "쿠팡 판매가",
+            imageUrl: product.productImage || undefined,
+            productName: product.productName,
+            isRocket: product.isRocket,
+            sourceUrl: product.productUrl,
+            sourceLabel: "쿠팡에서 이 상품 보기",
+            name: candidate.name,
+          } satisfies QuickRecommendation;
+        }
         return {
           rank: index + 1,
           ...candidate,
           searchKeyword,
-          price: Number.isFinite(price) && price > 0 ? price : undefined,
-          priceLabel:
-            Number.isFinite(price) && price > 0
-              ? "네이버 조회 참고가 · 쿠팡 가격은 이동 후 확인"
-              : undefined,
-          seller: clean(product?.mallName, "", 80) || undefined,
           sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
           sourceLabel: "쿠팡에서 이 상품 검색",
           name: candidate.name,

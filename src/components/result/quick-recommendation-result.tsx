@@ -371,6 +371,17 @@ export function QuickRecommendationResult({
           </p>
         )}
 
+        {winner?.imageUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={winner.imageUrl}
+            alt=""
+            width={132}
+            height={132}
+            className="mt-5 size-[132px] rounded-xl border border-border object-cover"
+          />
+        )}
+
         {winner?.sourceUrl && (
           <a
             href={winner.sourceUrl}
@@ -457,27 +468,48 @@ export function QuickRecommendationResult({
               >
                 {roleLabel}
               </span>
-              <h3 className="mt-2 break-keep text-[19px] font-black leading-snug">
-                {item.name}
-              </h3>
-
-              {(typeof item.price === "number" || priceLevel) && (
-                <div className="mt-3 rounded-lg bg-muted p-3">
-                  <p className="text-[11px] font-bold text-muted-foreground">
-                    {item.priceLabel || "가격대"}
-                  </p>
-                  <p className="mt-0.5 text-xl font-black">
-                    {typeof item.price === "number"
-                      ? `${formatPrice(item.price)}원`
-                      : priceLevel}
-                  </p>
-                  {item.seller && (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      판매처 {item.seller}
+              <div className="mt-2 flex gap-3">
+                {item.imageUrl && (
+                  /* 쿠팡 상품 썸네일. 이미지 최적화가 꺼져 있어 img 를 쓴다. */
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    width={84}
+                    height={84}
+                    loading="lazy"
+                    decoding="async"
+                    className="size-[84px] shrink-0 rounded-lg border border-border object-cover"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <h3 className="break-keep text-[18px] font-black leading-snug">
+                    {item.name}
+                  </h3>
+                  {typeof item.price === "number" ? (
+                    <>
+                      <p className="mt-1.5 text-[20px] font-black tabular-nums">
+                        {formatPrice(item.price)}
+                        <span className="text-[14px] font-bold">원</span>
+                      </p>
+                      {item.isRocket && (
+                        <span className="mt-1 inline-block rounded bg-[#ae0000]/[0.08] px-1.5 py-0.5 text-[10px] font-black text-[#ae0000] dark:text-red-400">
+                          로켓배송
+                        </span>
+                      )}
+                    </>
+                  ) : priceLevel ? (
+                    <p className="mt-1.5 text-[13px] font-bold text-muted-foreground">
+                      가격대 {priceLevel}
+                    </p>
+                  ) : null}
+                  {item.productName && item.productName !== item.name && (
+                    <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">
+                      {item.productName}
                     </p>
                   )}
                 </div>
-              )}
+              </div>
 
               {(typeof item.rating === "number" ||
                 typeof item.reviewCount === "number") && (
