@@ -68,73 +68,93 @@ const FOOD_RELATED_KEYWORDS: Record<string, string> = {
 };
 
 /**
- * 후보 간 상대 비교 그래프.
- * 절대 수치가 아니라 "이 4개 중에서의 상대 평가"임을 반드시 함께 표시한다.
- * 근거 없는 숫자를 사실처럼 보여주면 신뢰가 무너진다.
+ * 종합 적합도 그래프.
+ *
+ * 축을 나눠 그리면 축마다 1등이 달라져 "그래서 뭘 고르라는 건지" 혼란만 커진다.
+ * 결론을 하나로 보여주는 것이 이 서비스의 역할이므로 종합 점수 하나로 세우고,
+ * 세부 축은 각 후보 카드 안에서 보조로만 읽히게 한다.
  */
-function ScoreChart({
+function OverallChart({
   items,
   accent,
 }: {
   items: QuickRecommendation[];
   accent: string;
 }) {
-  const axes = items[0]?.scores?.map((score) => score.label) ?? [];
-  if (axes.length < 2) return null;
-  const scored = items.filter((item) => item.scores?.length);
+  const scored = items.filter((item) => typeof item.overall === "number");
   if (scored.length < 2) return null;
+  const ranked = [...scored].sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0));
+  const top = ranked[0]?.overall ?? 100;
 
   return (
-    <section className="mt-6 rounded-2xl border border-foreground/10 p-5">
+    <section className="mt-7">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[15px] font-black">후보 비교</h2>
+        <h2 className="text-[15px] font-bold tracking-tight">종합 적합도</h2>
         <span className="text-[11px] text-muted-foreground">
-          AI 상대 평가 · 절대 수치 아님
+          내 조건 기준 · AI 상대 평가
         </span>
       </div>
 
-      <div className="mt-4 space-y-5">
-        {axes.map((axis) => {
-          const values = scored.map((item) => ({
-            name: item.name,
-            value: item.scores?.find((s) => s.label === axis)?.value ?? 0,
-          }));
-          const best = Math.max(...values.map((v) => v.value));
+      <div className="mt-4 space-y-3.5">
+        {ranked.map((item, index) => {
+          const value = item.overall ?? 0;
+          const isTop = index === 0;
           return (
-            <div key={axis}>
-              <p className="text-[12px] font-bold text-muted-foreground">{axis}</p>
-              <div className="mt-2 space-y-1.5">
-                {values.map((entry) => {
-                  const isBest = entry.value === best && best > 0;
-                  return (
-                    <div key={entry.name} className="flex items-center gap-2">
-                      <span className="w-[86px] shrink-0 truncate text-[11px] font-medium sm:w-[110px]">
-                        {entry.name}
-                      </span>
-                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/[0.07]">
-                        <span className={cn(
-                            "block h-full rounded-full transition-[width] duration-700",
-                            isBest ? accent : "bg-foreground/25"
-                          )}
-                          style={{ width: `${Math.max(4, entry.value)}%` }}
-                        />
-                      </span>
-                      <span className={cn(
-                          "w-7 shrink-0 text-right text-[11px] font-bold tabular-nums",
-                          isBest ? "text-foreground" : "text-muted-foreground"
-                        )}
-                      >
-                        {entry.value}
-                      </span>
-                    </div>
-                  );
-                })}
+            <div key={`${item.name}-overall`}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span
+                  className={cn(
+                    "min-w-0 truncate text-[13px]",
+                    isTop ? "font-bold" : "text-muted-foreground"
+                  )}
+                >
+                  {isTop && (
+                    <span className="mr-1.5 text-[10px] font-black tracking-wide text-primary">
+                      1위
+                    </span>
+                  )}
+                  {item.name}
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 tabular-nums",
+                    isTop
+                      ? "text-[15px] font-black"
+                      : "text-[13px] font-bold text-muted-foreground"
+                  )}
+                >
+                  {value}
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-foreground/[0.06]">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-[width] duration-700 ease-out",
+                    isTop ? accent : "bg-foreground/20"
+                  )}
+                  style={{ width: `${Math.max(6, (value / (top || 100)) * 100)}%` }}
+                />
               </div>
             </div>
           );
         })}
       </div>
     </section>
+  );
+}
+
+/** 카드 안 세부 축 — 종합 점수를 보조 설명하는 역할만 한다. */
+function AxisBreakdown({ scores }: { scores: QuickRecommendation["scores"] }) {
+  if (!scores?.length) return null;
+  return (
+    <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+      {scores.map((score) => (
+        <div key={score.label} className="flex items-center gap-1.5">
+          <dt className="text-[11px] text-muted-foreground">{score.label}</dt>
+          <dd className="text-[11px] font-bold tabular-nums">{score.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -209,7 +229,6 @@ export function QuickRecommendationResult({
 }) {
   const recommendations = (data.quickRecommendations || []).slice(0, 4);
   const winner = recommendations[0];
-  const alternative = recommendations[1];
   const isFood = data.categoryId === "food";
   // 라벨과 실제 링크가 어긋나면 신뢰가 무너진다. 카테고리별로 나눠 쓴다.
   const isCoupang =
@@ -399,7 +418,7 @@ export function QuickRecommendationResult({
           : ""}
       </p>
 
-      <ScoreChart
+      <OverallChart
         items={recommendations}
         accent={
           isFood
@@ -484,9 +503,11 @@ export function QuickRecommendationResult({
                 </p>
               )}
 
-              <p className="mt-3 line-clamp-2 text-[14px] leading-relaxed text-muted-foreground">
+              <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
                 {item.reason}
               </p>
+
+              <AxisBreakdown scores={item.scores} />
 
               <details className="group mt-3">
                 <summary className="cursor-pointer list-none text-[13px] font-bold text-muted-foreground underline underline-offset-4">
