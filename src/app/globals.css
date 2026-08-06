@@ -23,27 +23,32 @@
     --font-sans: var(--font-sans);
   }
   :root {
-    /* 오프화이트 단색 배경 + 무채색 스케일. 유채색은 --primary 하나만 쓴다. */
-    --surface: oklch(0.978 0 0);
-    --background: oklch(0.978 0 0);
-    --foreground: oklch(0.18 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.18 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.18 0 0);
-    /* 포인트 컬러 1개 — 쿠팡 CTA와 충돌하지 않도록 딥 레드 계열로 통일 */
-    --primary: oklch(0.44 0.19 27);
-    --primary-foreground: oklch(0.99 0 0);
-    --secondary: oklch(0.955 0 0);
-    --secondary-foreground: oklch(0.28 0 0);
-    --muted: oklch(0.955 0 0);
-    --muted-foreground: oklch(0.52 0 0);
-    --accent: oklch(0.94 0 0);
-    --accent-foreground: oklch(0.28 0 0);
-    --destructive: oklch(0.55 0.22 27);
-    --border: oklch(0.9 0 0);
-    --input: oklch(0.9 0 0);
-    --ring: oklch(0.44 0.19 27);
+    /*
+     * ChoiceFlow 브랜드 팔레트.
+     * Choice Blue 는 "우리가 골라줬다"는 신호로만 쓴다.
+     * 선택된 상태, BEST 배지, 주요 CTA 외에는 쓰지 않는다.
+     */
+    --surface: #f7f8fa;
+    --background: #f7f8fa;
+    --foreground: #171719;
+    --card: #ffffff;
+    --card-foreground: #171719;
+    --popover: #ffffff;
+    --popover-foreground: #171719;
+    --primary: #2563eb;
+    --primary-foreground: #ffffff;
+    --primary-soft: #eff5ff;
+    --secondary: #f2f3f5;
+    --secondary-foreground: #171719;
+    --muted: #f2f3f5;
+    --muted-foreground: #70737c;
+    --accent: #eff5ff;
+    --accent-foreground: #2563eb;
+    --success: #16a34a;
+    --destructive: #dc2626;
+    --border: #e5e7eb;
+    --input: #e5e7eb;
+    --ring: #2563eb;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -62,15 +67,17 @@
     --glass-surface: oklch(1 0 0);
   }
   .dark {
-    --surface: oklch(0.145 0 0);
-    --background: oklch(0.145 0 0);
+    --surface: #101114;
+    --background: #101114;
+    --primary-soft: #16233d;
+    --success: #22c55e;
     --foreground: oklch(0.97 0.02 252);
     --card: oklch(0.21 0.04 258);
     --card-foreground: oklch(0.97 0.02 252);
     --popover: oklch(0.21 0.04 258);
     --popover-foreground: oklch(0.97 0.02 252);
-    --primary: oklch(0.62 0.2 27);
-    --primary-foreground: oklch(0.99 0 0);
+    --primary: #60a5fa;
+    --primary-foreground: #0b1220;
     --secondary: oklch(0.28 0.04 258);
     --secondary-foreground: oklch(0.97 0.02 252);
     --muted: oklch(0.28 0.035 258);

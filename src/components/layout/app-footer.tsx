@@ -61,7 +61,7 @@ export function AppFooter() {
             </p>
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
               ChoiceFlow는 AI 기반 분석 정보를 제공할 뿐, 최종 선택과 결제에 대한 책임은 사용자 본인에게 있습니다.<br /><br />
-              일부 링크는 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+              ChoiceFlow는 쿠팡 파트너스 활동을 통해 일정액의 수수료를 제공받을 수 있습니다.
             </p>
           </div>
         </div>

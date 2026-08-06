@@ -40,22 +40,28 @@ type LocationPayload = {
   accuracy?: number;
 };
 
-const ROLE_STYLES: Record<
+/** 결과에서 또 고민하지 않도록 1등을 확실히 구분한다. */
+const ROLE_BADGE: Record<
   NonNullable<QuickRecommendation["selectionType"]>,
-  string
+  { label: string; className: string }
 > = {
-  best: "border-[#ae0000]/25 bg-[#ae0000]/[0.06] text-[#ae0000] dark:text-red-400",
-  value: "border-emerald-600/25 bg-emerald-600/[0.06] text-emerald-700 dark:text-emerald-400",
-  reliable: "border-sky-600/25 bg-sky-600/[0.06] text-sky-700 dark:text-sky-400",
-  premium: "border-neutral-500/25 bg-neutral-500/[0.06] text-neutral-700 dark:text-neutral-300",
+  best: {
+    label: "가장 추천",
+    className: "bg-primary text-primary-foreground",
+  },
+  value: {
+    label: "가성비 선택",
+    className: "bg-success/10 text-success",
+  },
+  reliable: {
+    label: "검증 우선",
+    className: "bg-muted text-muted-foreground",
+  },
+  premium: {
+    label: "한 단계 위",
+    className: "bg-muted text-muted-foreground",
+  },
 };
-
-const FALLBACK_ROLE_LABELS = [
-  "최종 선택",
-  "최저가·가성비",
-  "검증 우선",
-  "프리미엄",
-];
 
 /** 음식 상황별로 쿠팡에서 실제로 잘 잡히는 상품 검색어 */
 const FOOD_RELATED_KEYWORDS: Record<string, string> = {
@@ -349,7 +355,7 @@ export function QuickRecommendationResult({
   };
 
   return (
-    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-2xl px-4 pb-16 pt-6 sm:px-6">
+    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[1120px] px-5 pb-16 pt-8 sm:px-8 sm:px-6">
       <header>
         <p className="text-xs font-bold text-muted-foreground">
           {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
@@ -440,35 +446,47 @@ export function QuickRecommendationResult({
         }
       />
 
-      <h2 className="mb-3 mt-7 text-lg font-black">
+      <h2 className="mb-3 mt-8 text-[20px] font-black tracking-tight">
         추천 후보 {recommendations.length}개
       </h2>
 
-      <div className="space-y-3">
+      {/*
+        공정위 추천·보증 심사지침은 경제적 이해관계를 추천 내용과 가까운
+        위치에 표시하도록 한다. 푸터에만 두지 않고 상품 바로 위에 둔다.
+        쿠팡 링크가 실제로 있는 화면에서만 노출한다.
+      */}
+      {(isCoupang || (isFood && relatedKeyword)) && (
+        <p className="mb-3 rounded-lg bg-muted px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
+          이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를
+          제공받습니다.
+        </p>
+      )}
+
+      <div className="grid gap-3 lg:grid-cols-3">
         {recommendations.map((item, index) => {
           const priceLevel = formatPriceLevel(item.priceLevel);
-          const roleLabel =
-            item.selectionLabel || FALLBACK_ROLE_LABELS[index] || "추천";
-          const roleStyle = item.selectionType
-            ? ROLE_STYLES[item.selectionType]
-            : ROLE_STYLES.best;
+          const badge = item.selectionType
+            ? ROLE_BADGE[item.selectionType]
+            : ROLE_BADGE.best;
           return (
             <article
               key={`${item.selectionType || index}-${item.name}`} className={cn(
-                "rounded-xl border bg-white p-4 sm:p-5",
+                "flex flex-col rounded-2xl border bg-card p-4 sm:p-5",
                 index === 0
-                  ? "border-[#ae0000]/30"
-                  : "border-foreground/10"
+                  ? "border-primary ring-1 ring-primary/20"
+                  : "border-border"
               )}
             >
-              <span className={cn(
-                  "inline-flex rounded border px-2 py-0.5 text-[11px] font-bold",
-                  roleStyle
+              <span
+                className={cn(
+                  "inline-flex w-fit rounded-md px-2.5 py-1 text-[11px] font-black",
+                  badge.className
                 )}
               >
-                {roleLabel}
+                {index === 0 ? "🏆 " : ""}
+                {badge.label}
               </span>
-              <div className="mt-2 flex gap-3">
+              <div className="mt-3 flex gap-3 lg:flex-col">
                 {item.imageUrl && (
                   /* 쿠팡 상품 썸네일. 이미지 최적화가 꺼져 있어 img 를 쓴다. */
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -479,7 +497,7 @@ export function QuickRecommendationResult({
                     height={84}
                     loading="lazy"
                     decoding="async"
-                    className="size-[84px] shrink-0 rounded-lg border border-border object-cover"
+                    className="size-[84px] shrink-0 rounded-xl border border-border object-cover lg:h-[168px] lg:w-full"
                   />
                 )}
                 <div className="min-w-0 flex-1">
@@ -698,16 +716,8 @@ export function QuickRecommendationResult({
         </section>
       )}
 
-      {isCoupang && (
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
-          쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
-        </p>
-      )}
-      {isFood && relatedKeyword && (
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
-          쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
-        </p>
-      )}
+
+
 
       <section className="mt-8 overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.08] to-sky-500/[0.06] p-5 sm:p-6">
         {!showAdvanced ? (
