@@ -112,16 +112,14 @@ function ScoreChart({
                         {entry.name}
                       </span>
                       <span className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/[0.07]">
-                        <span
-                          className={cn(
+                        <span className={cn(
                             "block h-full rounded-full transition-[width] duration-700",
                             isBest ? accent : "bg-foreground/25"
                           )}
                           style={{ width: `${Math.max(4, entry.value)}%` }}
                         />
                       </span>
-                      <span
-                        className={cn(
+                      <span className={cn(
                           "w-7 shrink-0 text-right text-[11px] font-bold tabular-nums",
                           isBest ? "text-foreground" : "text-muted-foreground"
                         )}
@@ -332,7 +330,7 @@ export function QuickRecommendationResult({
   };
 
   return (
-    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-2xl bg-white px-4 pb-16 pt-6 dark:bg-neutral-950 sm:px-6">
+    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-2xl px-4 pb-16 pt-6 sm:px-6">
       <header>
         <p className="text-xs font-bold text-muted-foreground">
           {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
@@ -367,8 +365,7 @@ export function QuickRecommendationResult({
                 keyword: winner.searchKeyword,
                 position: 0,
               })
-            }
-            className={cn(
+            } className={cn(
               "mt-5 flex min-h-[52px] w-full items-center justify-center rounded-lg text-[16px] font-black text-white transition",
               isFood
                 ? "bg-emerald-600 hover:bg-emerald-700"
@@ -427,16 +424,14 @@ export function QuickRecommendationResult({
             : ROLE_STYLES.best;
           return (
             <article
-              key={`${item.selectionType || index}-${item.name}`}
-              className={cn(
-                "rounded-xl border bg-white p-4 dark:bg-neutral-900 sm:p-5",
+              key={`${item.selectionType || index}-${item.name}`} className={cn(
+                "rounded-xl border bg-white p-4 sm:p-5",
                 index === 0
                   ? "border-[#ae0000]/30"
                   : "border-foreground/10"
               )}
             >
-              <span
-                className={cn(
+              <span className={cn(
                   "inline-flex rounded border px-2 py-0.5 text-[11px] font-bold",
                   roleStyle
                 )}
@@ -448,7 +443,7 @@ export function QuickRecommendationResult({
               </h3>
 
               {(typeof item.price === "number" || priceLevel) && (
-                <div className="mt-3 rounded-lg bg-neutral-100 p-3 dark:bg-white/5">
+                <div className="mt-3 rounded-lg bg-muted p-3">
                   <p className="text-[11px] font-bold text-muted-foreground">
                     {item.priceLabel || "가격대"}
                   </p>
@@ -500,8 +495,7 @@ export function QuickRecommendationResult({
                 <div className="mt-3 space-y-2 text-[13px] leading-relaxed text-muted-foreground">
                   {recommendationEvidence(item).map((evidence) => (
                     <p
-                      key={`${item.name}-detail-${evidence.label}`}
-                      className="flex items-start gap-2"
+                      key={`${item.name}-detail-${evidence.label}`} className="flex items-start gap-2"
                     >
                       <BadgeCheck className="mt-0.5 size-4 shrink-0 text-primary" />
                       <span>
@@ -528,8 +522,7 @@ export function QuickRecommendationResult({
                       keyword: item.searchKeyword,
                       position: index + 1,
                     })
-                  }
-                  className={cn(
+                  } className={cn(
                     "mt-3 flex min-h-[48px] w-full items-center justify-center rounded-lg text-[15px] font-black transition",
                     isFood
                       ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
@@ -641,8 +634,7 @@ export function QuickRecommendationResult({
                 keyword: relatedKeyword,
                 position: 90,
               })
-            }
-            className={cn(
+            } className={cn(
               buttonVariants({ variant: "default" }),
               "mt-4 min-h-13 w-full rounded-2xl bg-[#ae0000] text-[15px] font-black text-white hover:bg-[#8f0000]"
             )}
@@ -676,8 +668,7 @@ export function QuickRecommendationResult({
               반영합니다.
             </p>
             <Button
-              type="button"
-              className="mt-5 min-h-12 w-full rounded-xl"
+              type="button" className="mt-5 min-h-12 w-full rounded-xl"
               disabled={!canRefine || !aiAvailable}
               onClick={() => {
                 setRefineError("");
@@ -703,8 +694,7 @@ export function QuickRecommendationResult({
           <>
             <div className="flex items-center justify-between gap-3">
               <button
-                type="button"
-                className="inline-flex size-10 items-center justify-center rounded-full border bg-background/80"
+                type="button" className="inline-flex size-10 items-center justify-center rounded-full border bg-background/80"
                 aria-label="정밀 추천 닫기"
                 onClick={() => setShowAdvanced(false)}
               >
@@ -717,8 +707,7 @@ export function QuickRecommendationResult({
             <div className="mt-4 grid grid-cols-5 gap-1.5">
               {advancedQuestions.map((item, index) => (
                 <span
-                  key={item.id}
-                  className={cn(
+                  key={item.id} className={cn(
                     "h-1 rounded-full",
                     index <= questionIndex ? "bg-foreground" : "bg-foreground/10"
                   )}
@@ -746,8 +735,7 @@ export function QuickRecommendationResult({
                         key={option.id}
                         type="button"
                         disabled={isRefining}
-                        onClick={() => selectAdvancedOption(question.id, option)}
-                        className={cn(
+                        onClick={() => selectAdvancedOption(question.id, option)} className={cn(
                           "flex min-h-14 items-center justify-between rounded-2xl border bg-background/80 px-4 text-left text-sm font-bold transition hover:border-foreground/25",
                           selected &&
                             "border-foreground bg-foreground text-background"
@@ -766,8 +754,7 @@ export function QuickRecommendationResult({
               {questionIndex > 0 && (
                 <Button
                   type="button"
-                  variant="outline"
-                  className="min-h-12 rounded-xl"
+                  variant="outline" className="min-h-12 rounded-xl"
                   disabled={isRefining}
                   onClick={() => setQuestionIndex((current) => current - 1)}
                 >
@@ -775,8 +762,7 @@ export function QuickRecommendationResult({
                 </Button>
               )}
               <Button
-                type="button"
-                className="min-h-12 rounded-xl"
+                type="button" className="min-h-12 rounded-xl"
                 disabled={answers.length === 0 || isRefining}
                 onClick={() => void submitRefinement()}
               >
@@ -788,8 +774,7 @@ export function QuickRecommendationResult({
             </div>
             {refineError && (
               <p
-                role="alert"
-                className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm font-medium text-destructive"
+                role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm font-medium text-destructive"
               >
                 {refineError}
               </p>
@@ -800,8 +785,7 @@ export function QuickRecommendationResult({
 
       <div className="mt-7">
         <Link
-          href="/"
-          className={cn(
+          href="/" className={cn(
             buttonVariants({ variant: "outline" }),
             "min-h-12 w-full rounded-full"
           )}

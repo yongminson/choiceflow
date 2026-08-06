@@ -20,7 +20,7 @@ export function AppNavbar() {
     user === undefined ? "/mypage" : user === null ? "/login" : "/mypage";
 
   return (
-    <header className="glass-nav fixed top-0 z-50 w-full">
+    <header className="fixed top-0 z-50 w-full border-b border-border bg-background">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-3 sm:gap-4 sm:px-6">
         <button
           type="button"

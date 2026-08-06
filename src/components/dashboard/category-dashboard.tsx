@@ -17,7 +17,7 @@ import { readFilesAsDataUrls } from "@/lib/utils/file-to-data-url";
 import { validateDashboardForm } from "@/lib/dashboard/validate-dashboard-form";
 import { CATEGORY_ORDER, type CategoryId, isCategoryId } from "@/lib/types/category";
 import { initialDashboardForms, type DashboardFormsState } from "@/lib/types/dashboard-forms";
-import { CATEGORY_3D_EMOJI } from "@/lib/emojis/category-3d-emoji";
+import { CATEGORY_ICONS, CATEGORY_FORM_TITLE } from "@/lib/category/category-icons";
 import { cn } from "@/lib/utils";
 
 import { useSupabaseUser } from "@/components/auth/use-supabase-user";
@@ -251,7 +251,7 @@ export function CategoryDashboard() {
     } catch (e) { toast.error("일시적 오류"); } finally { setIsAnalyzing(false); }
   }, [selectedCategory, forms, router]);
 
-  const emojiAssets = CATEGORY_3D_EMOJI[selectedCategory];
+  const SelectedIcon = CATEGORY_ICONS[selectedCategory];
 
   return (
     <section id="dashboard" className="relative mx-auto w-full max-w-5xl px-4 pb-24 sm:px-6">
@@ -320,7 +320,7 @@ export function CategoryDashboard() {
             const selected = selectedCategory === id;
             return (
               <button key={id} type="button" onClick={() => openCategory(id)} className={cn("flex min-h-[3.5rem] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 transition-all sm:min-h-[4rem] sm:gap-1.5 sm:rounded-[1.5rem] sm:px-3 sm:py-3.5 md:min-h-[4.5rem] md:px-2 md:py-3 lg:min-h-[5rem] lg:px-3 lg:py-4 glass border border-white/40 bg-white/45 shadow-glass-sm backdrop-blur-md hover:-translate-y-1 hover:border-primary/40 hover:shadow-glass active:scale-[0.98] dark:border-white/12 dark:bg-white/[0.08]", selected && "border-primary/50 bg-primary/14 ring-2 ring-primary/35 dark:bg-primary/18")}>
-                <img src={CATEGORY_3D_EMOJI[id].mainSrc} alt="" width={56} height={56} className={cn("shrink-0 object-contain select-none transition-transform", id === "food" ? "size-14 sm:size-16 scale-110" : "size-12 sm:size-14")} decoding="async" loading="lazy" aria-hidden />
+                {(() => { const Icon = CATEGORY_ICONS[id]; return <Icon className="size-6 shrink-0" aria-hidden />; })()}
                 <span className="max-w-full mt-1 truncate px-1 text-center text-[12px] font-bold leading-tight text-foreground sm:text-[13px] md:text-[13px] lg:text-[14px]">{CATEGORY_LABELS[id]}</span>
               </button>
             );
@@ -336,8 +336,8 @@ export function CategoryDashboard() {
           <div className="glass-strong rounded-[1.75rem] p-6 shadow-glass sm:p-10">
             <div className="min-w-0">
               <h2 className="flex flex-wrap items-center gap-x-2 gap-y-2 font-display text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-                <img src={emojiAssets.mainSrc} alt="" width={28} height={28} className="h-7 w-7 shrink-0 object-contain" decoding="async" loading="lazy" aria-hidden />
-                <span>{emojiAssets.formTitleLabel} · 입력</span>
+                <SelectedIcon className="size-6 shrink-0" aria-hidden />
+                <span>{CATEGORY_FORM_TITLE[selectedCategory]} · 입력</span>
                 {selectedCategory === "food" && (
                   <button onClick={() => setShowRouletteModal(true)} className="ml-2 animate-bounce rounded-full bg-gradient-to-r from-primary to-blue-500 px-3 py-1 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105">
                   🎲 간단 랜덤뽑기

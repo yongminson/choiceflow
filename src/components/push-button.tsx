@@ -105,17 +105,17 @@ toast.success("🎉 알림 켜기 완료! 매일 오늘의 선택을 도와드�
           void handleToggle();
         }}
         title={isSubscribed ? "알림 끄기" : "알림 켜기"}
-        className="relative z-[9999] flex size-9 touch-manipulation items-center justify-center rounded-full bg-indigo-50 shadow-sm transition-transform hover:scale-110 hover:bg-indigo-100 active:scale-95 dark:bg-white/10"
+        className="relative z-[9999] flex size-9 touch-manipulation items-center justify-center rounded-lg border border-border transition-colors hover:bg-muted"
         style={{ WebkitTapHighlightColor: 'transparent' }}
       >
-        {isSubscribed ? <BellRing className="size-5 text-emerald-500" /> : <BellOff className="size-5 animate-bounce text-slate-400" />}
+        {isSubscribed ? <BellRing className="size-4 text-foreground" /> : <BellOff className="size-4 text-muted-foreground" />}
       </button>
     );
   }
 
   return (
-    <button onClick={handleToggle} className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold text-white shadow-lg transition-transform hover:scale-[1.02] ${isSubscribed ? "bg-emerald-500" : "bg-gradient-to-r from-indigo-500 to-purple-500"}`}>
-      {isSubscribed ? <BellRing className="size-5" /> : <BellOff className="size-5 animate-pulse" />}
+    <button onClick={handleToggle} className="flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-[14px] font-bold transition-colors hover:bg-muted">
+      {isSubscribed ? <BellRing className="size-4" /> : <BellOff className="size-4" />}
       {isSubscribed ? "알림 켜짐 (누르면 해제)" : "매일 무료뽑기 알림 켜기"}
     </button>
   );

@@ -1,10 +1,9 @@
+/**
+ * 배경 장식은 쓰지 않는다.
+ * 움직이는 그라데이션 블롭은 AI 생성 템플릿의 대표적인 흔적이고,
+ * 콘텐츠(상품명·근거·그래프)의 주목도를 떨어뜨린다.
+ * 배경은 단색으로 두고 색은 포인트 컬러 하나에만 쓴다.
+ */
 export function MeshBackground() {
-  return (
-    <div className="mesh-bg" aria-hidden>
-      <div className="mesh-bg__layer" />
-      <div className="mesh-bg__layer mesh-bg__layer--2" />
-      <div className="mesh-bg__layer mesh-bg__layer--3" />
-      <div className="mesh-bg__layer mesh-bg__layer--4" />
-    </div>
-  );
+  return null;
 }
