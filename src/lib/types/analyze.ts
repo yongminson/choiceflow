@@ -109,7 +109,9 @@ export type QuickRecommendation = {
   distanceMeters?: number;
   openNow?: boolean;
   dataStatus?: "verified-place" | "category-guide";
-  /** 후보 비교 그래프용 상대 점수 */
+  /** 조건 전체를 종합한 적합도 0~100 — 메인 그래프에 쓴다 */
+  overall?: number;
+  /** 세부 축별 상대 점수 — 카드 안에 보조로 표시한다 */
   scores?: RecommendationScore[];
 };
 
