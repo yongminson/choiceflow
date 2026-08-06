@@ -1,4 +1,4 @@
-import { Analytics } from "@vercel/analytics/react";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { VisitorTracker } from "@/components/visitor-tracker";
 import { AdminFloatingWidget } from "@/components/admin-floating-widget";
