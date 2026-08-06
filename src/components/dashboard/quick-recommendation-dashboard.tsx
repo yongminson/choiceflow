@@ -75,15 +75,6 @@ const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
   asset: KeyRound,
 };
 
-const CATEGORY_ACCENTS: Record<CategoryId, string> = {
-  food: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
-  gift: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
-  appliance: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
-  fashion: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
-  date: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
-  asset: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200",
-};
-
 function getLocation(): Promise<LocationPayload | undefined> {
   if (!("geolocation" in navigator)) return Promise.resolve(undefined);
 
@@ -267,10 +258,10 @@ export function QuickRecommendationDashboard() {
           : "예산을 고르면 바로 추천을 시작해요.";
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-xl flex-col bg-white px-5 pb-20 pt-7 dark:bg-neutral-950">
+    <main className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-xl flex-col px-5 pb-20 pt-7">
       {step > 1 && (
         <div className="mb-7">
-          <p className="text-[12px] font-bold text-neutral-400">
+          <p className="text-[12px] font-bold text-muted-foreground">
             {questionStep} / 3
           </p>
           <div className="mt-2 flex gap-1">
@@ -280,8 +271,8 @@ export function QuickRecommendationDashboard() {
                 className={cn(
                   "h-1 flex-1 rounded-full transition-colors",
                   item <= questionStep
-                    ? "bg-neutral-900 dark:bg-white"
-                    : "bg-neutral-200 dark:bg-neutral-800"
+                    ? "bg-foreground"
+                    : "bg-border"
                 )}
               />
             ))}
@@ -294,7 +285,7 @@ export function QuickRecommendationDashboard() {
           <h1 className="text-balance text-[26px] font-black leading-tight tracking-[-0.03em] sm:text-[30px]">
             {heading}
           </h1>
-          <p className="mt-2 text-[15px] leading-relaxed text-neutral-500">
+          <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
             {description}
           </p>
         </div>
@@ -302,7 +293,7 @@ export function QuickRecommendationDashboard() {
           <button
             type="button"
             onClick={() => resetToStep(step - 1)}
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-neutral-300 transition hover:border-neutral-900 dark:border-neutral-700 dark:hover:border-white"
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-border transition hover:border-foreground/40"
             aria-label="이전 질문으로 돌아가기"
           >
             <ArrowLeft className="size-5" />
@@ -315,7 +306,7 @@ export function QuickRecommendationDashboard() {
           <>
             <a
               href="/compare"
-              className="mb-6 flex items-center justify-between gap-4 rounded-xl bg-neutral-900 p-5 text-white transition hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              className="mb-3 flex items-center justify-between gap-4 rounded-2xl bg-foreground p-5 text-background transition hover:opacity-90"
             >
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5 text-[11px] font-bold opacity-70">
@@ -332,16 +323,19 @@ export function QuickRecommendationDashboard() {
               <ArrowUpRight className="size-5 shrink-0" />
             </a>
 
-            <p className="mb-3 text-[13px] font-bold text-neutral-400">
+            <p className="mb-3 text-[13px] font-bold text-muted-foreground">
               아직 뭘 살지 모르겠다면
             </p>
           </>
         )}
 
         {step === 1 && (
-          <div className="grid gap-2">
-            {CATEGORY_ORDER.map((id) => {
+          /* Bento: 첫 두 칸은 넓게, 나머지는 2열. 균일 반복을 깨서
+             템플릿 인상을 줄이고 사용 빈도가 높은 항목을 앞세운다. */
+          <div className="grid grid-cols-2 gap-2">
+            {CATEGORY_ORDER.map((id, index) => {
               const Icon = CATEGORY_ICONS[id];
+              const wide = index < 2;
               return (
                 <button
                   key={id}
@@ -351,21 +345,21 @@ export function QuickRecommendationDashboard() {
                     setScenarioId(null);
                     setPriorityId(null);
                   }}
-                  className="flex items-center gap-3 rounded-xl border border-neutral-200 p-4 text-left transition hover:border-neutral-900 dark:border-neutral-800 dark:hover:border-white"
+                  className={cn(
+                    "group flex flex-col justify-between rounded-2xl border border-border bg-card p-4 text-left transition",
+                    "hover:border-foreground/40",
+                    wide ? "col-span-2 min-h-[92px] sm:col-span-1" : "min-h-[112px]"
+                  )}
                 >
-                  <span
-                    className={cn(
-                      "inline-flex size-10 shrink-0 items-center justify-center rounded-lg",
-                      CATEGORY_ACCENTS[id]
-                    )}
-                  >
-                    <Icon className="size-5" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[15px] font-black">
+                  <Icon
+                    className="size-5 text-muted-foreground transition-colors group-hover:text-foreground"
+                    aria-hidden
+                  />
+                  <span className="mt-3 min-w-0">
+                    <span className="block text-[15px] font-bold tracking-tight">
                       {QUICK_CATEGORY_LABELS[id]}
                     </span>
-                    <span className="mt-0.5 block truncate text-[12px] text-neutral-500">
+                    <span className="mt-0.5 block text-[12px] leading-snug text-muted-foreground">
                       {QUICK_CATEGORY_DESCRIPTION[id]}
                     </span>
                   </span>
@@ -540,7 +534,7 @@ export function QuickRecommendationDashboard() {
 
       <a
         href={categoryId ? `/?details=1&tab=${categoryId}` : "/?details=1"}
-        className="mt-8 self-center text-[13px] font-medium text-neutral-400 underline underline-offset-4 hover:text-neutral-900 dark:hover:text-white"
+        className="mt-8 self-center text-[13px] font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
       >
         직접 조건을 입력해서 비교하기
       </a>
@@ -564,15 +558,15 @@ function ChoiceButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex min-h-[68px] items-center justify-between gap-4 rounded-xl border border-neutral-200 p-4 text-left transition hover:border-neutral-900 disabled:cursor-wait disabled:opacity-50 dark:border-neutral-800 dark:hover:border-white"
+      className="flex min-h-[68px] items-center justify-between gap-4 rounded-xl border border-border p-4 text-left transition hover:border-neutral-900 disabled:cursor-wait disabled:opacity-50 dark:border-neutral-800 dark:hover:border-white"
     >
       <span>
         <span className="block text-[15px] font-black">{label}</span>
-        <span className="mt-0.5 block text-[13px] text-neutral-500">
+        <span className="mt-0.5 block text-[13px] text-muted-foreground">
           {description}
         </span>
       </span>
-      <ArrowUpRight className="size-4 shrink-0 text-neutral-400" />
+      <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
     </button>
   );
 }

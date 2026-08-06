@@ -68,6 +68,8 @@ export type AnalyzeApiResult = AnalyzeResponse & {
   };
   locationUsed?: boolean;
   recommendationContext?: string[];
+  /** 외부 연결 없이 판단만 제공하는 카테고리(고가·렌탈)의 마무리 조언 */
+  advisory?: string;
   checkedAt?: string;
 };
 
@@ -75,6 +77,13 @@ export type RecommendationEvidence = {
   label: string;
   text: string;
   kind?: "verified" | "guide" | "caution";
+};
+
+/** AI가 매긴 후보 간 상대 평가 축. 절대 수치가 아니라 비교용이다. */
+export type RecommendationScore = {
+  label: string;
+  /** 0~100. 같은 조건에서 후보끼리 비교한 상대값 */
+  value: number;
 };
 
 export type QuickRecommendation = {
@@ -100,6 +109,8 @@ export type QuickRecommendation = {
   distanceMeters?: number;
   openNow?: boolean;
   dataStatus?: "verified-place" | "category-guide";
+  /** 후보 비교 그래프용 상대 점수 */
+  scores?: RecommendationScore[];
 };
 
 /** POST /api/analyze 성공 시 본문 — 항상 JSON 객체 */

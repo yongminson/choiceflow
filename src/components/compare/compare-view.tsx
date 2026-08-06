@@ -83,10 +83,9 @@ export function CompareView() {
   }
 
   return (
-    <main className="mx-auto min-h-[calc(100dvh-3.5rem)] w-full max-w-xl bg-white px-5 pb-16 pt-8 dark:bg-neutral-950">
+    <main className="mx-auto min-h-[calc(100dvh-3.5rem)] w-full max-w-xl px-5 pb-16 pt-8">
       <Link
-        href="/"
-        className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
+        href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-neutral-900 dark:hover:text-white"
       >
         <ArrowLeft className="size-4" />
         홈으로
@@ -95,15 +94,14 @@ export function CompareView() {
       <h1 className="mt-6 text-[26px] font-black leading-tight tracking-[-0.03em] sm:text-[30px]">
         둘 중에 뭘 사야 할까요?
       </h1>
-      <p className="mt-2 text-[15px] leading-relaxed text-neutral-500">
+      <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
         고민 중인 두 가지만 적으면, 왜 그걸 골라야 하는지까지 알려드려요.
       </p>
 
       <div className="mt-7 space-y-3">
         <div>
           <label
-            htmlFor="option-a"
-            className="mb-1.5 block text-[13px] font-bold text-neutral-500"
+            htmlFor="option-a" className="mb-1.5 block text-[13px] font-bold text-muted-foreground"
           >
             첫 번째
           </label>
@@ -113,21 +111,19 @@ export function CompareView() {
             maxLength={60}
             disabled={isLoading}
             onChange={(e) => setOptionA(e.target.value)}
-            placeholder="예: 아이폰 16"
-            className="h-14 w-full rounded-xl border border-neutral-300 bg-white px-4 text-[16px] font-medium outline-none transition focus:border-neutral-900 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-white"
+            placeholder="예: 아이폰 16" className="h-14 w-full rounded-xl border border-border bg-card px-4 text-[16px] font-medium outline-none transition focus:border-neutral-900 disabled:opacity-50  dark:focus:border-white"
           />
         </div>
 
         <div className="flex items-center justify-center">
-          <span className="rounded-full bg-neutral-100 px-3 py-1 text-[12px] font-black text-neutral-500 dark:bg-neutral-800">
+          <span className="rounded-full bg-neutral-100 px-3 py-1 text-[12px] font-black text-muted-foreground dark:bg-neutral-800">
             VS
           </span>
         </div>
 
         <div>
           <label
-            htmlFor="option-b"
-            className="mb-1.5 block text-[13px] font-bold text-neutral-500"
+            htmlFor="option-b" className="mb-1.5 block text-[13px] font-bold text-muted-foreground"
           >
             두 번째
           </label>
@@ -137,19 +133,17 @@ export function CompareView() {
             maxLength={60}
             disabled={isLoading}
             onChange={(e) => setOptionB(e.target.value)}
-            placeholder="예: 갤럭시 S25"
-            className="h-14 w-full rounded-xl border border-neutral-300 bg-white px-4 text-[16px] font-medium outline-none transition focus:border-neutral-900 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-white"
+            placeholder="예: 갤럭시 S25" className="h-14 w-full rounded-xl border border-border bg-card px-4 text-[16px] font-medium outline-none transition focus:border-neutral-900 disabled:opacity-50  dark:focus:border-white"
           />
         </div>
       </div>
 
       <div className="mt-5">
         <label
-          htmlFor="context"
-          className="mb-1.5 block text-[13px] font-bold text-neutral-500"
+          htmlFor="context" className="mb-1.5 block text-[13px] font-bold text-muted-foreground"
         >
           상황 한 줄{" "}
-          <span className="font-medium text-neutral-400">
+          <span className="font-medium text-muted-foreground">
             (선택 · 적으면 훨씬 정확해져요)
           </span>
         </label>
@@ -159,16 +153,14 @@ export function CompareView() {
           maxLength={150}
           disabled={isLoading}
           onChange={(e) => setContext(e.target.value)}
-          placeholder="예: 사진 많이 찍고 3년은 쓸 예정"
-          className="h-13 w-full rounded-xl border border-neutral-300 bg-white px-4 py-3.5 text-[15px] outline-none transition focus:border-neutral-900 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-white"
+          placeholder="예: 사진 많이 찍고 3년은 쓸 예정" className="h-13 w-full rounded-xl border border-border bg-card px-4 py-3.5 text-[15px] outline-none transition focus:border-neutral-900 disabled:opacity-50  dark:focus:border-white"
         />
       </div>
 
       <button
         type="button"
         disabled={!canSubmit || isLoading}
-        onClick={() => void handleSubmit()}
-        className="mt-6 flex min-h-[56px] w-full items-center justify-center rounded-xl bg-neutral-900 text-[16px] font-black text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300 dark:bg-white dark:text-neutral-900 dark:disabled:bg-neutral-700"
+        onClick={() => void handleSubmit()} className="mt-6 flex min-h-[56px] w-full items-center justify-center rounded-xl bg-foreground text-[16px] font-black text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isLoading ? (
           <>
@@ -185,15 +177,14 @@ export function CompareView() {
 
       {error && (
         <p
-          role="alert"
-          className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300"
+          role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700 dark:bg-red-950 dark:text-red-300"
         >
           {error}
         </p>
       )}
 
       <div className="mt-9 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-        <p className="text-[13px] font-bold text-neutral-500">이런 것도 비교해요</p>
+        <p className="text-[13px] font-bold text-muted-foreground">이런 것도 비교해요</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {EXAMPLES.map(([a, b]) => (
             <button
@@ -203,8 +194,7 @@ export function CompareView() {
               onClick={() => {
                 setOptionA(a);
                 setOptionB(b);
-              }}
-              className="rounded-full border border-neutral-300 px-3 py-1.5 text-[13px] font-medium text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900 disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:border-white dark:hover:text-white"
+              }} className="rounded-full border border-neutral-300 px-3 py-1.5 text-[13px] font-medium text-neutral-600 transition hover:border-foreground hover:text-foreground disabled:opacity-50 dark:border-neutral-700 dark:text-muted-foreground "
             >
               {a} vs {b}
             </button>
@@ -235,8 +225,8 @@ function ResultView({
   const loserTrap = result.verdict === "B" ? result.trapA : result.trapB;
 
   return (
-    <main className="mx-auto min-h-[calc(100dvh-3.5rem)] w-full max-w-xl bg-white px-5 pb-16 pt-8 dark:bg-neutral-950">
-      <p className="text-[13px] font-bold text-neutral-500">
+    <main className="mx-auto min-h-[calc(100dvh-3.5rem)] w-full max-w-xl px-5 pb-16 pt-8">
+      <p className="text-[13px] font-bold text-muted-foreground">
         {result.optionA} vs {result.optionB}
       </p>
 
@@ -247,7 +237,7 @@ function ResultView({
       ) : (
         <h1 className="mt-2 break-keep text-[30px] font-black leading-tight tracking-[-0.03em]">
           <span className="text-[#ae0000] dark:text-red-400">{winnerName}</span>
-          <span className="text-neutral-400"> 쪽이 낫습니다</span>
+          <span className="text-muted-foreground"> 쪽이 낫습니다</span>
         </h1>
       )}
 
@@ -256,7 +246,7 @@ function ResultView({
       </p>
 
       {result.context && (
-        <p className="mt-3 inline-block rounded-lg bg-neutral-100 px-3 py-1.5 text-[12px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+        <p className="mt-3 inline-block rounded-lg bg-muted px-3 py-1.5 text-[12px] font-bold text-muted-foreground">
           상황: {result.context}
         </p>
       )}
@@ -266,13 +256,12 @@ function ResultView({
         <div className="mt-3 space-y-3">
           {result.reasons.map((reason) => (
             <div
-              key={reason.label}
-              className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800"
+              key={reason.label} className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800"
             >
-              <p className="text-[13px] font-black text-neutral-900 dark:text-white">
+              <p className="text-[13px] font-black text-foreground">
                 {reason.label}
               </p>
-              <p className="mt-1.5 text-[14px] leading-relaxed text-neutral-600 dark:text-neutral-400">
+              <p className="mt-1.5 text-[14px] leading-relaxed text-neutral-600 dark:text-muted-foreground">
                 {reason.text}
               </p>
             </div>
@@ -298,7 +287,7 @@ function ResultView({
             {winnerTrap && (
               <p className="rounded-xl border border-neutral-200 p-4 text-[14px] leading-relaxed dark:border-neutral-800">
                 <strong className="font-black">{winnerName}</strong>
-                <span className="mt-1 block text-neutral-600 dark:text-neutral-400">
+                <span className="mt-1 block text-neutral-600 dark:text-muted-foreground">
                   {winnerTrap}
                 </span>
               </p>
@@ -306,7 +295,7 @@ function ResultView({
             {loserTrap && (
               <p className="rounded-xl border border-neutral-200 p-4 text-[14px] leading-relaxed dark:border-neutral-800">
                 <strong className="font-black">{loserName}</strong>
-                <span className="mt-1 block text-neutral-600 dark:text-neutral-400">
+                <span className="mt-1 block text-neutral-600 dark:text-muted-foreground">
                   {loserTrap}
                 </span>
               </p>
@@ -320,8 +309,7 @@ function ResultView({
           href={winnerUrl}
           target="_blank"
           rel="noopener noreferrer sponsored"
-          onClick={() => trackOutboundClick(winnerName, winnerKeyword, "winner")}
-          className="flex min-h-[56px] w-full items-center justify-center rounded-xl bg-[#ae0000] text-[16px] font-black text-white transition hover:bg-[#8f0000]"
+          onClick={() => trackOutboundClick(winnerName, winnerKeyword, "winner")} className="flex min-h-[56px] w-full items-center justify-center rounded-xl bg-[#ae0000] text-[16px] font-black text-white transition hover:bg-[#8f0000]"
         >
           {winnerName} 쿠팡에서 보기
           <ExternalLink className="ml-2 size-4" />
@@ -330,8 +318,7 @@ function ResultView({
           href={loserUrl}
           target="_blank"
           rel="noopener noreferrer sponsored"
-          onClick={() => trackOutboundClick(loserName, loserKeyword, "runner_up")}
-          className="flex min-h-[52px] w-full items-center justify-center rounded-xl border border-neutral-300 text-[15px] font-bold transition hover:border-neutral-900 dark:border-neutral-700 dark:hover:border-white"
+          onClick={() => trackOutboundClick(loserName, loserKeyword, "runner_up")} className="flex min-h-[52px] w-full items-center justify-center rounded-xl border border-neutral-300 text-[15px] font-bold transition hover:border-neutral-900 dark:border-neutral-700 dark:hover:border-white"
         >
           {loserName}도 보기
           <ExternalLink className="ml-2 size-4" />
@@ -340,13 +327,13 @@ function ResultView({
 
       {result.alternative && (
         <section className="mt-6 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
-          <p className="text-[13px] font-black text-neutral-500">
+          <p className="text-[13px] font-black text-muted-foreground">
             둘 다 애매하다면
           </p>
           <p className="mt-1.5 text-[17px] font-black">
             {result.alternative.name}
           </p>
-          <p className="mt-1.5 text-[14px] leading-relaxed text-neutral-600 dark:text-neutral-400">
+          <p className="mt-1.5 text-[14px] leading-relaxed text-neutral-600 dark:text-muted-foreground">
             {result.alternative.reason}
           </p>
           <a
@@ -359,8 +346,7 @@ function ResultView({
                 result.alternative!.searchKeyword,
                 "alternative"
               )
-            }
-            className="mt-3 flex min-h-[48px] w-full items-center justify-center rounded-xl border border-neutral-300 text-[15px] font-bold transition hover:border-neutral-900 dark:border-neutral-700 dark:hover:border-white"
+            } className="mt-3 flex min-h-[48px] w-full items-center justify-center rounded-xl border border-neutral-300 text-[15px] font-bold transition hover:border-neutral-900 dark:border-neutral-700 dark:hover:border-white"
           >
             이 대안 보기
             <ExternalLink className="ml-2 size-4" />
@@ -368,7 +354,7 @@ function ResultView({
         </section>
       )}
 
-      <p className="mt-5 text-center text-[11px] leading-relaxed text-neutral-400">
+      <p className="mt-5 text-center text-[11px] leading-relaxed text-muted-foreground">
         쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
         <br />
         AI 판단은 참고용이며 최종 선택과 책임은 본인에게 있습니다.
@@ -376,8 +362,7 @@ function ResultView({
 
       <button
         type="button"
-        onClick={onReset}
-        className={cn(
+        onClick={onReset} className={cn(
           "mt-6 flex min-h-[52px] w-full items-center justify-center rounded-xl",
           "border border-neutral-300 text-[15px] font-bold transition hover:border-neutral-900",
           "dark:border-neutral-700 dark:hover:border-white"

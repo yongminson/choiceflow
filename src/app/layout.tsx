@@ -6,7 +6,6 @@ import type { Metadata } from "next";
 import { Noto_Sans_KR, Plus_Jakarta_Sans } from "next/font/google";
 import { AppFooter } from "@/components/layout/app-footer";
 import { AppNavbarWrapper } from "@/components/layout/app-navbar-wrapper";
-import { MeshBackground } from "@/components/layout/mesh-background";
 import { CreditsRefreshProvider } from "@/components/auth/credits-refresh-context";
 import { BillingProvider } from "@/components/payment/billing-provider";
 import { Toaster } from "@/components/ui/toaster";
@@ -51,12 +50,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={cn(display.variable, notoSansKr.variable)}>
-      <body className="min-h-screen antialiased">
+      <body className="min-h-screen bg-[--surface] antialiased">
         <VisitorTracker />
         <AdminFloatingWidget />
         <CreditsRefreshProvider>
           <BillingProvider>
-            <MeshBackground />
             <AppNavbarWrapper />
             <div className="flex min-h-screen flex-col pt-14">
               <main className="relative flex-1">{children}</main>
