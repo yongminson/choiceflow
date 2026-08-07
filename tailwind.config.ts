@@ -32,6 +32,8 @@ const config: Config = {
         popover: "var(--popover)",
         "popover-foreground": "var(--popover-foreground)",
         primary: "var(--primary)",
+        "primary-soft": "var(--primary-soft)",
+        success: "var(--success)",
         "primary-foreground": "var(--primary-foreground)",
         secondary: "var(--secondary)",
         "secondary-foreground": "var(--secondary-foreground)",

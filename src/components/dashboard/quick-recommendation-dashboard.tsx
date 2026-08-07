@@ -66,6 +66,14 @@ type RecentSelection = QuickSelection & {
 
 const RECENT_STORAGE_KEY = "choiceflow-recent-selections";
 
+/** 첫 화면에서 곧바로 진입할 수 있는 대표 카테고리 */
+const POPULAR_PICKS: Array<{ label: string; categoryId: CategoryId }> = [
+  { label: "노트북·가전", categoryId: "appliance" },
+  { label: "선물", categoryId: "gift" },
+  { label: "오늘 뭐 먹지", categoryId: "food" },
+  { label: "옷·신발", categoryId: "fashion" },
+];
+
 const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
   food: Utensils,
   gift: Gift,
@@ -258,7 +266,7 @@ export function QuickRecommendationDashboard() {
           : "예산을 고르면 바로 추천을 시작해요.";
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-xl flex-col px-5 pb-20 pt-7">
+    <main className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[1120px] flex-col px-5 pb-20 pt-8 sm:px-8">
       {step > 1 && (
         <div className="mb-7">
           <p className="text-[12px] font-bold text-muted-foreground">
@@ -280,7 +288,7 @@ export function QuickRecommendationDashboard() {
         </div>
       )}
 
-      <header className="flex items-start justify-between gap-4">
+      <header className={cn("flex items-start justify-between gap-4", step === 1 && "sr-only")}>
         <div>
           <h1 className="text-balance text-[26px] font-black leading-tight tracking-[-0.03em] sm:text-[30px]">
             {heading}
@@ -304,73 +312,97 @@ export function QuickRecommendationDashboard() {
       <section className="mt-8" aria-live="polite">
         {step === 1 && (
           <>
+            {/* 히어로 — 첫 화면은 "무엇을 해주는 서비스인지"만 말한다. */}
+            <div className="pb-12 pt-6 text-center sm:pb-16 sm:pt-10">
+              <p className="mx-auto max-w-2xl text-balance text-[32px] font-black leading-[1.15] tracking-[-0.035em] sm:text-[46px]">
+                고민은 짧게,
+                <br className="sm:hidden" /> 선택은 확실하게.
+              </p>
+              <p className="mx-auto mt-4 max-w-lg text-pretty text-[15px] leading-relaxed text-muted-foreground sm:text-[17px]">
+                몇 가지만 알려주시면 수많은 상품 중 살 만한 것만 골라드릴게요.
+              </p>
+
+              <div className="mt-9">
+                <p className="text-[12px] font-bold text-muted-foreground">
+                  지금 가장 많이 고민하는 선택
+                </p>
+                <div className="mt-3 flex flex-wrap justify-center gap-2">
+                  {POPULAR_PICKS.map((pick) => (
+                    <button
+                      key={pick.label}
+                      type="button"
+                      onClick={() => {
+                        setCategoryId(pick.categoryId);
+                        setScenarioId(null);
+                        setPriorityId(null);
+                      }}
+                      className="rounded-full border border-border bg-card px-4 py-2 text-[14px] font-bold transition hover:border-primary hover:text-primary"
+                    >
+                      {pick.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <h2 className="mb-4 text-[20px] font-black tracking-tight sm:text-[24px]">
+              어떤 걸 고르고 있나요?
+            </h2>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              {CATEGORY_ORDER.map((id) => {
+                const Icon = CATEGORY_ICONS[id];
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setCategoryId(id);
+                      setScenarioId(null);
+                      setPriorityId(null);
+                    }}
+                    className="group flex min-h-[136px] flex-col justify-between rounded-2xl border border-border bg-card p-5 text-left transition hover:border-primary hover:shadow-[0_10px_28px_-14px_rgba(37,99,235,0.4)] sm:min-h-[152px]"
+                  >
+                    <span className="inline-flex size-11 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                      <Icon className="size-5" aria-hidden />
+                    </span>
+                    <span className="mt-4">
+                      <span className="block text-[17px] font-black tracking-tight sm:text-[18px]">
+                        {QUICK_CATEGORY_LABELS[id]}
+                      </span>
+                      <span className="mt-1 block text-[13px] leading-snug text-muted-foreground">
+                        {QUICK_CATEGORY_DESCRIPTION[id]}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* A/B 비교는 없애지 않고, 카테고리 아래 보조 진입으로 둔다. */}
             <a
               href="/compare"
-              className="mb-3 flex items-center justify-between gap-4 rounded-2xl bg-foreground p-5 text-background transition hover:opacity-90"
+              className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-primary-soft p-5 transition hover:border-primary"
             >
               <span className="min-w-0">
-                <span className="flex items-center gap-1.5 text-[11px] font-bold opacity-70">
+                <span className="flex items-center gap-1.5 text-[12px] font-bold text-primary">
                   <Scale className="size-3.5" />
-                  이미 후보가 정해졌다면
+                  후보가 이미 정해졌다면
                 </span>
-                <span className="mt-1.5 block text-[17px] font-black leading-snug">
-                  A랑 B 중에 못 고르겠어요
+                <span className="mt-1.5 block text-[16px] font-black tracking-tight">
+                  A와 B 중에 하나만 골라드려요
                 </span>
-                <span className="mt-1 block text-[12px] opacity-70">
-                  두 개만 적으면 왜 그걸 골라야 하는지까지 알려드려요
+                <span className="mt-1 block text-[13px] text-muted-foreground">
+                  두 개만 적으면 왜 그걸 골라야 하는지까지 알려드립니다
                 </span>
               </span>
-              <ArrowUpRight className="size-5 shrink-0" />
+              <ArrowUpRight className="size-5 shrink-0 text-primary" />
             </a>
-
-            <p className="mb-3 text-[13px] font-bold text-muted-foreground">
-              아직 뭘 살지 모르겠다면
-            </p>
           </>
         )}
 
-        {step === 1 && (
-          /* Bento: 첫 두 칸은 넓게, 나머지는 2열. 균일 반복을 깨서
-             템플릿 인상을 줄이고 사용 빈도가 높은 항목을 앞세운다. */
-          <div className="grid grid-cols-2 gap-2">
-            {CATEGORY_ORDER.map((id, index) => {
-              const Icon = CATEGORY_ICONS[id];
-              const wide = index < 2;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    setCategoryId(id);
-                    setScenarioId(null);
-                    setPriorityId(null);
-                  }}
-                  className={cn(
-                    "group flex flex-col justify-between rounded-2xl border border-border bg-card p-4 text-left transition",
-                    "hover:border-foreground/40",
-                    wide ? "col-span-2 min-h-[92px] sm:col-span-1" : "min-h-[112px]"
-                  )}
-                >
-                  <Icon
-                    className="size-5 text-muted-foreground transition-colors group-hover:text-foreground"
-                    aria-hidden
-                  />
-                  <span className="mt-3 min-w-0">
-                    <span className="block text-[15px] font-bold tracking-tight">
-                      {QUICK_CATEGORY_LABELS[id]}
-                    </span>
-                    <span className="mt-0.5 block text-[12px] leading-snug text-muted-foreground">
-                      {QUICK_CATEGORY_DESCRIPTION[id]}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
         {step === 2 && categoryId && (
-          <div className="grid gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {QUICK_SCENARIOS[categoryId].map((scenario) => (
               <ChoiceButton
                 key={scenario.id}
@@ -383,7 +415,7 @@ export function QuickRecommendationDashboard() {
         )}
 
         {step === 3 && categoryId && (
-          <div className="grid gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             {QUICK_PRIORITIES[categoryId].map((priority) => (
               <ChoiceButton
                 key={priority.id}
@@ -420,7 +452,7 @@ export function QuickRecommendationDashboard() {
               />
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {budgets.map((budget) => (
                 <ChoiceButton
                   key={budget.id}
@@ -478,7 +510,7 @@ export function QuickRecommendationDashboard() {
         </div>
       )}
 
-      {step === 1 && recentSelections.length > 0 && (
+      {step === 2 && recentSelections.length > 0 && (
         <section className="mt-10 border-t border-foreground/10 pt-7">
           <div className="flex items-end justify-between">
             <div>

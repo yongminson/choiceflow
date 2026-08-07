@@ -15,6 +15,7 @@ import {
   normalizeProductSearchKeyword,
 } from "@/lib/recommendation/recommendation-presentation";
 import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
+import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
 import type {
   AnalyzeApiResult,
   QuickRecommendation,
@@ -43,6 +44,7 @@ type Candidate = {
   selectionLabel?: string;
   evidence?: QuickRecommendation["evidence"];
   scores?: QuickRecommendation["scores"];
+  overall?: number;
 };
 
 type SelectionType = "best" | "value" | "reliable" | "premium";
@@ -575,13 +577,36 @@ async function generateCandidates(
   const segmentedFallbacks = segmentFallbackCandidates(categoryId, fallbacks);
 
   const prompt = `당신은 한국 소비자의 선택을 돕는 구매·생활 의사결정 전문가다.
-카테고리: ${QUICK_CATEGORY_LABELS[categoryId]}
+
+${
+  userWish
+    ? `[절대 제약 — 다른 모든 조건보다 우선한다]
+사용자가 직접 적은 요청: "${userWish}"
+
+이 요청을 지키는 것이 이 작업의 성패다. 아래 순서로 처리하라.
+1) 요청에서 "제외/빼고/말고/싫어/못 먹어/없이" 같은 부정 표현을 먼저 찾는다.
+   해당 대상은 후보에서 완전히 배제한다. 그 대상이 들어간 후보는 단 하나도 만들지 않는다.
+   예: "고기 제외" -> 삼겹살·닭갈비·곱창·스테이크 등 육류가 주재료인 후보 전면 금지.
+2) 요청에 담긴 맥락(직업, 장소, 동행, 용도, 시점)을 파악해 그에 맞는 후보를 만든다.
+   예: "AS기사" -> 온종일 이동·쪼그려 앉는 작업 -> 신축성, 무릎 내구성, 오염 세탁 용이가 핵심.
+       정장·수트 계열은 이 맥락에 맞지 않으므로 제외한다.
+   예: "신혼집" -> 이미 혼수로 갖춘 물건은 겹친다 -> 수건·디퓨저처럼 흔한 집들이 선물은 피한다.
+3) 4개 후보를 만든 뒤, 각 후보가 이 요청을 어기지 않는지 스스로 검토하고 어긋나면 교체한다.
+
+`
+    : ""
+}카테고리: ${QUICK_CATEGORY_LABELS[categoryId]}
 상황: ${scenarioLabel}
 최우선 조건: ${priorityLabel}
 예산: ${budgetLabel}${maxBudgetWon ? ` (${maxBudgetWon.toLocaleString("ko-KR")}원 이하)` : ""}
 정밀 조건: ${advancedContext || "추가 조건 없음"}
-${userWish ? `사용자가 직접 적은 요청(가장 중요, 반드시 반영): "${userWish}"` : ""}
 ${excludedNames.length > 0 ? `이미 추천한 후보(반드시 제외): ${excludedNames.join(", ")}` : ""}
+
+[뻔한 답 금지]
+검색만 해도 첫 화면에 나오는 정답은 이 서비스의 가치가 아니다.
+그 상황에 실제로 필요하지만 본인은 미처 떠올리지 못한 것을 최소 1개는 넣어라.
+선물이라면 실용성이 높지만 남들이 잘 안 고르는 품목, 현금성 상품권과 소품의 조합처럼
+받는 사람이 진짜 반기는 구성을 고려하라.
 
 아래 목적별로 정확히 4개 후보를 추천하라.
 - best: 전체 조건을 종합한 최종 선택
@@ -601,14 +626,18 @@ reason은 이 사용자의 상황(${scenarioLabel} · ${priorityLabel} 우선)�
 4개의 reason이 서로 다른 근거를 담게 하고 같은 문장을 반복하지 않는다.
 qualitySummary는 구매 전에 직접 확인해야 할 항목을 40자 내외로 쓴다.
 
+overall: 이 사용자의 조건 전체를 종합했을 때의 적합도를 0~100으로 매긴다.
+- 사용자의 요청과 상황에 얼마나 잘 맞는지를 하나의 숫자로 요약한 값이다.
+- 4개가 비슷하면 판단에 도움이 되지 않는다. 1등과 4등은 최소 15점 이상 벌린다.
+- best로 고른 후보가 가장 높아야 한다.
+
 scores: 아래 축으로 후보끼리 비교한 상대 점수를 0~100으로 매긴다.
 축: ${scoreAxes(categoryId).join(", ")}
 - 절대 수치가 아니라 이 4개 후보 사이의 상대 비교다.
-- 같은 축에서 4개가 모두 비슷한 값이면 의미가 없다. 실제 차이를 반영해 벌린다.
 - 가격 부담 축은 "부담이 적을수록 높은 점수"다.
 
 JSON 배열만 응답:
-[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","scores":[{"label":"축 이름","value":0}]}]`;
+[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}]}]`;
 
   try {
     const generated = await generateJson(prompt);
@@ -662,6 +691,12 @@ JSON 배열만 응답:
           categoryId,
           clean(record.reason, fallback.reason)
         ),
+        overall: (() => {
+          const raw = Number(record.overall);
+          return Number.isFinite(raw)
+            ? Math.max(0, Math.min(100, Math.round(raw)))
+            : undefined;
+        })(),
         scores: readScores(record.scores, categoryId),
       };
     });
@@ -728,21 +763,28 @@ async function enrichProductPrices(
         candidate.name
       );
       try {
-        const product = await findNaverLowestPrice(
-          searchKeyword,
-          maxBudgetWon
-        );
-        const price = Number(product?.lprice);
+        // 쿠팡 상품 검색은 썸네일·실가격과 함께 제휴 추적이 포함된 상품 상세
+        // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
+        const product = await searchCoupangProduct(searchKeyword, maxBudgetWon);
+        if (product) {
+          return {
+            rank: index + 1,
+            ...candidate,
+            searchKeyword,
+            price: product.productPrice,
+            priceLabel: product.isRocket ? "쿠팡 · 로켓배송" : "쿠팡 판매가",
+            imageUrl: product.productImage || undefined,
+            productName: product.productName,
+            isRocket: product.isRocket,
+            sourceUrl: product.productUrl,
+            sourceLabel: "쿠팡에서 이 상품 보기",
+            name: candidate.name,
+          } satisfies QuickRecommendation;
+        }
         return {
           rank: index + 1,
           ...candidate,
           searchKeyword,
-          price: Number.isFinite(price) && price > 0 ? price : undefined,
-          priceLabel:
-            Number.isFinite(price) && price > 0
-              ? "네이버 조회 참고가 · 쿠팡 가격은 이동 후 확인"
-              : undefined,
-          seller: clean(product?.mallName, "", 80) || undefined,
           sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
           sourceLabel: "쿠팡에서 이 상품 검색",
           name: candidate.name,
@@ -1084,6 +1126,45 @@ async function findGooglePlaces(
   });
 }
 
+/** AI가 만든 메뉴 후보를 지도 검색 결과 카드로 변환한다. */
+function buildAiFoodRecommendations(
+  candidates: Candidate[],
+  priorityLabel: string,
+  budgetLabel: string,
+  userWish: string
+): QuickRecommendation[] {
+  return candidates.map((item, index) => ({
+    rank: index + 1,
+    ...item,
+    evidence: [
+      {
+        label: "이 메뉴를 고른 이유",
+        text: item.reason,
+        kind: "guide" as const,
+      },
+      ...(userWish
+        ? [
+            {
+              label: "요청 반영",
+              text: `"${userWish}" 조건에 맞춰 고른 후보예요.`,
+              kind: "guide" as const,
+            },
+          ]
+        : []),
+      {
+        label: "확인 필요",
+        text: `${priorityLabel} 우선 · ${budgetLabel} 기준입니다. 실제 매장·영업 상태는 지도에서 확인하세요.`,
+        kind: "caution" as const,
+      },
+    ],
+    sourceUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      item.searchKeyword
+    )}`,
+    sourceLabel: "이 메뉴 주변에서 찾기",
+    dataStatus: "category-guide" as const,
+  }));
+}
+
 function buildFallbackFoodRecommendations(
   candidates: Candidate[],
   priorityLabel: string,
@@ -1322,14 +1403,37 @@ export async function POST(request: Request) {
             weather
           ).catch(() => undefined)
         : undefined;
+      // 주변 매장 데이터가 없으면 정적 목록으로 떨어지던 자리다.
+      // 그 경로에서는 사용자가 적은 요청("고기 제외" 등)이 전혀 반영되지 않아
+      // 정반대 결과가 나갔다. AI로 메뉴 후보를 먼저 만든다.
+      const menuCandidates = places
+        ? null
+        : await generateCandidates(
+            rawCategory,
+            scenario.label,
+            priority.label,
+            budget.label,
+            budget.maxWon,
+            advancedContext,
+            excludedNames,
+            userWish,
+            fallbacks
+          );
       const recommendations = (
         places ||
-        buildFallbackFoodRecommendations(
-          fallbacks,
-          priority.label,
-          budget.label,
-          advancedContext
-        )
+        (menuCandidates?.live
+          ? buildAiFoodRecommendations(
+              menuCandidates.candidates,
+              priority.label,
+              budget.label,
+              userWish
+            )
+          : buildFallbackFoodRecommendations(
+              fallbacks,
+              priority.label,
+              budget.label,
+              advancedContext
+            ))
       ).slice(0, 4);
       const result = toAnalyzeResult(
         rawCategory,
@@ -1344,7 +1448,7 @@ export async function POST(request: Request) {
         userWish,
         recommendations,
         {
-          ai: "fallback",
+          ai: menuCandidates?.live ? "live" : "fallback",
           price: "unavailable",
           places: places ? "live" : "unavailable",
           weather: weather ? "live" : "unavailable",

@@ -40,22 +40,28 @@ type LocationPayload = {
   accuracy?: number;
 };
 
-const ROLE_STYLES: Record<
+/** 결과에서 또 고민하지 않도록 1등을 확실히 구분한다. */
+const ROLE_BADGE: Record<
   NonNullable<QuickRecommendation["selectionType"]>,
-  string
+  { label: string; className: string }
 > = {
-  best: "border-[#ae0000]/25 bg-[#ae0000]/[0.06] text-[#ae0000] dark:text-red-400",
-  value: "border-emerald-600/25 bg-emerald-600/[0.06] text-emerald-700 dark:text-emerald-400",
-  reliable: "border-sky-600/25 bg-sky-600/[0.06] text-sky-700 dark:text-sky-400",
-  premium: "border-neutral-500/25 bg-neutral-500/[0.06] text-neutral-700 dark:text-neutral-300",
+  best: {
+    label: "가장 추천",
+    className: "bg-primary text-primary-foreground",
+  },
+  value: {
+    label: "가성비 선택",
+    className: "bg-success/10 text-success",
+  },
+  reliable: {
+    label: "검증 우선",
+    className: "bg-muted text-muted-foreground",
+  },
+  premium: {
+    label: "한 단계 위",
+    className: "bg-muted text-muted-foreground",
+  },
 };
-
-const FALLBACK_ROLE_LABELS = [
-  "최종 선택",
-  "최저가·가성비",
-  "검증 우선",
-  "프리미엄",
-];
 
 /** 음식 상황별로 쿠팡에서 실제로 잘 잡히는 상품 검색어 */
 const FOOD_RELATED_KEYWORDS: Record<string, string> = {
@@ -68,73 +74,93 @@ const FOOD_RELATED_KEYWORDS: Record<string, string> = {
 };
 
 /**
- * 후보 간 상대 비교 그래프.
- * 절대 수치가 아니라 "이 4개 중에서의 상대 평가"임을 반드시 함께 표시한다.
- * 근거 없는 숫자를 사실처럼 보여주면 신뢰가 무너진다.
+ * 종합 적합도 그래프.
+ *
+ * 축을 나눠 그리면 축마다 1등이 달라져 "그래서 뭘 고르라는 건지" 혼란만 커진다.
+ * 결론을 하나로 보여주는 것이 이 서비스의 역할이므로 종합 점수 하나로 세우고,
+ * 세부 축은 각 후보 카드 안에서 보조로만 읽히게 한다.
  */
-function ScoreChart({
+function OverallChart({
   items,
   accent,
 }: {
   items: QuickRecommendation[];
   accent: string;
 }) {
-  const axes = items[0]?.scores?.map((score) => score.label) ?? [];
-  if (axes.length < 2) return null;
-  const scored = items.filter((item) => item.scores?.length);
+  const scored = items.filter((item) => typeof item.overall === "number");
   if (scored.length < 2) return null;
+  const ranked = [...scored].sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0));
+  const top = ranked[0]?.overall ?? 100;
 
   return (
-    <section className="mt-6 rounded-2xl border border-foreground/10 p-5">
+    <section className="mt-7">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-[15px] font-black">후보 비교</h2>
+        <h2 className="text-[15px] font-bold tracking-tight">종합 적합도</h2>
         <span className="text-[11px] text-muted-foreground">
-          AI 상대 평가 · 절대 수치 아님
+          내 조건 기준 · AI 상대 평가
         </span>
       </div>
 
-      <div className="mt-4 space-y-5">
-        {axes.map((axis) => {
-          const values = scored.map((item) => ({
-            name: item.name,
-            value: item.scores?.find((s) => s.label === axis)?.value ?? 0,
-          }));
-          const best = Math.max(...values.map((v) => v.value));
+      <div className="mt-4 space-y-3.5">
+        {ranked.map((item, index) => {
+          const value = item.overall ?? 0;
+          const isTop = index === 0;
           return (
-            <div key={axis}>
-              <p className="text-[12px] font-bold text-muted-foreground">{axis}</p>
-              <div className="mt-2 space-y-1.5">
-                {values.map((entry) => {
-                  const isBest = entry.value === best && best > 0;
-                  return (
-                    <div key={entry.name} className="flex items-center gap-2">
-                      <span className="w-[86px] shrink-0 truncate text-[11px] font-medium sm:w-[110px]">
-                        {entry.name}
-                      </span>
-                      <span className="h-2 flex-1 overflow-hidden rounded-full bg-foreground/[0.07]">
-                        <span className={cn(
-                            "block h-full rounded-full transition-[width] duration-700",
-                            isBest ? accent : "bg-foreground/25"
-                          )}
-                          style={{ width: `${Math.max(4, entry.value)}%` }}
-                        />
-                      </span>
-                      <span className={cn(
-                          "w-7 shrink-0 text-right text-[11px] font-bold tabular-nums",
-                          isBest ? "text-foreground" : "text-muted-foreground"
-                        )}
-                      >
-                        {entry.value}
-                      </span>
-                    </div>
-                  );
-                })}
+            <div key={`${item.name}-overall`}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span
+                  className={cn(
+                    "min-w-0 truncate text-[13px]",
+                    isTop ? "font-bold" : "text-muted-foreground"
+                  )}
+                >
+                  {isTop && (
+                    <span className="mr-1.5 text-[10px] font-black tracking-wide text-primary">
+                      1위
+                    </span>
+                  )}
+                  {item.name}
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 tabular-nums",
+                    isTop
+                      ? "text-[15px] font-black"
+                      : "text-[13px] font-bold text-muted-foreground"
+                  )}
+                >
+                  {value}
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-foreground/[0.06]">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-[width] duration-700 ease-out",
+                    isTop ? accent : "bg-foreground/20"
+                  )}
+                  style={{ width: `${Math.max(6, (value / (top || 100)) * 100)}%` }}
+                />
               </div>
             </div>
           );
         })}
       </div>
     </section>
+  );
+}
+
+/** 카드 안 세부 축 — 종합 점수를 보조 설명하는 역할만 한다. */
+function AxisBreakdown({ scores }: { scores: QuickRecommendation["scores"] }) {
+  if (!scores?.length) return null;
+  return (
+    <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+      {scores.map((score) => (
+        <div key={score.label} className="flex items-center gap-1.5">
+          <dt className="text-[11px] text-muted-foreground">{score.label}</dt>
+          <dd className="text-[11px] font-bold tabular-nums">{score.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -209,7 +235,6 @@ export function QuickRecommendationResult({
 }) {
   const recommendations = (data.quickRecommendations || []).slice(0, 4);
   const winner = recommendations[0];
-  const alternative = recommendations[1];
   const isFood = data.categoryId === "food";
   // 라벨과 실제 링크가 어긋나면 신뢰가 무너진다. 카테고리별로 나눠 쓴다.
   const isCoupang =
@@ -330,7 +355,7 @@ export function QuickRecommendationResult({
   };
 
   return (
-    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-2xl px-4 pb-16 pt-6 sm:px-6">
+    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[1120px] px-5 pb-16 pt-8 sm:px-8 sm:px-6">
       <header>
         <p className="text-xs font-bold text-muted-foreground">
           {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
@@ -350,6 +375,17 @@ export function QuickRecommendationResult({
             <Sparkles className="size-3.5 shrink-0" />
             <span className="truncate">요청 반영: {data.quickUserWish}</span>
           </p>
+        )}
+
+        {winner?.imageUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={winner.imageUrl}
+            alt=""
+            width={132}
+            height={132}
+            className="mt-5 size-[132px] rounded-xl border border-border object-cover"
+          />
         )}
 
         {winner?.sourceUrl && (
@@ -399,7 +435,7 @@ export function QuickRecommendationResult({
           : ""}
       </p>
 
-      <ScoreChart
+      <OverallChart
         items={recommendations}
         accent={
           isFood
@@ -410,55 +446,88 @@ export function QuickRecommendationResult({
         }
       />
 
-      <h2 className="mb-3 mt-7 text-lg font-black">
+      <h2 className="mb-3 mt-8 text-[20px] font-black tracking-tight">
         추천 후보 {recommendations.length}개
       </h2>
 
-      <div className="space-y-3">
+      {/*
+        공정위 추천·보증 심사지침은 경제적 이해관계를 추천 내용과 가까운
+        위치에 표시하도록 한다. 푸터에만 두지 않고 상품 바로 위에 둔다.
+        쿠팡 링크가 실제로 있는 화면에서만 노출한다.
+      */}
+      {(isCoupang || (isFood && relatedKeyword)) && (
+        <p className="mb-3 rounded-lg bg-muted px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
+          이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를
+          제공받습니다.
+        </p>
+      )}
+
+      <div className="grid gap-3 lg:grid-cols-3">
         {recommendations.map((item, index) => {
           const priceLevel = formatPriceLevel(item.priceLevel);
-          const roleLabel =
-            item.selectionLabel || FALLBACK_ROLE_LABELS[index] || "추천";
-          const roleStyle = item.selectionType
-            ? ROLE_STYLES[item.selectionType]
-            : ROLE_STYLES.best;
+          const badge = item.selectionType
+            ? ROLE_BADGE[item.selectionType]
+            : ROLE_BADGE.best;
           return (
             <article
               key={`${item.selectionType || index}-${item.name}`} className={cn(
-                "rounded-xl border bg-white p-4 sm:p-5",
+                "flex flex-col rounded-2xl border bg-card p-4 sm:p-5",
                 index === 0
-                  ? "border-[#ae0000]/30"
-                  : "border-foreground/10"
+                  ? "border-primary ring-1 ring-primary/20"
+                  : "border-border"
               )}
             >
-              <span className={cn(
-                  "inline-flex rounded border px-2 py-0.5 text-[11px] font-bold",
-                  roleStyle
+              <span
+                className={cn(
+                  "inline-flex w-fit rounded-md px-2.5 py-1 text-[11px] font-black",
+                  badge.className
                 )}
               >
-                {roleLabel}
+                {index === 0 ? "🏆 " : ""}
+                {badge.label}
               </span>
-              <h3 className="mt-2 break-keep text-[19px] font-black leading-snug">
-                {item.name}
-              </h3>
-
-              {(typeof item.price === "number" || priceLevel) && (
-                <div className="mt-3 rounded-lg bg-muted p-3">
-                  <p className="text-[11px] font-bold text-muted-foreground">
-                    {item.priceLabel || "가격대"}
-                  </p>
-                  <p className="mt-0.5 text-xl font-black">
-                    {typeof item.price === "number"
-                      ? `${formatPrice(item.price)}원`
-                      : priceLevel}
-                  </p>
-                  {item.seller && (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      판매처 {item.seller}
+              <div className="mt-3 flex gap-3 lg:flex-col">
+                {item.imageUrl && (
+                  /* 쿠팡 상품 썸네일. 이미지 최적화가 꺼져 있어 img 를 쓴다. */
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    width={84}
+                    height={84}
+                    loading="lazy"
+                    decoding="async"
+                    className="size-[84px] shrink-0 rounded-xl border border-border object-cover lg:h-[168px] lg:w-full"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <h3 className="break-keep text-[18px] font-black leading-snug">
+                    {item.name}
+                  </h3>
+                  {typeof item.price === "number" ? (
+                    <>
+                      <p className="mt-1.5 text-[20px] font-black tabular-nums">
+                        {formatPrice(item.price)}
+                        <span className="text-[14px] font-bold">원</span>
+                      </p>
+                      {item.isRocket && (
+                        <span className="mt-1 inline-block rounded bg-[#ae0000]/[0.08] px-1.5 py-0.5 text-[10px] font-black text-[#ae0000] dark:text-red-400">
+                          로켓배송
+                        </span>
+                      )}
+                    </>
+                  ) : priceLevel ? (
+                    <p className="mt-1.5 text-[13px] font-bold text-muted-foreground">
+                      가격대 {priceLevel}
+                    </p>
+                  ) : null}
+                  {item.productName && item.productName !== item.name && (
+                    <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">
+                      {item.productName}
                     </p>
                   )}
                 </div>
-              )}
+              </div>
 
               {(typeof item.rating === "number" ||
                 typeof item.reviewCount === "number") && (
@@ -484,9 +553,11 @@ export function QuickRecommendationResult({
                 </p>
               )}
 
-              <p className="mt-3 line-clamp-2 text-[14px] leading-relaxed text-muted-foreground">
+              <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
                 {item.reason}
               </p>
+
+              <AxisBreakdown scores={item.scores} />
 
               <details className="group mt-3">
                 <summary className="cursor-pointer list-none text-[13px] font-bold text-muted-foreground underline underline-offset-4">
@@ -645,16 +716,8 @@ export function QuickRecommendationResult({
         </section>
       )}
 
-      {isCoupang && (
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
-          쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
-        </p>
-      )}
-      {isFood && relatedKeyword && (
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
-          쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
-        </p>
-      )}
+
+
 
       <section className="mt-8 overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.08] to-sky-500/[0.06] p-5 sm:p-6">
         {!showAdvanced ? (

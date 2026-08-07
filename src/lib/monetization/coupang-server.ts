@@ -289,3 +289,150 @@ export async function createCoupangDeepLink(
   });
   return shortenUrl;
 }
+
+export const COUPANG_SEARCH_PATH =
+  "/v2/providers/affiliate_open_api/apis/openapi/products/search";
+
+export type CoupangProduct = {
+  productName: string;
+  productPrice: number;
+  productImage: string;
+  /** 이미 제휴 추적이 포함된 상품 상세 링크 */
+  productUrl: string;
+  isRocket: boolean;
+  isFreeShipping: boolean;
+};
+
+type CoupangSearchResponse = {
+  rCode?: string;
+  rMessage?: string;
+  data?: {
+    productData?: Array<{
+      productName?: string;
+      productPrice?: number;
+      productImage?: string;
+      productUrl?: string;
+      isRocket?: boolean;
+      isFreeShipping?: boolean;
+    }>;
+  };
+};
+
+const productCache = new Map<
+  string,
+  { product: CoupangProduct | null; expiresAt: number }
+>();
+const PRODUCT_CACHE_TTL_MS = 3 * 60 * 60 * 1000;
+const PRODUCT_CACHE_MAX = 500;
+
+/**
+ * 검색어로 대표 상품 1개를 찾는다.
+ *
+ * 검색 페이지 딥링크보다 상품 상세 링크가 전환·추적 모두 유리하다.
+ * 응답의 productUrl 에는 제휴 추적 정보가 이미 포함되어 있다.
+ * 실패하면 null 을 돌려주고 호출부가 기존 딥링크로 넘어가게 한다.
+ */
+export async function searchCoupangProduct(
+  keyword: string,
+  maxPriceWon?: number
+): Promise<CoupangProduct | null> {
+  const normalizedKeyword = normalizeCoupangKeyword(keyword);
+  if (!normalizedKeyword) return null;
+
+  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}`;
+  const cached = productCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.product;
+  if (productCache.size > PRODUCT_CACHE_MAX) {
+    const now = Date.now();
+    productCache.forEach((entry, key) => {
+      if (entry.expiresAt <= now) productCache.delete(key);
+    });
+  }
+
+  let config: CoupangConfig;
+  try {
+    config = getCoupangConfig();
+  } catch {
+    return null;
+  }
+
+  const query = `keyword=${encodeURIComponent(normalizedKeyword)}&limit=10`;
+  const authorization = createCoupangAuthorization({
+    method: "GET",
+    path: COUPANG_SEARCH_PATH,
+    query,
+    accessKey: config.accessKey,
+    secretKey: config.secretKey,
+  });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      `${COUPANG_API_HOST}${COUPANG_SEARCH_PATH}?${query}`,
+      {
+        method: "GET",
+        cache: "no-store",
+        headers: { Authorization: authorization },
+        signal: controller.signal,
+      }
+    );
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.error("[coupang] Product search HTTP error", {
+        status: response.status,
+        body: detail.slice(0, 200),
+      });
+      return null;
+    }
+    const payload = (await response.json()) as CoupangSearchResponse;
+    if (payload.rCode !== "0") {
+      console.error("[coupang] Product search rejected", {
+        rCode: payload.rCode,
+        rMessage: payload.rMessage,
+      });
+      return null;
+    }
+
+    const items = payload.data?.productData ?? [];
+    const picked = items.find((item) => {
+      if (!item.productUrl || !item.productName) return false;
+      if (!isAllowedCoupangRedirectUrl(item.productUrl)) return false;
+      const price = Number(item.productPrice);
+      if (!Number.isFinite(price) || price <= 0) return false;
+      return !maxPriceWon || price <= maxPriceWon;
+    });
+    // 예산을 넘더라도 아예 없는 것보다는 대표 상품 하나를 보여준다.
+    const chosen =
+      picked ??
+      items.find(
+        (item) =>
+          item.productUrl &&
+          item.productName &&
+          isAllowedCoupangRedirectUrl(item.productUrl)
+      );
+    if (!chosen) {
+      productCache.set(cacheKey, { product: null, expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS });
+      return null;
+    }
+
+    const product: CoupangProduct = {
+      productName: String(chosen.productName).slice(0, 120),
+      productPrice: Number(chosen.productPrice) || 0,
+      productImage: String(chosen.productImage ?? ""),
+      productUrl: String(chosen.productUrl),
+      isRocket: Boolean(chosen.isRocket),
+      isFreeShipping: Boolean(chosen.isFreeShipping),
+    };
+    productCache.set(cacheKey, {
+      product,
+      expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS,
+    });
+    return product;
+  } catch (error) {
+    console.error("[coupang] Product search failed", error);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
