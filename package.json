@@ -7,10 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation",
+    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map",
     "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts",
     "test:quick": "node --experimental-strip-types --test tests/quick-options.test.mts",
-    "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts"
+    "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts",
+    "test:map": "node --experimental-strip-types --test tests/map-keyword.test.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",

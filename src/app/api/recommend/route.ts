@@ -15,6 +15,7 @@ import {
   normalizeProductSearchKeyword,
 } from "@/lib/recommendation/recommendation-presentation";
 import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
+import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
 import type {
   AnalyzeApiResult,
@@ -551,6 +552,15 @@ function keywordRules(categoryId: CategoryId): string {
 - 널리 팔리는 브랜드가 명확하면 브랜드를 앞에 붙여도 된다. 확실하지 않으면 붙이지 않는다.
 - 광고 문구(최저가·정품·무료배송), 옵션 나열, 쉼표 연결은 금지한다.
 - name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.`;
+  }
+  if (categoryId === "food") {
+    return `searchKeyword는 지도 앱에서 주변 가게가 뜨는 "업종·메뉴 이름"만 쓴다.
+- 2~6자 사이의 짧은 메뉴명 또는 업종명. 예: "삼겹살", "국밥", "파스타", "이자카야"
+- 상품처럼 쓰면 지도에 상호가 하나도 안 뜬다. 아래는 모두 금지한다.
+  수량/인분 표기("1인용", "2인분"), 가공식품 표현("밀키트", "냉동", "간편식"),
+  포장 단위("500g", "세트"), 브랜드명, 수식어("맛있는", "유명한").
+- name 에는 사용자에게 보여줄 이름을 자유롭게 쓰되, searchKeyword 는 위 규칙을 지킨다.
+  예: name "숯불 삼겹살 전문점" / searchKeyword "삼겹살"`;
   }
   return `searchKeyword는 네이버에서 조건을 확인할 수 있는 구체적인 검색어로 8~24자로 쓴다.
 광고 문구와 쉼표 연결은 금지한다.`;
@@ -1091,7 +1101,7 @@ async function findGooglePlaces(
  * 좌표가 없으면 지도는 IP 기준 임의 지역을 보여줘 "내 주변"이 되지 않는다.
  */
 function buildNearbyMapUrl(keyword: string, location?: RequestLocation): string {
-  const query = encodeURIComponent(keyword);
+  const query = encodeURIComponent(toMapKeyword(keyword));
   if (!location) {
     return `https://www.google.com/maps/search/?api=1&query=${query}`;
   }
