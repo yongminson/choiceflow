@@ -56,13 +56,6 @@ type ValidAdvancedAnswer = {
   optionLabel: string;
 };
 
-type NaverShopItem = {
-  title?: string;
-  link?: string;
-  lprice?: string;
-  mallName?: string;
-};
-
 type GooglePlace = {
   displayName?: { text?: string };
   formattedAddress?: string;
@@ -719,39 +712,6 @@ JSON 배열만 응답:
   }
 }
 
-async function findNaverLowestPrice(
-  query: string,
-  maxBudgetWon?: number
-): Promise<NaverShopItem | undefined> {
-  const clientId = process.env.NAVER_CLIENT_ID?.trim();
-  const clientSecret = process.env.NAVER_CLIENT_SECRET?.trim();
-  if (!clientId || !clientSecret) return undefined;
-
-  const url = new URL("https://openapi.naver.com/v1/search/shop.json");
-  url.searchParams.set("query", query);
-  url.searchParams.set("display", "10");
-  url.searchParams.set("start", "1");
-  url.searchParams.set("sort", "asc");
-  url.searchParams.set("exclude", "used:rental:cbshop");
-
-  const response = await fetch(url, {
-    headers: {
-      "X-Naver-Client-Id": clientId,
-      "X-Naver-Client-Secret": clientSecret,
-    },
-    cache: "no-store",
-    // NAVER 쇼핑검색 API는 2026-07-31 종료됐다. 키가 남아 있어도 실패하므로
-    // 응답 지연을 만들지 않도록 타임아웃을 짧게 잡는다.
-    signal: AbortSignal.timeout(4000),
-  });
-  if (!response.ok) return undefined;
-  const payload = (await response.json()) as { items?: NaverShopItem[] };
-  return payload.items?.find((item) => {
-    const price = Number(item.lprice);
-    return price > 0 && (!maxBudgetWon || price <= maxBudgetWon);
-  });
-}
-
 async function enrichProductPrices(
   candidates: Candidate[],
   maxBudgetWon?: number
@@ -1126,12 +1086,28 @@ async function findGooglePlaces(
   });
 }
 
+/**
+ * 메뉴 이름으로 지도를 열 때 사용자의 현재 위치를 중심으로 잡는다.
+ * 좌표가 없으면 지도는 IP 기준 임의 지역을 보여줘 "내 주변"이 되지 않는다.
+ */
+function buildNearbyMapUrl(keyword: string, location?: RequestLocation): string {
+  const query = encodeURIComponent(keyword);
+  if (!location) {
+    return `https://www.google.com/maps/search/?api=1&query=${query}`;
+  }
+  const lat = location.latitude.toFixed(6);
+  const lng = location.longitude.toFixed(6);
+  // /@lat,lng,zoom 형식은 지도 중심을 그 좌표로 고정한다.
+  return `https://www.google.com/maps/search/${query}/@${lat},${lng},15z`;
+}
+
 /** AI가 만든 메뉴 후보를 지도 검색 결과 카드로 변환한다. */
 function buildAiFoodRecommendations(
   candidates: Candidate[],
   priorityLabel: string,
   budgetLabel: string,
-  userWish: string
+  userWish: string,
+  location?: RequestLocation
 ): QuickRecommendation[] {
   return candidates.map((item, index) => ({
     rank: index + 1,
@@ -1157,10 +1133,8 @@ function buildAiFoodRecommendations(
         kind: "caution" as const,
       },
     ],
-    sourceUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-      item.searchKeyword
-    )}`,
-    sourceLabel: "이 메뉴 주변에서 찾기",
+    sourceUrl: buildNearbyMapUrl(item.searchKeyword, location),
+    sourceLabel: location ? "내 주변에서 이 메뉴 찾기" : "이 메뉴 지도에서 찾기",
     dataStatus: "category-guide" as const,
   }));
 }
@@ -1169,7 +1143,8 @@ function buildFallbackFoodRecommendations(
   candidates: Candidate[],
   priorityLabel: string,
   budgetLabel: string,
-  advancedContext = ""
+  advancedContext = "",
+  location?: RequestLocation
 ): QuickRecommendation[] {
   return segmentFallbackCandidates("food", candidates).map((item, index) => ({
     rank: index + 1,
@@ -1187,10 +1162,8 @@ function buildFallbackFoodRecommendations(
         kind: "caution" as const,
       },
     ],
-    sourceUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-      item.searchKeyword
-    )}`,
-    sourceLabel: "Google 지도에서 이 메뉴 주변 검색",
+    sourceUrl: buildNearbyMapUrl(item.searchKeyword, location),
+    sourceLabel: location ? "내 주변에서 이 메뉴 찾기" : "지도에서 이 메뉴 검색",
     dataStatus: "category-guide" as const,
   }));
 }
@@ -1426,13 +1399,15 @@ export async function POST(request: Request) {
               menuCandidates.candidates,
               priority.label,
               budget.label,
-              userWish
+              userWish,
+              location
             )
           : buildFallbackFoodRecommendations(
               fallbacks,
               priority.label,
               budget.label,
-              advancedContext
+              advancedContext,
+              location
             ))
       ).slice(0, 4);
       const result = toAnalyzeResult(
@@ -1527,7 +1502,8 @@ export async function POST(request: Request) {
             fallbacks,
             priority.label,
             budget.label,
-            advancedContext
+            advancedContext,
+            location
           )
         : buildFallbackNonFoodRecommendations(rawCategory, fallbacks)
     ).slice(0, 4);
