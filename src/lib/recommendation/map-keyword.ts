@@ -12,10 +12,17 @@ export function toMapKeyword(value: string): string {
       /(밀키트|간편식|냉동|즉석|가정간편식|HMR|세트|선물세트|포장|배달|택배|정품|무료배송)/g,
       " "
     )
+    // 지도 검색을 방해하는 수식어. 남으면 상호가 하나도 안 잡힌다.
+    .replace(
+      /(미니|대형|초대형|프리미엄|고급|저렴한|맛있는|유명한|인기|추천|특제|수제|매운|얼큰한|담백한|따뜻한|시원한|한상|한 상)/g,
+      " "
+    )
     .replace(/\s+/g, " ")
     .trim();
-  const base = stripped || value;
-  // 지도 검색은 단어 2개를 넘기면 결과가 급격히 줄어든다.
-  return base.split(" ").slice(0, 2).join(" ").slice(0, 20);
-}
 
+  const words = (stripped || value).split(" ").filter(Boolean);
+  if (words.length === 0) return value.slice(0, 20);
+  // 지도 검색은 단어가 늘어날수록 결과가 급격히 줄어든다.
+  // 업종·메뉴는 보통 마지막 단어에 온다("미니 화로 어묵탕" -> "어묵탕").
+  return words[words.length - 1].slice(0, 20);
+}

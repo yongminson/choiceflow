@@ -46,6 +46,8 @@ type Candidate = {
   evidence?: QuickRecommendation["evidence"];
   scores?: QuickRecommendation["scores"];
   overall?: number;
+  /** 음식 전용 — 지도에서 주변 가게가 뜨는 짧은 업종·메뉴명 */
+  mapKeyword?: string;
 };
 
 type SelectionType = "best" | "value" | "reliable" | "premium";
@@ -554,13 +556,16 @@ function keywordRules(categoryId: CategoryId): string {
 - name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.`;
   }
   if (categoryId === "food") {
-    return `searchKeyword는 지도 앱에서 주변 가게가 뜨는 "업종·메뉴 이름"만 쓴다.
+    return `mapKeyword 는 지도 앱에서 주변 가게가 뜨는 "업종·메뉴 이름" 하나만 쓴다.
 - 2~6자 사이의 짧은 메뉴명 또는 업종명. 예: "삼겹살", "국밥", "파스타", "이자카야"
 - 상품처럼 쓰면 지도에 상호가 하나도 안 뜬다. 아래는 모두 금지한다.
   수량/인분 표기("1인용", "2인분"), 가공식품 표현("밀키트", "냉동", "간편식"),
   포장 단위("500g", "세트"), 브랜드명, 수식어("맛있는", "유명한").
-- name 에는 사용자에게 보여줄 이름을 자유롭게 쓰되, searchKeyword 는 위 규칙을 지킨다.
-  예: name "숯불 삼겹살 전문점" / searchKeyword "삼겹살"`;
+- 단어 하나가 원칙이다. 두 단어를 넘기면 지도 결과가 거의 사라진다.
+- name 과 searchKeyword 는 자유롭게 쓰되 mapKeyword 만 이 규칙을 지킨다.
+  예) name "미니 화로 어묵탕" / mapKeyword "어묵탕"
+      name "숯불 삼겹살 한 상" / mapKeyword "삼겹살"
+      name "따뜻한 국물 우동"   / mapKeyword "우동"`;
   }
   return `searchKeyword는 네이버에서 조건을 확인할 수 있는 구체적인 검색어로 8~24자로 쓴다.
 광고 문구와 쉼표 연결은 금지한다.`;
@@ -640,7 +645,9 @@ scores: 아래 축으로 후보끼리 비교한 상대 점수를 0~100으로 매
 - 가격 부담 축은 "부담이 적을수록 높은 점수"다.
 
 JSON 배열만 응답:
-[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}]}]`;
+[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}]${
+    categoryId === "food" ? ',"mapKeyword":""' : ""
+  }}]`;
 
   try {
     const generated = await generateJson(prompt);
@@ -701,6 +708,10 @@ JSON 배열만 응답:
             : undefined;
         })(),
         scores: readScores(record.scores, categoryId),
+        mapKeyword:
+          categoryId === "food"
+            ? clean(record.mapKeyword, "", 20) || undefined
+            : undefined,
       };
     });
     const uniqueRoles = new Set(
@@ -1143,7 +1154,7 @@ function buildAiFoodRecommendations(
         kind: "caution" as const,
       },
     ],
-    sourceUrl: buildNearbyMapUrl(item.searchKeyword, location),
+    sourceUrl: buildNearbyMapUrl(item.mapKeyword || item.searchKeyword, location),
     sourceLabel: location ? "내 주변에서 이 메뉴 찾기" : "이 메뉴 지도에서 찾기",
     dataStatus: "category-guide" as const,
   }));
