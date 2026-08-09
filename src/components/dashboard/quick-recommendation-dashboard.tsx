@@ -7,11 +7,14 @@ import {
   Gift,
   HousePlug,
   KeyRound,
+  ListChecks,
   LocateFixed,
   Plane,
   RefreshCw,
   Scale,
   Shirt,
+  Tag,
+  Trophy,
   Utensils,
   type LucideIcon,
 } from "lucide-react";
@@ -72,6 +75,31 @@ const POPULAR_PICKS: Array<{ label: string; categoryId: CategoryId }> = [
   { label: "선물", categoryId: "gift" },
   { label: "오늘 뭐 먹지", categoryId: "food" },
   { label: "옷·신발", categoryId: "fashion" },
+];
+
+/** 결과 화면에서 실제로 제공하는 것만 적는다. 못 지킬 약속은 넣지 않는다. */
+const VALUE_POINTS: Array<{ icon: LucideIcon; title: string; body: string }> = [
+  {
+    icon: Trophy,
+    title: "1등을 하나만 지목",
+    body: "4개를 나열하고 끝내지 않고 종합 적합도로 순위를 세워 하나를 고릅니다.",
+  },
+  {
+    icon: ListChecks,
+    title: "조건별 충족 여부",
+    body: "예산·용도·빼고 싶은 것까지 항목으로 끊어 지켰는지 아닌지 표시합니다.",
+  },
+  {
+    icon: Tag,
+    title: "지금 살 수 있는 가격",
+    body: "쿠팡에 실제로 등록된 상품의 가격·썸네일을 붙여 바로 확인할 수 있게 합니다.",
+  },
+];
+
+const STEPS = [
+  "고민 중인 분야 고르기",
+  "용도·조건·예산 3번 탭",
+  "결과에서 하나 고르기",
 ];
 
 const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
@@ -398,6 +426,59 @@ export function QuickRecommendationDashboard() {
               </span>
               <ArrowUpRight className="size-5 shrink-0 text-primary" />
             </a>
+
+            {/*
+              카테고리 그리드에서 화면이 끊기면 "그래서 뭘 해주는 건데"가 남는다.
+              추상적인 홍보 문구 대신 결과 화면에서 실제로 보게 될 것만 적는다.
+            */}
+            <section className="mt-14 border-t border-border pt-12">
+              <h2 className="text-[20px] font-black tracking-tight sm:text-[24px]">
+                고르고 나면 이런 게 나와요
+              </h2>
+              <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
+                후보만 늘어놓고 끝내지 않습니다. 하나를 지목하고, 왜 그건지까지
+                남깁니다.
+              </p>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                {VALUE_POINTS.map((point) => (
+                  <div
+                    key={point.title}
+                    className="rounded-2xl border border-border bg-card p-5"
+                  >
+                    <span className="inline-flex size-9 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                      <point.icon className="size-4" aria-hidden />
+                    </span>
+                    <p className="mt-3.5 text-[15px] font-black tracking-tight">
+                      {point.title}
+                    </p>
+                    <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                      {point.body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <ol className="mt-3 grid gap-3 sm:grid-cols-3">
+                {STEPS.map((stepLabel, index) => (
+                  <li
+                    key={stepLabel}
+                    className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4"
+                  >
+                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground text-[12px] font-black text-background">
+                      {index + 1}
+                    </span>
+                    <span className="text-[14px] font-bold">{stepLabel}</span>
+                  </li>
+                ))}
+              </ol>
+
+              <p className="mt-6 text-[12px] leading-relaxed text-muted-foreground">
+                일부 결과에는 쿠팡 파트너스 링크가 포함되며, 이에 따라 일정액의
+                수수료를 제공받습니다. 수수료 유무가 추천 순위에 영향을 주지
+                않습니다.
+              </p>
+            </section>
           </>
         )}
 

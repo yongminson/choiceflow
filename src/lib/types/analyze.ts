@@ -86,6 +86,19 @@ export type RecommendationScore = {
   value: number;
 };
 
+/**
+ * 후보가 내 조건을 지켰는지 한 줄씩 표시하는 체크 항목.
+ *
+ * 줄글 이유는 읽는 데 시간이 걸려 결국 "그래서 사도 되나"가 남는다.
+ * 조건 단위로 쪼개서 충족/미달을 눈으로 세게 만든다.
+ */
+export type RecommendationFitCheck = {
+  /** true면 조건을 지킴, false면 감수해야 하는 부분 */
+  ok: boolean;
+  /** "예산 안에 들어옴" 처럼 조건을 그대로 확인해 주는 짧은 문장 */
+  text: string;
+};
+
 export type QuickRecommendation = {
   rank: number;
   name: string;
@@ -119,6 +132,8 @@ export type QuickRecommendation = {
   overall?: number;
   /** 세부 축별 상대 점수 — 카드 안에 보조로 표시한다 */
   scores?: RecommendationScore[];
+  /** 내 조건을 지켰는지 항목별로 끊어 보여주는 체크리스트 */
+  fitChecks?: RecommendationFitCheck[];
 };
 
 /** POST /api/analyze 성공 시 본문 — 항상 JSON 객체 */

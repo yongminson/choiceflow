@@ -15,6 +15,11 @@ import {
   normalizeProductSearchKeyword,
 } from "@/lib/recommendation/recommendation-presentation";
 import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
+import {
+  derivedFitChecks,
+  placeFitChecks,
+  readFitChecks,
+} from "@/lib/recommendation/fit-checks";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
 import type {
@@ -46,6 +51,7 @@ type Candidate = {
   evidence?: QuickRecommendation["evidence"];
   scores?: QuickRecommendation["scores"];
   overall?: number;
+  fitChecks?: QuickRecommendation["fitChecks"];
   /** 음식 전용 — 지도에서 주변 가게가 뜨는 짧은 업종·메뉴명 */
   mapKeyword?: string;
 };
@@ -644,8 +650,18 @@ scores: 아래 축으로 후보끼리 비교한 상대 점수를 0~100으로 매
 - 절대 수치가 아니라 이 4개 후보 사이의 상대 비교다.
 - 가격 부담 축은 "부담이 적을수록 높은 점수"다.
 
+fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로 끊어 쓴다.
+- 줄글을 요약하지 말고, 사용자가 실제로 고른 조건을 하나씩 확인해 준다.
+  확인할 조건: ${[scenarioLabel, `${priorityLabel} 우선`, budgetLabel, userWish]
+    .filter(Boolean)
+    .join(" / ")}
+- ok=true 2~3개(조건을 지킨 부분), ok=false 정확히 1개(감수해야 하는 부분).
+- ok=false 는 반드시 넣는다. 단점이 없는 후보는 없고, 없다고 하면 이 화면 전체를 못 믿는다.
+- 각 항목은 20자 내외의 짧은 서술. 예: "예산 안에 들어옴", "원룸에 놓기엔 조금 큼".
+- 확인하지 않은 평점·후기 수·가격은 여기에 쓰지 않는다.
+
 JSON 배열만 응답:
-[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}]${
+[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}]${
     categoryId === "food" ? ',"mapKeyword":""' : ""
   }}]`;
 
@@ -708,6 +724,7 @@ JSON 배열만 응답:
             : undefined;
         })(),
         scores: readScores(record.scores, categoryId),
+        fitChecks: readFitChecks(record.fitChecks),
         mapKeyword:
           categoryId === "food"
             ? clean(record.mapKeyword, "", 20) || undefined
@@ -787,7 +804,12 @@ async function enrichProductPrices(
         SELECTION_ORDER.indexOf(a.selectionType || "best") -
         SELECTION_ORDER.indexOf(b.selectionType || "best")
     )
-    .map((item, index) => ({ ...item, rank: index + 1 }));
+    // 체크리스트는 실제 가격·배송이 확정된 뒤에 채워야 "예산 안에 들어옴"이 사실이 된다.
+    .map((item, index) => ({
+      ...item,
+      rank: index + 1,
+      fitChecks: derivedFitChecks(item, maxBudgetWon),
+    }));
   return {
     recommendations: sorted,
     live: items.some((item) => typeof item.price === "number"),
@@ -1094,6 +1116,13 @@ async function findGooglePlaces(
           kind: "guide" as const,
         },
       ],
+      // 지도 데이터는 실제로 확인된 사실이라 체크리스트로 쓰기에 가장 적합하다.
+      fitChecks: placeFitChecks({
+        distanceMeters: distance,
+        rating: place.rating,
+        reviewCount: place.userRatingCount,
+        openNow: place.currentOpeningHours?.openNow,
+      }),
       rating: place.rating,
       reviewCount: place.userRatingCount,
       priceLevel: place.priceLevel,

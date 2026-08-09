@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Loader2,
   MapPin,
+  Minus,
   RotateCcw,
   ShoppingBag,
   Sparkles,
@@ -146,6 +147,45 @@ function OverallChart({
         })}
       </div>
     </section>
+  );
+}
+
+/**
+ * 조건 충족 체크리스트.
+ *
+ * 줄글 이유는 카드 4개를 나란히 놓았을 때 비교가 안 된다.
+ * 조건 단위로 끊어 두면 훑기만 해도 "내 조건을 지켰는지"가 바로 보인다.
+ */
+function FitChecklist({
+  checks,
+}: {
+  checks: QuickRecommendation["fitChecks"];
+}) {
+  if (!checks?.length) return null;
+  return (
+    <ul className="mt-3.5 space-y-1.5">
+      {checks.map((check) => (
+        <li
+          key={check.text}
+          className="flex items-start gap-2 text-[13.5px] leading-snug"
+        >
+          {check.ok ? (
+            <Check
+              className="mt-[3px] size-4 shrink-0 text-success"
+              aria-hidden
+            />
+          ) : (
+            <Minus
+              className="mt-[3px] size-4 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+          )}
+          <span className={cn(!check.ok && "text-muted-foreground")}>
+            {check.text}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -462,7 +502,8 @@ export function QuickRecommendationResult({
         </p>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      {/* 후보는 항상 4개다. 3열로 두면 마지막 하나만 다음 줄에 떨어져 빈 칸이 생긴다. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {recommendations.map((item, index) => {
           const priceLevel = formatPriceLevel(item.priceLevel);
           const badge = item.selectionType
@@ -553,9 +594,13 @@ export function QuickRecommendationResult({
                 </p>
               )}
 
-              <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
-                {item.reason}
-              </p>
+              {item.fitChecks?.length ? (
+                <FitChecklist checks={item.fitChecks} />
+              ) : (
+                <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
+                  {item.reason}
+                </p>
+              )}
 
               <AxisBreakdown scores={item.scores} />
 
@@ -564,6 +609,9 @@ export function QuickRecommendationResult({
                   왜 이 후보를 골랐나요?
                 </summary>
                 <div className="mt-3 space-y-2 text-[13px] leading-relaxed text-muted-foreground">
+                  {item.fitChecks?.length ? (
+                    <p className="leading-relaxed">{item.reason}</p>
+                  ) : null}
                   {recommendationEvidence(item).map((evidence) => (
                     <p
                       key={`${item.name}-detail-${evidence.label}`} className="flex items-start gap-2"
@@ -580,41 +628,44 @@ export function QuickRecommendationResult({
                 </div>
               </details>
 
+              {/* 카드 높이가 제각각이어도 구매 버튼은 같은 선에 오도록 바닥에 붙인다. */}
               {item.sourceUrl && (
-                <a
-                  href={item.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer sponsored"
-                  onClick={() =>
-                    trackOutboundClick({
-                      categoryId: data.categoryId,
-                      selectionType: item.selectionType,
-                      name: item.name,
-                      keyword: item.searchKeyword,
-                      position: index + 1,
-                    })
-                  } className={cn(
-                    "mt-3 flex min-h-[48px] w-full items-center justify-center rounded-lg text-[15px] font-black transition",
-                    isFood
-                      ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
-                      : isCoupang
-                        ? "bg-[#ae0000] text-white hover:bg-[#8f0000]"
-                        : "border border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a]/5"
+                <div className="mt-auto pt-4">
+                  <a
+                    href={item.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer sponsored"
+                    onClick={() =>
+                      trackOutboundClick({
+                        categoryId: data.categoryId,
+                        selectionType: item.selectionType,
+                        name: item.name,
+                        keyword: item.searchKeyword,
+                        position: index + 1,
+                      })
+                    } className={cn(
+                      "flex min-h-[48px] w-full items-center justify-center rounded-lg px-3 text-center text-[15px] font-black transition",
+                      isFood
+                        ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                        : isCoupang
+                          ? "bg-[#ae0000] text-white hover:bg-[#8f0000]"
+                          : "border border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a]/5"
+                    )}
+                  >
+                    {item.sourceLabel ||
+                      (isFood
+                        ? "지도에서 최신 정보 보기"
+                        : isCoupang
+                          ? "쿠팡에서 최저가 확인"
+                          : "네이버에서 조건 확인")}
+                    <ExternalLink className="ml-2 size-4 shrink-0" />
+                  </a>
+                  {isCoupang && (
+                    <p className="mt-1.5 truncate text-center text-[11px] text-muted-foreground">
+                      검색어 &lsquo;{item.searchKeyword}&rsquo;
+                    </p>
                   )}
-                >
-                  {item.sourceLabel ||
-                    (isFood
-                      ? "지도에서 최신 정보 보기"
-                      : isCoupang
-                        ? "쿠팡에서 최저가 확인"
-                        : "네이버에서 조건 확인")}
-                  <ExternalLink className="ml-2 size-4" />
-                </a>
-              )}
-              {isCoupang && item.sourceUrl && (
-                <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                  검색어 &lsquo;{item.searchKeyword}&rsquo;
-                </p>
+                </div>
               )}
             </article>
           );
@@ -622,7 +673,7 @@ export function QuickRecommendationResult({
       </div>
 
       {recommendations.length === 0 && (
-        <div className="mt-8 rounded-3xl border border-destructive/25 bg-destructive/5 p-7 text-center">
+        <div className="mt-8 rounded-2xl border border-destructive/25 bg-destructive/5 p-7 text-center">
           <p className="font-bold">추천 후보를 불러오지 못했어요.</p>
           <p className="mt-2 text-sm text-muted-foreground">
             빈 화면 대신 이전 화면에서 조건을 다시 선택할 수 있어요.
@@ -683,7 +734,7 @@ export function QuickRecommendationResult({
       )}
 
       {isFood && relatedKeyword && (
-        <section className="mt-6 rounded-3xl border border-[#ae0000]/20 bg-[#ae0000]/[0.04] p-5 sm:p-6">
+        <section className="mt-6 rounded-2xl border border-[#ae0000]/20 bg-[#ae0000]/[0.04] p-5 sm:p-6">
           <div className="flex items-center gap-2">
             <ShoppingBag className="size-5 text-[#ae0000]" />
             <h2 className="font-display text-lg font-black">
@@ -707,7 +758,7 @@ export function QuickRecommendationResult({
               })
             } className={cn(
               buttonVariants({ variant: "default" }),
-              "mt-4 min-h-13 w-full rounded-2xl bg-[#ae0000] text-[15px] font-black text-white hover:bg-[#8f0000]"
+              "mt-4 min-h-[52px] w-full rounded-2xl bg-[#ae0000] text-[15px] font-black text-white hover:bg-[#8f0000]"
             )}
           >
             &lsquo;{relatedKeyword}&rsquo; 쿠팡에서 보기
@@ -719,10 +770,10 @@ export function QuickRecommendationResult({
 
 
 
-      <section className="mt-8 overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.08] to-sky-500/[0.06] p-5 sm:p-6">
+      <section className="mt-8 overflow-hidden rounded-2xl border border-primary/20 bg-primary-soft p-5 sm:p-6">
         {!showAdvanced ? (
           <>
-            <div className="flex size-10 items-center justify-center rounded-2xl bg-foreground text-background">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Sparkles className="size-5" />
             </div>
             <h2 className="mt-4 text-xl font-black">결과가 애매한가요?</h2>
@@ -772,7 +823,7 @@ export function QuickRecommendationResult({
                 <span
                   key={item.id} className={cn(
                     "h-1 rounded-full",
-                    index <= questionIndex ? "bg-foreground" : "bg-foreground/10"
+                    index <= questionIndex ? "bg-primary" : "bg-primary/15"
                   )}
                 />
               ))}
@@ -801,7 +852,7 @@ export function QuickRecommendationResult({
                         onClick={() => selectAdvancedOption(question.id, option)} className={cn(
                           "flex min-h-14 items-center justify-between rounded-2xl border bg-background/80 px-4 text-left text-sm font-bold transition hover:border-foreground/25",
                           selected &&
-                            "border-foreground bg-foreground text-background"
+                            "border-primary bg-primary text-primary-foreground"
                         )}
                       >
                         {option.label}
