@@ -4,23 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
-  Gift,
-  HousePlug,
-  KeyRound,
   ListChecks,
   LocateFixed,
-  Plane,
   RefreshCw,
   Scale,
-  Shirt,
   Tag,
   Trophy,
-  Utensils,
   type LucideIcon,
 } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { ChoiceMotionField } from "@/components/landing/choice-motion-field";
 import { cn } from "@/lib/utils";
 import {
   getQuickBudget,
@@ -102,14 +98,25 @@ const STEPS = [
   "결과에서 하나 고르기",
 ];
 
-const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
-  food: Utensils,
-  gift: Gift,
-  appliance: HousePlug,
-  fashion: Shirt,
-  date: Plane,
-  asset: KeyRound,
+const CATEGORY_IMAGES: Record<CategoryId, string> = {
+  food: "/emojis/food.png",
+  gift: "/emojis/3d-gift.png",
+  appliance: "/emojis/3d-home.png",
+  fashion: "/emojis/3d-shirt.png",
+  date: "/emojis/3d-airplane.png",
+  asset: "/emojis/3d-diamond.png",
 };
+
+const BRAND_SCENES: Array<{
+  categoryId: CategoryId;
+  src: string;
+  eyebrow: string;
+  title: string;
+}> = [
+  { categoryId: "food", src: "/brand/scene-food.png", eyebrow: "Food · Local", title: "오늘의 메뉴와 가까운 맛집" },
+  { categoryId: "gift", src: "/brand/scene-shopping.png", eyebrow: "Gift · Product", title: "마음을 전할 선물과 오래 쓸 물건" },
+  { categoryId: "date", src: "/brand/scene-lifestyle.png", eyebrow: "Style · Travel", title: "나에게 맞는 스타일과 다음 여행" },
+];
 
 function getLocation(): Promise<LocationPayload | undefined> {
   if (!("geolocation" in navigator)) return Promise.resolve(undefined);
@@ -294,7 +301,14 @@ export function QuickRecommendationDashboard() {
           : "예산을 고르면 바로 추천을 시작해요.";
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[1120px] flex-col px-5 pb-20 pt-8 sm:px-8">
+    <main
+      className={cn(
+        "mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[1120px] flex-col px-5 pb-20 sm:px-8",
+        step === 1
+          ? "isolate pt-0 before:fixed before:inset-0 before:-z-10 before:bg-[#fbfbf8]"
+          : "pt-8",
+      )}
+    >
       {step > 1 && (
         <div className="mb-7">
           <p className="text-[12px] font-bold text-muted-foreground">
@@ -337,49 +351,103 @@ export function QuickRecommendationDashboard() {
         )}
       </header>
 
-      <section className="mt-8" aria-live="polite">
+      <section className={cn(step === 1 ? "-mt-14" : "mt-8")} aria-live="polite">
         {step === 1 && (
           <>
-            {/* 히어로 — 첫 화면은 "무엇을 해주는 서비스인지"만 말한다. */}
-            <div className="pb-12 pt-6 text-center sm:pb-16 sm:pt-10">
-              <p className="mx-auto max-w-2xl text-balance text-[32px] font-black leading-[1.15] tracking-[-0.035em] sm:text-[46px]">
-                고민은 짧게,
-                <br className="sm:hidden" /> 선택은 확실하게.
-              </p>
-              <p className="mx-auto mt-4 max-w-lg text-pretty text-[15px] leading-relaxed text-muted-foreground sm:text-[17px]">
-                몇 가지만 알려주시면 수많은 상품 중 살 만한 것만 골라드릴게요.
-              </p>
+            <div className="choice-brand-stage relative left-1/2 min-h-[calc(100dvh-2rem)] w-[100dvw] -translate-x-1/2 overflow-hidden text-white">
+              <ChoiceMotionField />
+              <div className="relative z-10 mx-auto flex min-h-[calc(100dvh-2rem)] max-w-[1120px] flex-col px-5 pb-8 pt-24 sm:px-8 sm:pb-10 sm:pt-28">
+                <div className="editorial-enter flex items-center justify-between border-b border-white/15 pb-4 text-[10px] font-black uppercase tracking-[0.24em] text-white/55">
+                  <span>ChoiceFlow / Decision Platform</span>
+                  <span className="hidden sm:inline">Seoul · 2026</span>
+                </div>
 
-              <div className="mt-9">
-                <p className="text-[12px] font-bold text-muted-foreground">
-                  지금 가장 많이 고민하는 선택
-                </p>
-                <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  {POPULAR_PICKS.map((pick) => (
-                    <button
-                      key={pick.label}
-                      type="button"
-                      onClick={() => {
-                        setCategoryId(pick.categoryId);
-                        setScenarioId(null);
-                        setPriorityId(null);
-                      }}
-                      className="rounded-full border border-border bg-card px-4 py-2 text-[14px] font-bold transition hover:border-primary hover:text-primary"
+                <div className="my-auto max-w-[740px] pb-[250px] pt-14 md:pb-10 md:pr-20">
+                  <p className="editorial-enter text-[11px] font-black uppercase tracking-[0.3em] text-[#c8ff69]">
+                    Choose less. Live more.
+                  </p>
+                  <h1 className="editorial-enter editorial-enter-delay-1 mt-6 break-keep text-[2.65rem] font-black leading-[0.9] tracking-[-0.075em] sm:text-[clamp(4.6rem,6vw,5.5rem)]">
+                    <span className="block whitespace-nowrap">고민은 가볍게.</span>
+                    <span className="block whitespace-nowrap">선택은 분명하게.</span>
+                  </h1>
+                  <p className="editorial-enter editorial-enter-delay-2 mt-8 max-w-[520px] text-pretty text-[15px] font-medium leading-[1.8] text-white/62 sm:text-[18px]">
+                    수많은 후보를 더 보여주는 대신, 지금의 상황과 기준을 읽고
+                    가장 잘 맞는 하나를 선명하게 골라드립니다.
+                  </p>
+
+                  <div className="editorial-enter editorial-enter-delay-3 mt-10 flex flex-col gap-3 sm:flex-row">
+                    <a
+                      href="#start-choice"
+                      className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-white px-7 text-[15px] font-black text-[#07111f] transition duration-300 hover:-translate-y-1 hover:bg-[#c8ff69]"
                     >
-                      {pick.label}
-                    </button>
-                  ))}
+                      3번의 선택으로 시작
+                      <ArrowUpRight className="ml-2 size-4" />
+                    </a>
+                    <a
+                      href="/compare"
+                      className="inline-flex min-h-[56px] items-center justify-center rounded-full border border-white/25 bg-white/5 px-7 text-[15px] font-black text-white backdrop-blur transition hover:border-white/60 hover:bg-white/10"
+                    >
+                      두 후보 직접 비교
+                    </a>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 border-t border-white/15 pt-5 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">Trending decisions</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {POPULAR_PICKS.map((pick) => (
+                        <button
+                          key={pick.label}
+                          type="button"
+                          onClick={() => {
+                            setCategoryId(pick.categoryId);
+                            setScenarioId(null);
+                            setPriorityId(null);
+                          }}
+                          className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[12px] font-bold text-white/80 transition hover:-translate-y-0.5 hover:border-white/50 hover:bg-white/10"
+                        >
+                          {pick.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="hidden gap-8 text-right sm:flex">
+                    <div><strong className="block text-2xl font-black">03</strong><span className="text-[10px] uppercase tracking-widest text-white/40">Questions</span></div>
+                    <div><strong className="block text-2xl font-black">01</strong><span className="text-[10px] uppercase tracking-widest text-white/40">Clear answer</span></div>
+                    <div><strong className="block text-2xl font-black">00</strong><span className="text-[10px] uppercase tracking-widest text-white/40">Sign-up</span></div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <h2 className="mb-4 text-[20px] font-black tracking-tight sm:text-[24px]">
-              어떤 걸 고르고 있나요?
-            </h2>
+            <div className="relative left-1/2 w-[100dvw] -translate-x-1/2 overflow-hidden border-y border-foreground/10 bg-white py-4" aria-hidden>
+              <div className="choice-ticker gap-8 pr-8 text-[12px] font-black uppercase tracking-[0.18em] text-foreground/45">
+                {[0, 1].map((copy) => (
+                  <div key={copy} className="flex shrink-0 items-center gap-8">
+                    <span>FOOD</span><span>•</span><span>GIFT</span><span>•</span>
+                    <span>HOME</span><span>•</span><span>STYLE</span><span>•</span>
+                    <span>TRAVEL</span><span>•</span><span>BIG DECISIONS</span><span>•</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div id="start-choice" className="scroll-mt-24 pb-5 pt-20 sm:flex sm:items-end sm:justify-between sm:pt-28">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-muted-foreground">01 · Choose a field</p>
+                <h2 className="mt-3 max-w-xl text-[34px] font-black leading-[1.02] tracking-[-0.055em] sm:text-[54px]">
+                  무엇을 고르고 있나요?
+                </h2>
+              </div>
+              <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-muted-foreground sm:mt-0 sm:text-right">
+                분야를 고르면 용도, 우선순위, 예산을 차례로 묻습니다.
+                직접 입력은 선택 사항입니다.
+              </p>
+            </div>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               {CATEGORY_ORDER.map((id) => {
-                const Icon = CATEGORY_ICONS[id];
                 return (
                   <button
                     key={id}
@@ -389,84 +457,137 @@ export function QuickRecommendationDashboard() {
                       setScenarioId(null);
                       setPriorityId(null);
                     }}
-                    className="group flex min-h-[136px] flex-col justify-between rounded-2xl border border-border bg-card p-5 text-left transition hover:border-primary hover:shadow-[0_10px_28px_-14px_rgba(37,99,235,0.4)] sm:min-h-[152px]"
+                    className="group relative flex min-h-[176px] flex-col justify-between overflow-hidden rounded-[1.5rem] border border-foreground/10 bg-card p-5 text-left transition duration-300 hover:-translate-y-1 hover:border-foreground hover:shadow-[0_24px_60px_-32px_rgba(23,23,25,0.5)] sm:min-h-[210px] sm:p-6"
                   >
-                    <span className="inline-flex size-11 items-center justify-center rounded-xl bg-primary-soft text-primary">
-                      <Icon className="size-5" aria-hidden />
+                    <span className="relative inline-flex size-16 items-center justify-center transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-110 sm:size-20">
+                      <Image
+                        src={CATEGORY_IMAGES[id]}
+                        alt=""
+                        fill
+                        sizes="80px"
+                        className="object-contain drop-shadow-[0_14px_18px_rgba(15,23,42,0.15)]"
+                      />
                     </span>
                     <span className="mt-4">
-                      <span className="block text-[17px] font-black tracking-tight sm:text-[18px]">
+                      <span className="block text-[18px] font-black tracking-[-0.025em] sm:text-[22px]">
                         {QUICK_CATEGORY_LABELS[id]}
                       </span>
-                      <span className="mt-1 block text-[13px] leading-snug text-muted-foreground">
+                      <span className="mt-1.5 block text-[12px] leading-snug text-muted-foreground sm:text-[13px]">
                         {QUICK_CATEGORY_DESCRIPTION[id]}
                       </span>
                     </span>
+                    <ArrowUpRight className="absolute right-5 top-5 size-5 text-foreground/20 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-foreground" />
                   </button>
                 );
               })}
             </div>
 
+            <section className="mt-20 sm:mt-28">
+              <div className="mb-7 sm:flex sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-muted-foreground">Everyday decisions</p>
+                  <h2 className="mt-3 text-[32px] font-black leading-[1.02] tracking-[-0.05em] sm:text-[52px]">
+                    선택은 결국<br />생활의 장면이 됩니다.
+                  </h2>
+                </div>
+                <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-muted-foreground sm:mt-0 sm:text-right">
+                  먹고, 사고, 떠나는 순간마다 지금의 조건에 맞는 답을 찾습니다.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {BRAND_SCENES.map((scene) => (
+                  <button
+                    key={scene.src}
+                    type="button"
+                    onClick={() => {
+                      setCategoryId(scene.categoryId);
+                      setScenarioId(null);
+                      setPriorityId(null);
+                    }}
+                    className="group relative min-h-[360px] overflow-hidden rounded-[1.75rem] text-left sm:min-h-[480px]"
+                  >
+                    <Image
+                      src={scene.src}
+                      alt={scene.title}
+                      fill
+                      sizes="(max-width: 767px) 100vw, 33vw"
+                      className="object-cover transition duration-700 group-hover:scale-[1.04]"
+                    />
+                    <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-transparent" />
+                    <span className="absolute inset-x-0 bottom-0 p-6 text-white">
+                      <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-white/60">{scene.eyebrow}</span>
+                      <span className="mt-2 block text-[21px] font-black leading-tight tracking-[-0.03em]">{scene.title}</span>
+                      <span className="mt-4 inline-flex items-center text-[12px] font-bold text-white/70">
+                        바로 골라보기 <ArrowUpRight className="ml-1.5 size-4" />
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
             {/* A/B 비교는 없애지 않고, 카테고리 아래 보조 진입으로 둔다. */}
             <a
               href="/compare"
-              className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-primary-soft p-5 transition hover:border-primary"
+              className="mt-4 flex items-center justify-between gap-4 rounded-[1.5rem] bg-foreground p-6 text-background transition hover:-translate-y-0.5 sm:p-8"
             >
               <span className="min-w-0">
-                <span className="flex items-center gap-1.5 text-[12px] font-bold text-primary">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-background/50">
                   <Scale className="size-3.5" />
                   후보가 이미 정해졌다면
                 </span>
-                <span className="mt-1.5 block text-[16px] font-black tracking-tight">
+                <span className="mt-2 block text-[20px] font-black tracking-tight sm:text-[28px]">
                   A와 B 중에 하나만 골라드려요
                 </span>
-                <span className="mt-1 block text-[13px] text-muted-foreground">
+                <span className="mt-1 block text-[13px] text-background/55">
                   두 개만 적으면 왜 그걸 골라야 하는지까지 알려드립니다
                 </span>
               </span>
-              <ArrowUpRight className="size-5 shrink-0 text-primary" />
+              <ArrowUpRight className="size-6 shrink-0 text-background" />
             </a>
 
             {/*
               카테고리 그리드에서 화면이 끊기면 "그래서 뭘 해주는 건데"가 남는다.
               추상적인 홍보 문구 대신 결과 화면에서 실제로 보게 될 것만 적는다.
             */}
-            <section className="mt-14 border-t border-border pt-12">
-              <h2 className="text-[20px] font-black tracking-tight sm:text-[24px]">
-                고르고 나면 이런 게 나와요
+            <section className="mt-24 overflow-hidden rounded-[2rem] bg-[#f1f0ec] px-5 py-12 sm:mt-32 sm:rounded-[3rem] sm:px-10 sm:py-16">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-foreground/45">02 · What you get</p>
+              <h2 className="mt-4 max-w-3xl text-balance text-[36px] font-black leading-[0.98] tracking-[-0.06em] sm:text-[64px]">
+                많이 보여주는 대신,
+                <br />하나를 제대로 고릅니다.
               </h2>
-              <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
-                후보만 늘어놓고 끝내지 않습니다. 하나를 지목하고, 왜 그건지까지
-                남깁니다.
+              <p className="mt-5 max-w-lg text-[14px] leading-relaxed text-foreground/55 sm:text-[16px]">
+                후보만 늘어놓고 끝내지 않습니다. 하나를 지목하고, 선택한 조건을
+                어디까지 지켰는지 함께 보여드립니다.
               </p>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="mt-10 grid gap-px overflow-hidden rounded-[1.5rem] border border-foreground/10 bg-foreground/10 sm:grid-cols-3">
                 {VALUE_POINTS.map((point) => (
                   <div
                     key={point.title}
-                    className="rounded-2xl border border-border bg-card p-5"
+                    className="bg-white p-6 sm:min-h-[230px] sm:p-7"
                   >
-                    <span className="inline-flex size-9 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                    <span className="inline-flex size-10 items-center justify-center rounded-full bg-foreground text-background">
                       <point.icon className="size-4" aria-hidden />
                     </span>
-                    <p className="mt-3.5 text-[15px] font-black tracking-tight">
+                    <p className="mt-10 text-[18px] font-black tracking-[-0.025em] sm:text-[21px]">
                       {point.title}
                     </p>
-                    <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                    <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                       {point.body}
                     </p>
                   </div>
                 ))}
               </div>
 
-              <ol className="mt-3 grid gap-3 sm:grid-cols-3">
+              <ol className="mt-8 grid gap-3 sm:grid-cols-3">
                 {STEPS.map((stepLabel, index) => (
                   <li
                     key={stepLabel}
-                    className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4"
+                    className="flex items-center gap-3 border-t border-foreground/20 px-1 py-4"
                   >
-                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground text-[12px] font-black text-background">
-                      {index + 1}
+                    <span className="text-[11px] font-black tabular-nums text-foreground/40">
+                      0{index + 1}
                     </span>
                     <span className="text-[14px] font-bold">{stepLabel}</span>
                   </li>

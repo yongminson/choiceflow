@@ -48,11 +48,11 @@ const ROLE_BADGE: Record<
 > = {
   best: {
     label: "가장 추천",
-    className: "bg-primary text-primary-foreground",
+    className: "bg-foreground text-background",
   },
   value: {
     label: "가성비 선택",
-    className: "bg-success/10 text-success",
+    className: "bg-[#dff6d6] text-[#244b1d]",
   },
   reliable: {
     label: "검증 우선",
@@ -94,11 +94,11 @@ function OverallChart({
   const top = ranked[0]?.overall ?? 100;
 
   return (
-    <section className="mt-7">
+    <section className="editorial-enter editorial-enter-delay-2 mt-8 rounded-[1.5rem] bg-[#f1f0ec] p-5 sm:p-7">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-[15px] font-bold tracking-tight">종합 적합도</h2>
         <span className="text-[11px] text-muted-foreground">
-          내 조건 기준 · AI 상대 평가
+          내 조건 기준 · 후보 간 상대 평가
         </span>
       </div>
 
@@ -395,72 +395,79 @@ export function QuickRecommendationResult({
   };
 
   return (
-    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[1120px] px-5 pb-16 pt-8 sm:px-8 sm:px-6">
-      <header>
-        <p className="text-xs font-bold text-muted-foreground">
-          {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-        <h1 className="mt-2 break-keep text-[28px] font-black leading-[1.2] tracking-[-0.03em] sm:text-[34px]">
-          {winner?.name || `${data.quickScenarioLabel} 추천`}
-        </h1>
-        <p className="mt-2 line-clamp-2 text-[15px] leading-relaxed text-muted-foreground">
-          {winner?.reason ||
-            "선택한 조건을 기준으로 가장 적합한 후보를 정리했어요."}
-        </p>
+    <main className="relative isolate mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[1180px] px-5 pb-20 pt-6 before:fixed before:inset-0 before:-z-10 before:bg-[#f4f1eb] sm:px-8 sm:pt-10">
+      <header className="choice-brand-stage editorial-enter overflow-hidden rounded-[2rem] text-white sm:rounded-[3rem]">
+        <div className={cn("grid", winner?.imageUrl && "lg:grid-cols-[1.2fr_0.8fr]")}>
+          <div className="flex min-h-[430px] flex-col justify-between p-6 sm:min-h-[520px] sm:p-10 lg:p-14">
+            <div>
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-background/45 sm:text-[11px]">
+                <span>ChoiceFlow result</span>
+                <span>•</span>
+                <span>
+                  {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </div>
+              <p className="mt-10 text-[12px] font-bold text-background/55">지금 가장 잘 맞는 선택</p>
+              <h1 className="mt-3 max-w-3xl break-keep text-[clamp(2.8rem,7vw,6.2rem)] font-black leading-[0.94] tracking-[-0.075em]">
+                {winner?.name || `${data.quickScenarioLabel} 추천`}
+              </h1>
+              <p className="mt-6 max-w-2xl text-[14px] font-medium leading-relaxed text-background/60 sm:text-[17px]">
+                {winner?.reason ||
+                  "선택한 조건을 기준으로 가장 적합한 후보를 정리했어요."}
+              </p>
 
-        {data.quickUserWish && (
-          <p className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">
-            <Sparkles className="size-3.5 shrink-0" />
-            <span className="truncate">요청 반영: {data.quickUserWish}</span>
-          </p>
-        )}
+              {data.quickUserWish && (
+                <p className="mt-5 inline-flex max-w-full items-center gap-2 rounded-full border border-background/15 px-4 py-2 text-xs font-bold text-background/75">
+                  <Sparkles className="size-3.5 shrink-0" />
+                  <span className="truncate">요청 반영 · {data.quickUserWish}</span>
+                </p>
+              )}
+            </div>
 
-        {winner?.imageUrl && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={winner.imageUrl}
-            alt=""
-            width={132}
-            height={132}
-            className="mt-5 size-[132px] rounded-xl border border-border object-cover"
-          />
-        )}
-
-        {winner?.sourceUrl && (
-          <a
-            href={winner.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer sponsored"
-            onClick={() =>
-              trackOutboundClick({
-                categoryId: data.categoryId,
-                selectionType: winner.selectionType,
-                name: winner.name,
-                keyword: winner.searchKeyword,
-                position: 0,
-              })
-            } className={cn(
-              "mt-5 flex min-h-[52px] w-full items-center justify-center rounded-lg text-[16px] font-black text-white transition",
-              isFood
-                ? "bg-emerald-600 hover:bg-emerald-700"
-                : isCoupang
-                  ? "bg-[#ae0000] hover:bg-[#8f0000]"
-                  : "bg-[#03c75a] hover:bg-[#02a94b]"
+            {winner?.sourceUrl && (
+              <a
+                href={winner.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                onClick={() =>
+                  trackOutboundClick({
+                    categoryId: data.categoryId,
+                    selectionType: winner.selectionType,
+                    name: winner.name,
+                    keyword: winner.searchKeyword,
+                    position: 0,
+                  })
+                }
+                className="mt-10 inline-flex min-h-[54px] w-full items-center justify-center rounded-full bg-background px-6 text-[15px] font-black text-foreground transition hover:-translate-y-0.5 hover:shadow-2xl sm:w-fit"
+              >
+                {isFood
+                  ? "지도에서 이곳 확인하기"
+                  : isCoupang
+                    ? "쿠팡에서 현재 가격 확인"
+                    : "조건 직접 확인하기"}
+                <ExternalLink className="ml-2 size-4" />
+              </a>
             )}
-          >
-            {isFood
-              ? "지도에서 보기"
-              : isCoupang
-                ? "쿠팡 최저가 보기"
-                : "네이버에서 조건 보기"}
-            <ExternalLink className="ml-2 size-4" />
-          </a>
-        )}
+          </div>
+
+          {winner?.imageUrl && (
+            <div className="min-h-[300px] bg-[#ecebe6] p-5 lg:min-h-full lg:p-8">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={winner.imageUrl}
+                alt=""
+                width={720}
+                height={720}
+                className="h-full min-h-[280px] w-full rounded-[1.5rem] object-cover lg:rounded-[2rem]"
+              />
+            </div>
+          )}
+        </div>
       </header>
 
-      <p className="mt-4 border-y border-foreground/10 py-3 text-xs leading-relaxed text-muted-foreground">
+      <p className="editorial-enter editorial-enter-delay-1 mt-5 border-y border-foreground/10 py-4 text-xs font-medium leading-relaxed text-muted-foreground">
         {isFood
           ? hasLivePlaces
             ? "현재 위치 주변 매장의 평점·후기를 반영했어요. 영업 상태는 방문 전 확인하세요."
@@ -486,9 +493,17 @@ export function QuickRecommendationResult({
         }
       />
 
-      <h2 className="mb-3 mt-8 text-[20px] font-black tracking-tight">
-        추천 후보 {recommendations.length}개
-      </h2>
+      <div className="mb-5 mt-16 sm:flex sm:items-end sm:justify-between sm:mt-24">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Candidates</p>
+          <h2 className="mt-2 text-[34px] font-black leading-none tracking-[-0.055em] sm:text-[54px]">
+            다른 관점의 선택들
+          </h2>
+        </div>
+        <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-muted-foreground sm:mt-0 sm:text-right">
+          같은 조건에서도 가격, 검증, 경험 중 무엇을 더 보느냐에 따라 답은 달라집니다.
+        </p>
+      </div>
 
       {/*
         공정위 추천·보증 심사지침은 경제적 이해관계를 추천 내용과 가까운
@@ -512,20 +527,19 @@ export function QuickRecommendationResult({
           return (
             <article
               key={`${item.selectionType || index}-${item.name}`} className={cn(
-                "flex flex-col rounded-2xl border bg-card p-4 sm:p-5",
+                "group flex flex-col rounded-[1.5rem] border bg-card p-4 transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_-34px_rgba(23,23,25,0.55)] sm:p-5",
                 index === 0
-                  ? "border-primary ring-1 ring-primary/20"
-                  : "border-border"
+                  ? "border-foreground bg-[#f1f0ec] ring-1 ring-foreground/10"
+                  : "border-foreground/10"
               )}
             >
               <span
                 className={cn(
-                  "inline-flex w-fit rounded-md px-2.5 py-1 text-[11px] font-black",
+                  "inline-flex w-fit rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em]",
                   badge.className
                 )}
               >
-                {index === 0 ? "🏆 " : ""}
-                {badge.label}
+                {String(index + 1).padStart(2, "0")} · {badge.label}
               </span>
               <div className="mt-3 flex gap-3 lg:flex-col">
                 {item.imageUrl && (
@@ -538,7 +552,7 @@ export function QuickRecommendationResult({
                     height={84}
                     loading="lazy"
                     decoding="async"
-                    className="size-[84px] shrink-0 rounded-xl border border-border object-cover lg:h-[168px] lg:w-full"
+                    className="size-[84px] shrink-0 rounded-[1rem] border border-border object-cover transition duration-500 group-hover:scale-[1.02] lg:h-[168px] lg:w-full"
                   />
                 )}
                 <div className="min-w-0 flex-1">
@@ -770,19 +784,20 @@ export function QuickRecommendationResult({
 
 
 
-      <section className="mt-8 overflow-hidden rounded-2xl border border-primary/20 bg-primary-soft p-5 sm:p-6">
+      <section className="mt-16 overflow-hidden rounded-[2rem] bg-[#f1f0ec] p-6 sm:mt-24 sm:p-10">
         {!showAdvanced ? (
           <>
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <div className="flex size-11 items-center justify-center rounded-full bg-foreground text-background">
               <Sparkles className="size-5" />
             </div>
-            <h2 className="mt-4 text-xl font-black">결과가 애매한가요?</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              질문을 원하는 만큼 더 답하면 사용 빈도, 공간, A/S와 유지비까지
-              반영합니다.
+            <p className="mt-7 text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Refine your choice</p>
+            <h2 className="mt-3 max-w-xl text-[32px] font-black leading-[1.02] tracking-[-0.05em] sm:text-[48px]">조금 더 까다롭게 골라볼까요?</h2>
+            <p className="mt-4 max-w-lg text-sm leading-relaxed text-muted-foreground">
+              질문을 원하는 만큼 더 답하면 사용 환경과 취향, 꼭 필요한 조건까지
+              결과에 반영합니다.
             </p>
             <Button
-              type="button" className="mt-5 min-h-12 w-full rounded-xl"
+              type="button" className="mt-7 min-h-[52px] w-full rounded-full bg-foreground text-background hover:bg-foreground/85 sm:w-auto sm:px-8"
               disabled={!canRefine || !aiAvailable}
               onClick={() => {
                 setRefineError("");

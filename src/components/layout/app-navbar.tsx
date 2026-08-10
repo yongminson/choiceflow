@@ -1,40 +1,49 @@
 "use client";
 
-import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { UserRound } from "lucide-react";
 
-import { useProfileCredits } from "@/components/auth/use-profile-credits";
-import { useSupabaseUser } from "@/components/auth/use-supabase-user";
-import { useBilling } from "@/components/payment/billing-provider";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PushButton } from "@/components/push-button";
 
 export function AppNavbar() {
   const pathname = usePathname();
-  const user = useSupabaseUser();
-  const credits = useProfileCredits(user, pathname);
-  
-  const userHref =
-    user === undefined ? "/mypage" : user === null ? "/login" : "/mypage";
+  const isEditorialPage = pathname === "/" || pathname === "/result";
 
   return (
-    <header className="fixed top-0 z-50 w-full border-b border-border bg-background">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-3 sm:gap-4 sm:px-6">
+    <header
+      className={cn(
+        "fixed top-0 z-50 w-full transition-all",
+        isEditorialPage
+          ? "pointer-events-none border-transparent bg-transparent px-3 pt-3"
+          : "border-b border-border bg-background",
+      )}
+    >
+      <div
+        className={cn(
+          "mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-3 sm:gap-4 sm:px-6",
+          isEditorialPage &&
+            "pointer-events-auto h-12 max-w-5xl rounded-full border border-black/10 bg-white/85 px-4 shadow-[0_12px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:px-5",
+        )}
+      >
         <button
           type="button"
-          className="flex shrink-0 cursor-pointer items-center gap-2 font-display text-[17px] font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90 sm:text-lg"
+          className={cn(
+            "flex shrink-0 cursor-pointer items-center gap-2 font-display text-[17px] font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90 sm:text-lg",
+            isEditorialPage && "text-[15px] sm:text-base",
+          )}
           aria-label="ChoiceFlow 첫 화면으로 이동"
           onClick={() => {
             window.location.href = "/";
           }}
         >
           {/* 👇 여기에 로고 이미지가 들어갑니다 */}
-          <img
+          <Image
             src="/logo.png"
+            width={28}
+            height={28}
             alt="ChoiceFlow 로고"
-            className="h-7 w-7 object-contain"
+            className={cn("h-7 w-7 object-contain", isEditorialPage && "h-6 w-6")}
           />
           <span>ChoiceFlow</span>
         </button>
