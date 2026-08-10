@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -107,6 +107,20 @@ const CATEGORY_IMAGES: Record<CategoryId, string> = {
   asset: "/emojis/3d-diamond.png",
 };
 
+const QUESTION_THEMES: Record<CategoryId, {
+  image: string;
+  accent: string;
+  soft: string;
+  eyebrow: string;
+}> = {
+  food: { image: "/brand/scene-food.png", accent: "#e9572f", soft: "#fff0e9", eyebrow: "Food · Nearby" },
+  gift: { image: "/brand/scene-shopping.png", accent: "#6d52c7", soft: "#f1edff", eyebrow: "Gift · Thoughtful" },
+  appliance: { image: "/brand/scene-appliance.png", accent: "#2556b8", soft: "#eaf1ff", eyebrow: "Home · Reliable" },
+  fashion: { image: "/brand/scene-fashion.png", accent: "#a64763", soft: "#faedf1", eyebrow: "Style · Personal" },
+  date: { image: "/brand/scene-lifestyle.png", accent: "#247a74", soft: "#e8f6f3", eyebrow: "Travel · Experience" },
+  asset: { image: "/brand/scene-big-decision.png", accent: "#936d17", soft: "#f8f0da", eyebrow: "Decision · Long-term" },
+};
+
 const BRAND_SCENES: Array<{
   categoryId: CategoryId;
   src: string;
@@ -190,6 +204,7 @@ export function QuickRecommendationDashboard() {
 
   const step = !categoryId ? 1 : !scenarioId ? 2 : !priorityId ? 3 : 4;
   const questionStep = Math.max(0, step - 1);
+  const questionTheme = categoryId ? QUESTION_THEMES[categoryId] : null;
   const budgets = useMemo(
     () =>
       categoryId && scenarioId
@@ -302,13 +317,44 @@ export function QuickRecommendationDashboard() {
 
   return (
     <main
+      style={questionTheme ? ({
+        "--question-accent": questionTheme.accent,
+        "--question-soft": questionTheme.soft,
+      } as CSSProperties) : undefined}
       className={cn(
         "mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[1120px] flex-col px-5 pb-20 sm:px-8",
         step === 1
           ? "isolate pt-0 before:fixed before:inset-0 before:-z-10 before:bg-[#fbfbf8]"
-          : "pt-8",
+          : "isolate pt-6 before:fixed before:inset-0 before:-z-10 before:bg-[#f7f5f0] sm:pt-8",
       )}
     >
+      {step > 1 && categoryId && questionTheme && (
+        <section className="editorial-enter relative mb-8 min-h-[250px] overflow-hidden rounded-[2rem] bg-[#101318] text-white sm:min-h-[320px] sm:rounded-[2.5rem]">
+          <Image
+            src={questionTheme.image}
+            alt=""
+            fill
+            priority
+            sizes="(max-width: 767px) 100vw, 1120px"
+            className="object-cover object-center opacity-70"
+          />
+          <span className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/50 to-black/10" />
+          <div className="relative flex min-h-[250px] flex-col justify-between p-6 sm:min-h-[320px] sm:p-9">
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/60">{questionTheme.eyebrow}</p>
+              <span className="relative size-16 shrink-0 rounded-2xl bg-white/90 p-1 shadow-2xl backdrop-blur sm:size-20">
+                <Image src={CATEGORY_IMAGES[categoryId]} alt="" fill sizes="80px" className="object-contain p-1" />
+              </span>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-white/55">{questionStep} / 3 · 빠른 추천</p>
+              <h2 className="mt-2 text-[30px] font-black tracking-[-0.045em] sm:text-[48px]">{QUICK_CATEGORY_LABELS[categoryId]}</h2>
+              <p className="mt-2 max-w-md text-[13px] leading-relaxed text-white/65 sm:text-[15px]">{QUICK_CATEGORY_DESCRIPTION[categoryId]}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
       {step > 1 && (
         <div className="mb-7">
           <p className="text-[12px] font-bold text-muted-foreground">
@@ -321,7 +367,7 @@ export function QuickRecommendationDashboard() {
                 className={cn(
                   "h-1 flex-1 rounded-full transition-colors",
                   item <= questionStep
-                    ? "bg-foreground"
+                    ? "bg-[var(--question-accent)]"
                     : "bg-border"
                 )}
               />
@@ -332,10 +378,11 @@ export function QuickRecommendationDashboard() {
 
       <header className={cn("flex items-start justify-between gap-4", step === 1 && "sr-only")}>
         <div>
-          <h1 className="text-balance text-[26px] font-black leading-tight tracking-[-0.03em] sm:text-[30px]">
+          <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--question-accent)]">Question {questionStep}</p>
+          <h1 className="text-balance text-[30px] font-black leading-tight tracking-[-0.045em] sm:text-[42px]">
             {heading}
           </h1>
-          <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+          <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">
             {description}
           </p>
         </div>
@@ -343,7 +390,7 @@ export function QuickRecommendationDashboard() {
           <button
             type="button"
             onClick={() => resetToStep(step - 1)}
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-border transition hover:border-foreground/40"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-foreground/10 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--question-accent)]"
             aria-label="이전 질문으로 돌아가기"
           >
             <ArrowLeft className="size-5" />
@@ -605,9 +652,10 @@ export function QuickRecommendationDashboard() {
 
         {step === 2 && categoryId && (
           <div className="grid gap-2 sm:grid-cols-2">
-            {QUICK_SCENARIOS[categoryId].map((scenario) => (
+            {QUICK_SCENARIOS[categoryId].map((scenario, index) => (
               <ChoiceButton
                 key={scenario.id}
+                index={index}
                 label={scenario.label}
                 description={scenario.description}
                 onClick={() => setScenarioId(scenario.id)}
@@ -618,9 +666,10 @@ export function QuickRecommendationDashboard() {
 
         {step === 3 && categoryId && (
           <div className="grid gap-2 sm:grid-cols-2">
-            {QUICK_PRIORITIES[categoryId].map((priority) => (
+            {QUICK_PRIORITIES[categoryId].map((priority, index) => (
               <ChoiceButton
                 key={priority.id}
+                index={index}
                 label={priority.label}
                 description={priority.description}
                 onClick={() => setPriorityId(priority.id)}
@@ -631,7 +680,7 @@ export function QuickRecommendationDashboard() {
 
         {step === 4 && categoryId && scenarioId && priorityId && (
           <>
-            <div className="mb-5 rounded-2xl border border-foreground/10 bg-background/80 p-4">
+            <div className="mb-5 rounded-[1.5rem] border border-foreground/[0.08] bg-white p-5 shadow-[0_18px_55px_-40px_rgba(15,23,42,0.35)] sm:p-6">
               <label
                 htmlFor="user-wish"
                 className="block text-sm font-bold"
@@ -650,14 +699,15 @@ export function QuickRecommendationDashboard() {
                 disabled={isLoading}
                 onChange={(event) => setUserWish(event.target.value)}
                 placeholder={WISH_PLACEHOLDER[categoryId]}
-                className="mt-3 h-12 w-full rounded-xl border border-foreground/15 bg-white px-4 text-[15px] outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-50 dark:bg-white/10"
+                className="mt-4 h-[52px] w-full rounded-2xl border border-foreground/10 bg-[var(--question-soft)] px-4 text-[15px] outline-none transition focus:border-[var(--question-accent)] focus:ring-2 focus:ring-[var(--question-soft)] disabled:opacity-50"
               />
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              {budgets.map((budget) => (
+              {budgets.map((budget, index) => (
                 <ChoiceButton
                   key={budget.id}
+                  index={index}
                   label={budget.label}
                   description={budget.description}
                   disabled={isLoading}
@@ -675,7 +725,7 @@ export function QuickRecommendationDashboard() {
             </div>
 
             {categoryId === "food" && (
-              <div className="mt-4 flex items-start gap-2 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.07] p-4 text-sm text-emerald-900 dark:text-emerald-100">
+              <div className="mt-4 flex items-start gap-2 rounded-2xl border border-[var(--question-accent)] bg-[var(--question-soft)] p-4 text-sm text-foreground/75">
                 <LocateFixed className="mt-0.5 size-4 shrink-0" />
                 <p>
                   예산을 선택하면 위치 권한을 요청합니다. 거부해도 계속할 수
@@ -689,7 +739,7 @@ export function QuickRecommendationDashboard() {
       </section>
 
       {(isLoading || locationMessage) && (
-        <div className="mt-5 rounded-2xl border border-foreground/10 bg-background/80 p-4 text-sm">
+        <div className="mt-5 rounded-[1.35rem] border border-[var(--question-accent)] bg-[var(--question-soft)] p-5 text-sm font-semibold">
           {isLoading && <RefreshCw className="mr-2 inline size-4 animate-spin" />}
           {locationMessage || "조건에 맞는 후보를 비교하고 있어요."}
         </div>
@@ -698,7 +748,7 @@ export function QuickRecommendationDashboard() {
       {error && (
         <div
           role="alert"
-          className="mt-5 rounded-2xl border border-destructive/25 bg-destructive/5 p-4"
+          className="mt-5 rounded-[1.35rem] border border-destructive/25 bg-white p-5 shadow-sm"
         >
           <p className="text-sm font-semibold text-destructive">{error}</p>
           <Button
@@ -713,14 +763,19 @@ export function QuickRecommendationDashboard() {
       )}
 
       {step === 2 && recentSelections.length > 0 && (
-        <section className="mt-10 border-t border-foreground/10 pt-7">
-          <div className="flex items-end justify-between">
+        <details className="group mt-10 rounded-[1.5rem] border border-foreground/[0.08] bg-white p-5 shadow-[0_16px_45px_-40px_rgba(15,23,42,0.4)]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
             <div>
               <p className="text-sm font-bold">최근 찾은 조건</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                이 기기에만 저장됩니다.
+                {recentSelections.length}개 · 이 기기에만 저장됩니다.
               </p>
             </div>
+            <span className="inline-flex size-9 items-center justify-center rounded-full bg-[var(--question-soft)] text-[var(--question-accent)] transition group-open:rotate-45">
+              <ArrowUpRight className="size-4" />
+            </span>
+          </summary>
+          <div className="mt-5 flex justify-end border-t border-foreground/[0.07] pt-4">
             <button
               type="button"
               onClick={() => {
@@ -763,7 +818,7 @@ export function QuickRecommendationDashboard() {
               );
             })}
           </div>
-        </section>
+        </details>
       )}
 
       <a
@@ -777,11 +832,13 @@ export function QuickRecommendationDashboard() {
 }
 
 function ChoiceButton({
+  index,
   label,
   description,
   disabled,
   onClick,
 }: {
+  index: number;
   label: string;
   description: string;
   disabled?: boolean;
@@ -792,15 +849,20 @@ function ChoiceButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="flex min-h-[68px] items-center justify-between gap-4 rounded-xl border border-border p-4 text-left transition hover:border-neutral-900 disabled:cursor-wait disabled:opacity-50 dark:border-neutral-800 dark:hover:border-white"
+      className="group flex min-h-[96px] items-center justify-between gap-4 rounded-[1.35rem] border border-foreground/[0.08] bg-white p-4 text-left shadow-[0_16px_45px_-38px_rgba(15,23,42,0.45)] transition duration-300 hover:-translate-y-1 hover:border-[var(--question-accent)] hover:shadow-[0_24px_55px_-35px_rgba(15,23,42,0.35)] disabled:cursor-wait disabled:opacity-50 sm:p-5"
     >
-      <span>
+      <span className="flex min-w-0 items-center gap-4">
+        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--question-soft)] text-[12px] font-black tabular-nums text-[var(--question-accent)] transition group-hover:bg-[var(--question-accent)] group-hover:text-white">
+          {String(index + 1).padStart(2, "0")}
+        </span>
+        <span className="min-w-0">
         <span className="block text-[15px] font-black">{label}</span>
         <span className="mt-0.5 block text-[13px] text-muted-foreground">
           {description}
         </span>
+        </span>
       </span>
-      <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
+      <ArrowUpRight className="size-4 shrink-0 text-muted-foreground transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--question-accent)]" />
     </button>
   );
 }
