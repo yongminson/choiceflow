@@ -5,6 +5,20 @@ import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
+/**
+ * 로그인 후 돌아갈 경로. 콜백 라우트는 next 를 이미 지원하지만
+ * 로그인 화면에서 넘겨주지 않아 항상 홈으로만 돌아오고 있었다.
+ *
+ * useSearchParams 를 쓰면 이 페이지 전체가 동적 렌더링으로 바뀌므로,
+ * 클릭 시점에 주소에서 직접 읽는다. 외부 주소로 튕기지 않도록
+ * 같은 사이트의 절대 경로만 허용한다.
+ */
+function readNextPath(): string {
+  const value = new URLSearchParams(window.location.search).get("next");
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  return value;
+}
+
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState<string | null>(null);
 
@@ -16,7 +30,7 @@ export default function LoginPage() {
         provider,
         options: {
           // 우리가 만들었던 콜백 라우트로 정확히 연결
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(readNextPath())}`,
         },
       });
 

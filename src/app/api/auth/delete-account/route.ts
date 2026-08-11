@@ -18,7 +18,24 @@ export async function POST() {
 
     const supabaseAdmin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
 
-    // 🌟 [핵심 어뷰징 방지 로직] 유저를 삭제하기 직전, 이메일을 블랙리스트에 저장합니다!
+    // 재가입을 반복해 무료 크레딧을 다시 받는 것을 막기 위해 탈퇴 이메일을 남긴다.
+    //
+    // /account/delete 안내 페이지와 Google Play 데이터 보안 양식에 "30일 보관 후 파기"로
+    // 신고했으므로, 실제로 그렇게 동작해야 한다. 전용 크론이 없어 탈퇴 처리 시점에
+    // 만료분을 함께 지운다. 탈퇴가 없으면 정리도 필요 없으므로 이 시점이면 충분하다.
+    const RETENTION_DAYS = 30;
+    const expiredBefore = new Date(
+      Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const { error: purgeError } = await supabaseAdmin
+      .from('withdrawn_users')
+      .delete()
+      .lt('created_at', expiredBefore);
+    if (purgeError) {
+      // 정리에 실패해도 탈퇴 자체는 진행한다. 사용자의 삭제 요청이 우선이다.
+      console.error('탈퇴 이메일 보관기간 정리 실패:', purgeError.message);
+    }
+
     if (user.email) {
       await supabaseAdmin.from('withdrawn_users').insert({ email: user.email });
     }

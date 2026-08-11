@@ -39,8 +39,13 @@ export default function PrivacyPage() {
 
         <section>
           <h2 className="text-xl font-bold text-foreground mb-4">3. 개인정보의 보유 및 이용 기간</h2>
-          <p>회사는 원칙적으로 회원이 탈퇴하거나 개인정보 수집 및 이용 목적이 달성된 후에는 해당 정보를 지체 없이 파기합니다.</p>
+          <p>회사는 원칙적으로 회원이 탈퇴하거나 개인정보 수집 및 이용 목적이 달성된 후에는 해당 정보를 지체 없이 파기합니다. 다만 아래 항목은 명시된 기간 동안 보관한 후 파기합니다.</p>
+          <ul className="list-disc pl-5 space-y-2 mt-3">
+            <li><strong>탈퇴 회원의 이메일 주소:</strong> 재가입을 반복해 무료 크레딧을 부정하게 재취득하는 것을 방지하기 위해 <strong>30일간</strong> 보관 후 파기합니다.</li>
+            <li><strong>상담 신청 시 제공한 성함·연락처:</strong> 전자상거래 등에서의 소비자보호에 관한 법률에 따른 소비자의 불만 또는 분쟁 처리에 관한 기록으로 <strong>3년간</strong> 보관 후 파기합니다.</li>
+          </ul>
           <p className="mt-3">빠른 추천 요청에 포함된 위치 좌표는 추천 요청 처리에만 사용하며 ChoiceFlow 데이터베이스에 저장하지 않습니다.</p>
+          <p className="mt-3">회원은 <Link href="/account/delete" className="font-semibold text-primary underline underline-offset-4">계정 및 데이터 삭제</Link> 페이지에서 언제든 직접 계정과 관련 데이터의 삭제를 요청할 수 있습니다.</p>
         </section>
 
         <section>

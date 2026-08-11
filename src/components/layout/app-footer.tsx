@@ -51,6 +51,12 @@ export function AppFooter() {
                   환불정책
                 </Link>
               </li>
+              {/* Google Play는 계정 삭제 경로가 눈에 띄게 노출되기를 요구한다. */}
+              <li>
+                <Link href="/account/delete" className="hover:text-foreground transition-colors">
+                  계정 및 데이터 삭제
+                </Link>
+              </li>
             </ul>
           </div>
 
