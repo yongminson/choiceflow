@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 export function ConsultationForm({ categoryName = "고가자산/렌탈" }: { categoryName?: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [formData, setFormData] = useState({ name: "", phone: "", details: "" });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -16,13 +17,17 @@ export function ConsultationForm({ categoryName = "고가자산/렌탈" }: { cat
       toast.error("이름과 연락처를 입력해주세요.");
       return;
     }
+    if (!agreed) {
+      toast.error("개인정보 수집·이용 동의가 필요합니다.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/consultation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: categoryName, ...formData }),
+        body: JSON.stringify({ category: categoryName, ...formData, privacyAgreed: true }),
       });
 
       if (!res.ok) throw new Error("서버 에러");
@@ -83,14 +88,47 @@ export function ConsultationForm({ categoryName = "고가자산/렌탈" }: { cat
           </div>
           <textarea placeholder="관심 있는 상품이나 궁금하신 점을 간단히 적어주세요. (선택)" value={formData.details} onChange={(e) => setFormData({ ...formData, details: e.target.value })} className="min-h-[100px] w-full resize-none rounded-xl border-0 bg-white/10 pl-12 pr-4 pt-3 text-white placeholder:text-slate-400 focus:bg-white/20 focus:ring-2 focus:ring-blue-500 transition-colors" />
         </div>
-        <Button type="submit" disabled={isSubmitting} className="h-14 w-full rounded-xl bg-blue-600 text-lg font-bold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/25">
+        {/*
+          "신청 시 동의한 것으로 간주" 방식은 개인정보보호법이 요구하는 동의로
+          보기 어렵다. 수집 항목·목적·보유 기간과 거부할 권리를 먼저 알리고,
+          이용자가 직접 체크해야 신청이 진행되도록 한다.
+        */}
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-white/5 p-4 transition-colors hover:bg-white/10">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5 size-5 shrink-0 cursor-pointer rounded border-slate-500 bg-white/10 text-blue-600 focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="text-[12px] leading-relaxed text-slate-300">
+            <strong className="text-white">(필수) 개인정보 수집·이용에 동의합니다.</strong>
+            <span className="mt-1.5 block text-slate-400">
+              수집 항목: 성함, 연락처, 문의 내용<br />
+              이용 목적: 상담 신청 접수 및 회신<br />
+              보유 기간: 상담 종료 후 3년 (전자상거래법에 따른 분쟁 처리 기록)
+            </span>
+            <span className="mt-1.5 block text-slate-400">
+              동의를 거부하실 수 있으며, 이 경우 상담 신청만 이용할 수 없습니다.
+              다른 기능은 그대로 이용하실 수 있습니다. 자세한 내용은{" "}
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="font-semibold text-blue-300 underline underline-offset-2"
+              >
+                개인정보처리방침
+              </a>
+              을 확인해 주세요.
+            </span>
+          </span>
+        </label>
+
+        <Button type="submit" disabled={isSubmitting || !agreed} className="h-14 w-full rounded-xl bg-blue-600 text-lg font-bold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/25 disabled:opacity-50">
           {isSubmitting ? "신청 중..." : (
             <>무료 상담 신청하기 <Send className="ml-2 size-5" /></>
           )}
         </Button>
-        <p className="text-center text-[11px] text-slate-400">
-          신청 시 개인정보 수집 및 제공에 동의하는 것으로 간주됩니다.
-        </p>
       </form>
     </div>
   );

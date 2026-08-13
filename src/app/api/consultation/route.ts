@@ -13,13 +13,25 @@ function createAdminClient() {
 
 export async function POST(req: Request) {
   try {
-    const supabase = createAdminClient();
     const body = await req.json();
-    const { category, name, phone, details } = body;
+    const { category, name, phone, details, privacyAgreed } = body;
 
+    // 검증을 먼저 한다. DB 클라이언트를 만든 뒤에 검사하면, 연결 설정이
+    // 잘못됐을 때 동의 확인에 닿기도 전에 다른 오류로 끝나 버린다.
     if (!name || !phone) {
       return NextResponse.json({ error: "이름과 연락처는 필수입니다." }, { status: 400 });
     }
+
+    // 동의 확인은 화면에서만 막으면 우회할 수 있다. 연락처를 받는 요청이므로
+    // 서버에서도 동의 없이는 저장하지 않는다.
+    if (privacyAgreed !== true) {
+      return NextResponse.json(
+        { error: "개인정보 수집·이용 동의가 필요합니다." },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createAdminClient();
 
     // 1. Supabase 장부에 기록
     const { error } = await supabase.from('consultation_leads').insert({
