@@ -1,11 +1,65 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import { isEmbeddedStoreRuntime } from "@/lib/platform/runtime";
+
+/** 앱에서도 반드시 도달할 수 있어야 하는 문서들. */
+const LEGAL_LINKS = [
+  { href: "/terms", label: "이용약관" },
+  { href: "/privacy", label: "개인정보처리방침" },
+  { href: "/refund", label: "환불정책" },
+  // Google Play는 계정 삭제 경로가 눈에 띄게 노출되기를 요구한다.
+  { href: "/account/delete", label: "계정 및 데이터 삭제" },
+];
+
 export function AppFooter() {
+  // 서버 렌더 시점에는 런타임을 알 수 없다. 앱에서 웹용 푸터가 잠깐
+  // 보였다 사라지는 깜빡임을 막기 위해 판별 전에는 아무것도 그리지 않는다.
+  const [runtime, setRuntime] = useState<"unknown" | "web" | "store">("unknown");
+
+  useEffect(() => {
+    setRuntime(isEmbeddedStoreRuntime() ? "store" : "web");
+  }, []);
+
+  if (runtime === "unknown") return <div className="mt-auto" />;
+
+  /*
+    스토어 앱(Android·앱인토스)에서는 마케팅 문구와 사업자 정보 블록을 걷어낸다.
+    앱 화면 안에서 웹사이트 푸터가 통째로 나오면 앱처럼 느껴지지 않는다.
+
+    다만 통째로 없애지는 않는다. 앱에는 이 문서로 가는 다른 경로가 없어서,
+    푸터를 지우면 개인정보처리방침과 계정 삭제 페이지에 도달할 방법이 사라진다.
+    둘 다 스토어 심사에서 요구하는 항목이다. 그래서 링크 한 줄만 남긴다.
+  */
+  if (runtime === "store") {
+    return (
+      <footer className="mt-auto border-t border-border/40 py-6">
+        <nav className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4">
+          {LEGAL_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+        <p className="mt-3 px-4 text-center text-[11px] leading-relaxed text-muted-foreground">
+          일부 상품 링크는 쿠팡 파트너스 활동의 일환이며, 이에 따른 일정액의
+          수수료를 제공받습니다.
+        </p>
+      </footer>
+    );
+  }
+
   return (
     <footer className="glass mt-auto border-t border-white/10 py-12 backdrop-blur-2xl">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <div className="grid gap-10 md:grid-cols-4">
-          
+
           {/* 1. 브랜드 소개 */}
           <div className="md:col-span-1">
             <p className="font-display text-lg font-semibold text-foreground">
@@ -36,27 +90,20 @@ export function AppFooter() {
               고객지원 및 약관
             </p>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <li>
-                <Link href="/terms" className="hover:text-foreground transition-colors">
-                  이용약관
-                </Link>
-              </li>
-              <li>
-                <Link href="/privacy" className="font-semibold text-foreground hover:text-primary transition-colors">
-                  개인정보처리방침
-                </Link>
-              </li>
-              <li>
-                <Link href="/refund" className="hover:text-foreground transition-colors">
-                  환불정책
-                </Link>
-              </li>
-              {/* Google Play는 계정 삭제 경로가 눈에 띄게 노출되기를 요구한다. */}
-              <li>
-                <Link href="/account/delete" className="hover:text-foreground transition-colors">
-                  계정 및 데이터 삭제
-                </Link>
-              </li>
+              {LEGAL_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className={
+                      link.href === "/privacy"
+                        ? "font-semibold text-foreground transition-colors hover:text-primary"
+                        : "transition-colors hover:text-foreground"
+                    }
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -71,7 +118,7 @@ export function AppFooter() {
             </p>
           </div>
         </div>
-        
+
 
         {/* 하단 사업자 정보 */}
         <div className="mt-12 border-t border-border/40 pt-8 text-[12px] text-muted-foreground leading-relaxed">
@@ -82,7 +129,7 @@ export function AppFooter() {
             <span className="hidden sm:inline text-border">|</span>
             <span><strong>사업자등록번호</strong> : 510-21-21827</span>
             <span className="hidden sm:inline text-border">|</span>
-            
+
           </div>
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:gap-x-4 gap-y-1 mt-1">
             <span><strong>고객센터</strong> : 0507-1385-9994</span>
