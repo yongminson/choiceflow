@@ -1,0 +1,23 @@
+{
+  "name": "choiceflow-android-shell",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "assets": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-store-assets.ps1",
+    "prepare:web": "node scripts/prepare-web.mjs",
+    "sync": "npm run prepare:web && cap sync android",
+    "open": "npm run sync && cap open android",
+    "build:debug": "npm run sync && cd android && gradlew.bat assembleDebug",
+    "build:bundle": "npm run sync && cd android && gradlew.bat bundleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/geolocation": "^8.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0"
+  }
+}

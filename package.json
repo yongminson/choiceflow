@@ -12,7 +12,15 @@
     "test:quick": "node --experimental-strip-types --test tests/quick-options.test.mts",
     "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts",
     "test:map": "node --experimental-strip-types --test tests/map-keyword.test.mts",
-    "test:fit": "node --experimental-strip-types --test tests/fit-checks.test.mts"
+    "test:fit": "node --experimental-strip-types --test tests/fit-checks.test.mts",
+    "android:sync": "npm --prefix platforms/android run sync",
+    "android:assets": "npm --prefix platforms/android run assets",
+    "android:open": "npm --prefix platforms/android run open",
+    "android:build:debug": "npm --prefix platforms/android run build:debug",
+    "android:build:bundle": "npm --prefix platforms/android run build:bundle",
+    "toss:dev": "npm --prefix platforms/apps-in-toss run dev",
+    "toss:build": "npm --prefix platforms/apps-in-toss run build",
+    "toss:ait": "npm --prefix platforms/apps-in-toss run build:ait"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",

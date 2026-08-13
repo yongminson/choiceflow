@@ -202,6 +202,12 @@ export function QuickRecommendationDashboard() {
     setRecentSelections(readRecentSelections());
   }, []);
 
+  useEffect(() => {
+    if (!categoryId) return;
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [categoryId]);
+
   const step = !categoryId ? 1 : !scenarioId ? 2 : !priorityId ? 3 : 4;
   const questionStep = Math.max(0, step - 1);
   const questionTheme = categoryId ? QUESTION_THEMES[categoryId] : null;
@@ -427,7 +433,7 @@ export function QuickRecommendationDashboard() {
                       href="#start-choice"
                       className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-white px-7 text-[15px] font-black text-[#07111f] transition duration-300 hover:-translate-y-1 hover:bg-[#c8ff69]"
                     >
-                      3번의 선택으로 시작
+                      간단한 선택으로 시작
                       <ArrowUpRight className="ml-2 size-4" />
                     </a>
                     <a

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { useSupabaseUser } from "@/components/auth/use-supabase-user";
 import { Button } from "@/components/ui/button";
 import { CREDIT_PACKS, type CreditPackId, formatWon } from "@/lib/payment/credit-packs";
 import { cn } from "@/lib/utils";
+import { isEmbeddedStoreRuntime } from "@/lib/platform/runtime";
 
 type BillingModalProps = {
   open: boolean;
@@ -49,6 +50,11 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
   const [selectedPackId, setSelectedPackId] = useState<CreditPackId>("1");
   const [selectedPlanId, setSelectedPlanId] = useState<string>("pro"); // 🔥 구독 플랜 선택 State 추가
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [storeRuntime, setStoreRuntime] = useState(false);
+
+  useEffect(() => {
+    setStoreRuntime(isEmbeddedStoreRuntime());
+  }, []);
 
   const selectedPack = CREDIT_PACKS.find((p) => p.id === selectedPackId) ?? CREDIT_PACKS[0];
 
@@ -67,7 +73,7 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
     const channelKey = "channel-key-ef19ec49-725c-43df-82ce-fc73870de2f1";
 
     const paymentId = `order-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const response = await PortOne.requestPayment({
+    const paymentRequest = {
       storeId,
       channelKey,
       paymentId,
@@ -75,7 +81,8 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
       totalAmount: selectedPack.priceWon,
       currency: "CURRENCY_KRW",
       payMethod: "CARD",
-    } as any);
+    } as unknown as Parameters<typeof PortOne.requestPayment>[0];
+    const response = await PortOne.requestPayment(paymentRequest);
 
     if (response?.code != null) throw new Error(response.message || "결제가 취소되었거나 실패했습니다.");
 
@@ -108,13 +115,14 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
 
     toast.info("결제 수단(카드)을 등록합니다...");
     
-    const issueResponse = await PortOne.requestIssueBillingKey({
+    const billingKeyRequest = {
       storeId,
       channelKey,
       billingKeyMethod: "CARD",
       issueId: `issue-${Date.now()}`,
       issueName: "ChoiceFlow Pro 정기구독",
-    } as any);
+    } as unknown as Parameters<typeof PortOne.requestIssueBillingKey>[0];
+    const issueResponse = await PortOne.requestIssueBillingKey(billingKeyRequest);
 
     if (issueResponse?.code != null) throw new Error(issueResponse.message || "카드 등록이 취소/실패했습니다.");
 
@@ -139,15 +147,18 @@ export function BillingModal({ open, onOpenChange }: BillingModalProps) {
       } else {
         await handleSubscribe();
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      toast.error(e.message || "처리 중 예상치 못한 오류가 발생했습니다.");
+      toast.error(e instanceof Error ? e.message : "처리 중 예상치 못한 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!open) return null;
+  // Digital credits must use each store's approved billing flow. Until those
+  // native flows are implemented, never expose the existing PortOne checkout
+  // inside Google Play or Apps in Toss containers.
+  if (!open || storeRuntime) return null;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-4 sm:items-center" role="dialog" aria-modal="true">

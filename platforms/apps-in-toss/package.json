@@ -1,0 +1,21 @@
+{
+  "name": "choiceflow-apps-in-toss-shell",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit -p tsconfig.app.json && vite build",
+    "build:ait": "npm run build && ait build"
+  },
+  "dependencies": {
+    "@apps-in-toss/web-framework": "^3.0.3",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "5.0.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.6"
+  }
+}
