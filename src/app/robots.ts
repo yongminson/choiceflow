@@ -5,7 +5,9 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/api/', '/mypage/'], // API나 마이페이지는 검색엔진에 안 뜨게 막음
+      // 개인화되거나 일회성인 주소는 색인 대상이 아니다.
+      // /r/ 은 사용자가 만든 공유 결과라 검색에 뜨면 안 된다.
+      disallow: ['/api/', '/mypage/', '/login', '/admin', '/r/', '/payment/'],
     },
     sitemap: 'https://choice.ymstudio.co.kr/sitemap.xml',
   }
