@@ -61,8 +61,14 @@ export default function PrivacyPage() {
             <li>상담 신청 정보: 상담 종료 후 3년 또는 이용자의 삭제 요청 시까지</li>
             <li>결제 및 계약·청약철회 기록: 관련 법령에서 정한 기간</li>
             <li>접속·보안 기록: 관련 법령 또는 보안 목적에 필요한 기간</li>
+            <li>공유 링크로 저장된 추천 결과: 이용자의 삭제 요청 시까지</li>
           </ul>
           <p className="mt-3">법령상 보존 의무가 있는 경우 해당 기간 동안 분리 보관한 후 파기합니다.</p>
+          <p className="mt-3">
+            <strong>공유 링크 안내:</strong> 결과 화면에서 &ldquo;결과 공유하기&rdquo;를 누르면 그 시점의 추천 결과가 저장되고 고유 주소가 만들어집니다.
+            <strong> 주소를 아는 사람은 누구나 해당 결과를 볼 수 있으므로</strong> 개인적인 내용이 담긴 결과는 공유하지 않도록 주의해 주세요.
+            삭제를 원하시면 support@ymstudio.co.kr로 해당 주소와 함께 요청해 주시면 지체 없이 삭제합니다.
+          </p>
           <p className="mt-3">
             회원은 <Link href="/account/delete" className="font-semibold text-primary underline underline-offset-4">계정 및 데이터 삭제</Link> 페이지에서
             언제든 직접 계정과 관련 데이터의 삭제를 요청할 수 있습니다.

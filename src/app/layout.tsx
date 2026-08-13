@@ -31,6 +31,8 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
+  // 이 값이 없으면 공유 링크의 미리보기 이미지 주소가 상대 경로로 나가
+  // 카카오톡·트위터에서 썸네일이 뜨지 않는다.
   metadataBase: new URL("https://choice.ymstudio.co.kr"),
   title: {
     default: "ChoiceFlow — 선택장애를 위한 AI",

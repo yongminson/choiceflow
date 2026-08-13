@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ShareResultButton } from "@/components/result/share-result-button";
 import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
 import {
   getQuickAdvancedQuestions,
@@ -912,7 +913,9 @@ export function QuickRecommendationResult({
         )}
       </section>
 
-      <div className="mt-7">
+      <ShareResultButton result={data} className="mt-7" />
+
+      <div className="mt-3">
         <Link
           href="/" className={cn(
             buttonVariants({ variant: "outline" }),
