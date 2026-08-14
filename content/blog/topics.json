@@ -1,0 +1,32 @@
+[
+  { "slug": "oneroom-cordless-vacuum", "topic": "원룸에서 쓸 무선청소기 고르는 기준", "categoryId": "appliance" },
+  { "slug": "first-laptop-under-1m", "topic": "100만원 이하 노트북을 고를 때 실제로 봐야 할 것", "categoryId": "appliance" },
+  { "slug": "small-fridge-for-single", "topic": "자취용 소형 냉장고, 용량보다 먼저 볼 것", "categoryId": "appliance" },
+  { "slug": "air-purifier-small-room", "topic": "작은 방용 공기청정기에서 헛돈 쓰지 않는 법", "categoryId": "appliance" },
+  { "slug": "washing-machine-drum-vs-tub", "topic": "드럼세탁기와 통돌이, 어느 쪽이 내 상황에 맞나", "categoryId": "appliance" },
+  { "slug": "microwave-vs-airfryer", "topic": "전자레인지와 에어프라이어 중 하나만 산다면", "categoryId": "appliance" },
+
+  { "slug": "gift-for-30s-man", "topic": "30대 남성 선물, 실패하지 않는 기준", "categoryId": "gift" },
+  { "slug": "gift-for-parents-holiday", "topic": "부모님 명절 선물에서 자주 어긋나는 지점", "categoryId": "gift" },
+  { "slug": "housewarming-gift-newlywed", "topic": "신혼집 집들이 선물, 겹치지 않게 고르는 법", "categoryId": "gift" },
+  { "slug": "gift-under-50000", "topic": "5만원 예산 선물에서 값어치를 높이는 방법", "categoryId": "gift" },
+  { "slug": "gift-for-boss", "topic": "직장 상사 선물에서 지켜야 할 선", "categoryId": "gift" },
+  { "slug": "baby-shower-gift", "topic": "출산 선물, 정말 필요한 것과 안 쓰는 것", "categoryId": "gift" },
+
+  { "slug": "winter-outer-buying-guide", "topic": "겨울 아우터 살 때 보온보다 먼저 볼 것", "categoryId": "fashion" },
+  { "slug": "work-shoes-standing-all-day", "topic": "하루 종일 서서 일할 때 신발 고르는 기준", "categoryId": "fashion" },
+  { "slug": "first-suit-buying-guide", "topic": "첫 정장, 가격보다 중요한 세 가지", "categoryId": "fashion" },
+  { "slug": "backpack-for-commute", "topic": "출퇴근용 백팩에서 자주 후회하는 부분", "categoryId": "fashion" },
+
+  { "slug": "rainy-day-date-course", "topic": "비 오는 날 데이트 코스를 정하는 기준", "categoryId": "date" },
+  { "slug": "first-date-restaurant", "topic": "첫 데이트 식당 고를 때 피해야 할 선택", "categoryId": "date" },
+  { "slug": "domestic-trip-2night", "topic": "1박 2일 국내 여행지를 고르는 순서", "categoryId": "date" },
+
+  { "slug": "solo-dinner-menu", "topic": "혼밥할 때 메뉴가 안 정해지는 이유와 해결법", "categoryId": "food" },
+  { "slug": "group-dinner-menu", "topic": "여럿이 먹을 때 메뉴 정하기가 어려운 이유", "categoryId": "food" },
+  { "slug": "late-night-food-choice", "topic": "야식, 후회를 줄이는 선택 기준", "categoryId": "food" },
+
+  { "slug": "used-car-first-buyer", "topic": "첫 중고차에서 가격보다 먼저 확인할 것", "categoryId": "asset" },
+  { "slug": "rental-vs-purchase", "topic": "렌탈과 구매, 총비용으로 비교하는 방법", "categoryId": "asset" },
+  { "slug": "phone-plan-choice", "topic": "요금제를 바꿀 때 실제로 아끼는 기준", "categoryId": "asset" }
+]

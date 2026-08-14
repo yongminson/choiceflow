@@ -81,6 +81,12 @@ export function AppFooter() {
                   메인 홈
                 </Link>
               </li>
+              {/* 어디에서도 링크되지 않는 페이지는 검색엔진이 고아 문서로 본다. */}
+              <li>
+                <Link href="/blog" className="hover:text-foreground transition-colors">
+                  구매 판단 가이드
+                </Link>
+              </li>
             </ul>
           </div>
 

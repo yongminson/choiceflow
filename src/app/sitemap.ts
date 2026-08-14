@@ -1,5 +1,7 @@
 import { MetadataRoute } from "next";
 
+import { getAllPosts } from "@/lib/blog/posts";
+
 const BASE_URL = "https://choice.ymstudio.co.kr";
 
 /**
@@ -18,8 +20,16 @@ const BASE_URL = "https://choice.ymstudio.co.kr";
  * 로그인·마이페이지·결제 결과·공유 결과처럼 개인화되거나 일회성인
  * 주소는 색인 대상이 아니므로 넣지 않는다.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
+
+  // 가이드 글은 검증을 통과해 실제로 공개되는 것만 담는다.
+  const postUrls = (await getAllPosts()).map((post) => ({
+    url: `${BASE_URL}/blog/${post.slug}`,
+    lastModified: new Date(post.publishedAt),
+    changeFrequency: "monthly" as const,
+    priority: 0.6,
+  }));
 
   return [
     {
@@ -28,6 +38,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "daily",
       priority: 1,
     },
+    {
+      url: `${BASE_URL}/blog`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.7,
+    },
+    ...postUrls,
     {
       url: `${BASE_URL}/compare`,
       lastModified: now,

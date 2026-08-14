@@ -1,0 +1,52 @@
+name: 블로그 글 자동 생성
+
+on:
+  schedule:
+    # 매일 00:10 UTC (한국 09:10)
+    - cron: "10 0 * * *"
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "이번 실행에서 생성할 글 수 (1~5)"
+        required: false
+        default: "3"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: blog-generate
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 글 생성
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          POSTS_PER_RUN: ${{ github.event.inputs.count || '3' }}
+        run: node --experimental-strip-types scripts/generate-blog-posts.mts
+
+      # 형식이 깨진 글이 올라가면 화면에서 걸러지긴 하지만,
+      # 저장소에 들어가기 전에 막는 편이 낫다.
+      - name: 검증
+        run: npm ci && npm run test:blog
+
+      - name: 커밋
+        run: |
+          if [ -z "$(git status --porcelain content/blog/posts)" ]; then
+            echo "새로 저장된 글이 없습니다."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/blog/posts
+          git commit -m "content: add generated buying guides ($(date -u +%Y-%m-%d))"
+          git push
