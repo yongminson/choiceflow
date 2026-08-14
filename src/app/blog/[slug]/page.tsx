@@ -3,7 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ArrowRight, Check, ChevronLeft } from "lucide-react";
 
-import { CATEGORY_LABEL, getAllPosts, getPostBySlug } from "@/lib/blog/posts";
+import {
+  CATEGORY_LABEL,
+  getAllPosts,
+  getPostBySlug,
+  getRelatedPosts,
+} from "@/lib/blog/posts";
 
 type Props = { params: { slug: string } };
 
@@ -31,6 +36,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function BlogPostPage({ params }: Props) {
   const post = await getPostBySlug(params.slug);
   if (!post) notFound();
+
+  const related = await getRelatedPosts(post);
 
   return (
     <article className="mx-auto w-full max-w-[760px] px-5 py-16 sm:px-8 sm:py-24">
@@ -130,6 +137,31 @@ export default async function BlogPostPage({ params }: Props) {
           ))}
         </dl>
       </section>
+
+      {related.length > 0 && (
+        <section className="mt-14">
+          <h2 className="text-[18px] font-black tracking-tight">
+            함께 보면 좋은 글
+          </h2>
+          <ul className="mt-4 divide-y divide-border border-y border-border">
+            {related.map((item) => (
+              <li key={item.slug}>
+                <Link
+                  href={`/blog/${item.slug}`}
+                  className="flex flex-col gap-1 py-4 transition-opacity hover:opacity-80"
+                >
+                  <span className="text-[12px] font-bold text-primary">
+                    {CATEGORY_LABEL[item.categoryId]}
+                  </span>
+                  <span className="text-[16px] font-black leading-snug">
+                    {item.title}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="mt-14 rounded-2xl border border-primary/20 bg-primary-soft p-6 text-center sm:p-8">
         <h2 className="text-[20px] font-black tracking-tight">

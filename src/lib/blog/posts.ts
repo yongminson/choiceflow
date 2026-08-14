@@ -48,6 +48,33 @@ export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
   return posts.find((post) => post.slug === slug) ?? null;
 }
 
+/**
+ * 글 사이를 잇는 링크에 쓸 다른 글을 고른다.
+ *
+ * 목록 페이지와 sitemap 에만 걸려 있으면 검색엔진이 글마다 도달하는 경로가
+ * 얕다. 실제로 같은 방식으로 운영하는 블로그에서 색인되지 않은 페이지의
+ * 대부분이 "발견됨 - 현재 색인이 생성되지 않음"이었다. 주소는 알지만
+ * 크롤링 순서가 오지 않은 상태다.
+ *
+ * 같은 카테고리 글을 먼저 잇고 모자라면 최근 글로 채워, 어느 글에서 출발해도
+ * 다른 글로 이어지게 한다.
+ */
+export async function getRelatedPosts(
+  post: BlogPost,
+  limit = 3
+): Promise<BlogPost[]> {
+  const others = (await getAllPosts()).filter(
+    (item) => item.slug !== post.slug
+  );
+
+  const sameCategory = others.filter(
+    (item) => item.categoryId === post.categoryId
+  );
+  const rest = others.filter((item) => item.categoryId !== post.categoryId);
+
+  return [...sameCategory, ...rest].slice(0, limit);
+}
+
 export const CATEGORY_LABEL: Record<BlogPost["categoryId"], string> = {
   food: "음식",
   gift: "선물",
