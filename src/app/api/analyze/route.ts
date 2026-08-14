@@ -189,13 +189,23 @@ export async function POST(request: Request) {
     };
 
     // 🔥 전면 무료화: 분석 기록만 남기고 크레딧 차감은 절대 하지 않음!
-    await supabase.from("analysis_history").insert({ 
+    //
+    // 저장 실패를 확인하지 않아서 2026-05-13 이후 기록이 한 건도 안 남았다.
+    // 남은 187건은 전부 로그인 사용자 것이고 익명 기록은 0건 — 무료화로
+    // 비로그인 사용이 늘어난 시점과 정확히 겹친다. RLS 가 익명 INSERT 를
+    // 막고 있을 가능성이 크므로, 최소한 실패한 사실은 로그로 남긴다.
+    const { error: historyError } = await supabase.from("analysis_history").insert({
       user_id: user?.id || null,
-      category: getCategoryDisplayLabel(categoryId), 
-      input_data: body, 
-      result_data: out, 
-      spent_credits: 0 
+      category: getCategoryDisplayLabel(categoryId),
+      input_data: body,
+      result_data: out,
+      spent_credits: 0
     });
+    if (historyError) {
+      console.error(
+        `[analysis_history] 저장 실패 (user_id=${user?.id || "anonymous"}): ${historyError.message}`
+      );
+    }
 
     return NextResponse.json({ ok: true, ...out });
   } catch (error) {
