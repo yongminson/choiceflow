@@ -294,6 +294,8 @@ export const COUPANG_SEARCH_PATH =
   "/v2/providers/affiliate_open_api/apis/openapi/products/search";
 
 export type CoupangProduct = {
+  /** 쿠팡이 매기는 상품 번호. 같은 상품인지 가리는 기준이다. */
+  productId?: string;
   productName: string;
   productPrice: number;
   productImage: string;
@@ -303,11 +305,28 @@ export type CoupangProduct = {
   isFreeShipping: boolean;
 };
 
+/**
+ * 같은 상품인지 가릴 때 쓰는 값들.
+ *
+ * 상품 주소만으로는 부족하다. 제휴 딥링크에는 호출마다 달라지는 추적
+ * 파라미터가 붙어, 같은 상품인데 주소가 달라 중복 검사를 빠져나간다.
+ * 상품 번호를 먼저 보고, 썸네일도 함께 본다. 판매자만 다른 같은 물건은
+ * 번호가 갈리지만 사진이 같아서, 화면에서는 그냥 같은 상품으로 보인다.
+ */
+export function productDedupKeys(product: CoupangProduct): string[] {
+  return [
+    product.productId && `id:${product.productId}`,
+    product.productUrl && `url:${product.productUrl}`,
+    product.productImage && `img:${product.productImage}`,
+  ].filter((key): key is string => Boolean(key));
+}
+
 type CoupangSearchResponse = {
   rCode?: string;
   rMessage?: string;
   data?: {
     productData?: Array<{
+      productId?: number | string;
       productName?: string;
       productPrice?: number;
       productImage?: string;
@@ -337,16 +356,16 @@ export async function searchCoupangProduct(
   maxPriceWon?: number,
   options: {
     /**
-     * 이미 다른 후보에 쓴 상품 주소.
+     * 이미 다른 후보에 쓴 상품을 가리키는 값들(productDedupKeys 로 만든다).
      * 검색어가 달라도 같은 상품이 걸리는 일이 있어, 슬롯이 겹치지 않도록 뺀다.
      */
-    excludeProductUrls?: ReadonlySet<string>;
+    excludeKeys?: ReadonlySet<string>;
   } = {}
 ): Promise<CoupangProduct | null> {
   const normalizedKeyword = normalizeCoupangKeyword(keyword);
   if (!normalizedKeyword) return null;
 
-  const excluded = options.excludeProductUrls;
+  const excluded = options.excludeKeys;
   // 제외 목록이 있으면 결과가 달라질 수 있으므로 캐시를 쓰지 않는다.
   const useCache = !excluded || excluded.size === 0;
   const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}`;
@@ -405,11 +424,23 @@ export async function searchCoupangProduct(
     }
 
     const items = payload.data?.productData ?? [];
+    const isExcluded = (item: (typeof items)[number]) => {
+      if (!excluded || excluded.size === 0) return false;
+      return productDedupKeys({
+        productId: item.productId === undefined ? undefined : String(item.productId),
+        productName: "",
+        productPrice: 0,
+        productImage: String(item.productImage ?? ""),
+        productUrl: String(item.productUrl ?? ""),
+        isRocket: false,
+        isFreeShipping: false,
+      }).some((key) => excluded.has(key));
+    };
     const isUsable = (item: (typeof items)[number]) =>
       Boolean(item.productUrl) &&
       Boolean(item.productName) &&
       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
-      !excluded?.has(String(item.productUrl));
+      !isExcluded(item);
 
     const picked = items.find((item) => {
       if (!isUsable(item)) return false;
@@ -425,6 +456,8 @@ export async function searchCoupangProduct(
     }
 
     const product: CoupangProduct = {
+      productId:
+        chosen.productId === undefined ? undefined : String(chosen.productId),
       productName: String(chosen.productName).slice(0, 120),
       productPrice: Number(chosen.productPrice) || 0,
       productImage: String(chosen.productImage ?? ""),
