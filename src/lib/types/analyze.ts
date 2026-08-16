@@ -97,6 +97,17 @@ export type RecommendationFitCheck = {
   ok: boolean;
   /** "예산 안에 들어옴" 처럼 조건을 그대로 확인해 주는 짧은 문장 */
   text: string;
+  /**
+   * 이 항목이 확인된 사실인지, AI 의 판단인지.
+   *
+   * verified — 서버가 실제 값으로 확인했다. 쿠팡 판매가, 로켓배송 여부,
+   *   지도의 평점·거리·영업 상태처럼 조회 결과에서 나온 것.
+   * guide — 사용자가 고른 조건을 바탕으로 한 AI 의 판단이다. 링크되는 상품의
+   *   실제 사양을 확인하고 쓴 것이 아니므로 사실로 표시하면 안 된다.
+   *
+   * 값이 없으면 guide 로 본다. 확인했다고 단정하는 쪽이 더 위험하다.
+   */
+  source?: "verified" | "guide";
 };
 
 export type QuickRecommendation = {

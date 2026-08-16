@@ -163,30 +163,62 @@ function FitChecklist({
   checks: QuickRecommendation["fitChecks"];
 }) {
   if (!checks?.length) return null;
+
+  // 확인된 사실과 AI 판단을 나눠 보여준다. 같은 체크 표시로 나란히 두면
+  // 어느 쪽이 실제로 확인된 것인지 구분할 수 없다.
+  const verified = checks.filter((check) => check.source === "verified");
+  const guides = checks.filter((check) => check.source !== "verified");
+
   return (
-    <ul className="mt-3.5 space-y-1.5">
-      {checks.map((check) => (
-        <li
-          key={check.text}
-          className="flex items-start gap-2 text-[13.5px] leading-snug"
-        >
-          {check.ok ? (
-            <Check
-              className="mt-[3px] size-4 shrink-0 text-success"
-              aria-hidden
-            />
-          ) : (
-            <Minus
-              className="mt-[3px] size-4 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-          )}
-          <span className={cn(!check.ok && "text-muted-foreground")}>
-            {check.text}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div className="mt-3.5">
+      {verified.length > 0 && (
+        <ul className="space-y-1.5">
+          {verified.map((check) => (
+            <li
+              key={check.text}
+              className="flex items-start gap-2 text-[13.5px] leading-snug"
+            >
+              {check.ok ? (
+                <Check
+                  className="mt-[3px] size-4 shrink-0 text-success"
+                  aria-hidden
+                />
+              ) : (
+                <Minus
+                  className="mt-[3px] size-4 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+              )}
+              <span className={cn(!check.ok && "text-muted-foreground")}>
+                {check.text}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {guides.length > 0 && (
+        <div className={cn(verified.length > 0 && "mt-3 border-t border-border pt-3")}>
+          <p className="text-[11px] font-bold text-muted-foreground">
+            조건으로 본 판단
+          </p>
+          <ul className="mt-1.5 space-y-1.5">
+            {guides.map((check) => (
+              <li
+                key={check.text}
+                className="flex items-start gap-2 text-[13px] leading-snug text-muted-foreground"
+              >
+                <span
+                  className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60"
+                  aria-hidden
+                />
+                <span>{check.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
