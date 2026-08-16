@@ -20,6 +20,7 @@ import {
   placeFitChecks,
   readFitChecks,
 } from "@/lib/recommendation/fit-checks";
+import { alignValueLabelWithPrice } from "@/lib/recommendation/selection-labels";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { resolveDisplayName } from "@/lib/monetization/brand-verify";
 import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
@@ -859,7 +860,9 @@ async function enrichProductPrices(
     });
   }
 
-  const sorted = [...items].sort(
+  const labelled = alignValueLabelWithPrice(items);
+
+  const sorted = [...labelled].sort(
     (a, b) =>
       SELECTION_ORDER.indexOf(a.selectionType || "best") -
       SELECTION_ORDER.indexOf(b.selectionType || "best")
