@@ -793,67 +793,85 @@ async function enrichProductPrices(
   candidates: Candidate[],
   maxBudgetWon?: number
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
-  const items: QuickRecommendation[] = await Promise.all(
-    candidates.map(async (candidate, index): Promise<QuickRecommendation> => {
-      const searchKeyword = normalizeProductSearchKeyword(
-        candidate.searchKeyword,
-        candidate.name
-      );
-      try {
-        // 쿠팡 상품 검색은 썸네일·실가격과 함께 제휴 추적이 포함된 상품 상세
-        // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
-        const product = await searchCoupangProduct(searchKeyword, maxBudgetWon);
-        if (product) {
-          return {
-            rank: index + 1,
-            ...candidate,
-            searchKeyword,
-            price: product.productPrice,
-            priceLabel: product.isRocket ? "쿠팡 · 로켓배송" : "쿠팡 판매가",
-            imageUrl: product.productImage || undefined,
-            productName: product.productName,
-            isRocket: product.isRocket,
-            sourceUrl: product.productUrl,
-            sourceLabel: "쿠팡에서 이 상품 보기",
-            // AI 가 지은 이름과 실제로 링크되는 상품이 다를 수 있다.
-            // 브랜드가 실제 상품과 맞을 때만 그 이름을 쓰고,
-            // 아니면 실제 상품명에서 만들어 쓴다.
-            name: resolveDisplayName(candidate.name, product.productName),
-          } satisfies QuickRecommendation;
-        }
-        return {
-          rank: index + 1,
-          ...candidate,
-          searchKeyword,
-          sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
-          sourceLabel: "쿠팡에서 이 상품 검색",
-          name: candidate.name,
-        } satisfies QuickRecommendation;
-      } catch {
-        return {
-          rank: index + 1,
-          ...candidate,
-          searchKeyword,
-          sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
-          sourceLabel: "쿠팡에서 이 상품 검색",
-        } satisfies QuickRecommendation;
-      }
-    })
+  /*
+    후보마다 따로 검색하면 서로 다른 검색어가 같은 상품을 물어 오는 일이 생긴다.
+    실제로 "가성비 선택"과 "한 단계 위"에 같은 상품이 같은 가격으로 걸린 화면이
+    나갔다. 한 단계 위인데 값이 같으면 한 단계 위가 아니다.
+
+    그래서 순차로 돌면서 이미 쓴 상품은 건너뛴다. 병렬보다 느리지만 후보가
+    넷뿐이라 감당할 수 있고, 슬롯이 중복되는 것보다 낫다.
+  */
+  const usedProductKeys = new Set<string>();
+  const items: QuickRecommendation[] = [];
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    const searchKeyword = normalizeProductSearchKeyword(
+      candidate.searchKeyword,
+      candidate.name
+    );
+
+    let product: Awaited<ReturnType<typeof searchCoupangProduct>> = null;
+    try {
+      // 쿠팡 상품 검색은 썸네일·실가격과 함께 제휴 추적이 포함된 상품 상세
+      // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
+      product = await searchCoupangProduct(searchKeyword, maxBudgetWon, {
+        excludeProductUrls: usedProductKeys,
+      });
+    } catch {
+      product = null;
+    }
+
+    if (product) {
+      usedProductKeys.add(product.productUrl);
+      items.push({
+        rank: index + 1,
+        ...candidate,
+        searchKeyword,
+        price: product.productPrice,
+        priceLabel: product.isRocket ? "쿠팡 · 로켓배송" : "쿠팡 판매가",
+        imageUrl: product.productImage || undefined,
+        productName: product.productName,
+        isRocket: product.isRocket,
+        sourceUrl: product.productUrl,
+        sourceLabel: "쿠팡에서 이 상품 보기",
+        // 카드 제목은 실제로 링크되는 상품의 이름을 쓴다. AI 가 지은 이름은
+        // "자동 먼지비움 로봇청소기"처럼 제품명이 아니라 분류 설명이라
+        // 무엇을 사라는 것인지 알 수 없다.
+        name: resolveDisplayName(candidate.name, product.productName),
+      });
+      continue;
+    }
+
+    items.push({
+      rank: index + 1,
+      ...candidate,
+      searchKeyword,
+      sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
+      sourceLabel: "쿠팡에서 이 상품 검색",
+      name: resolveDisplayName(candidate.name, undefined),
+    });
+  }
+
+  const sorted = [...items].sort(
+    (a, b) =>
+      SELECTION_ORDER.indexOf(a.selectionType || "best") -
+      SELECTION_ORDER.indexOf(b.selectionType || "best")
   );
-  const sorted = [...items]
-    .sort(
-      (a, b) =>
-        SELECTION_ORDER.indexOf(a.selectionType || "best") -
-        SELECTION_ORDER.indexOf(b.selectionType || "best")
-    )
-    // 체크리스트는 실제 가격·배송이 확정된 뒤에 채워야 "예산 안에 들어옴"이 사실이 된다.
-    .map((item, index) => ({
+
+  // 체크리스트는 실제 가격·배송이 확정된 뒤에 채워야 "예산 안에 들어옴"이 사실이 된다.
+  // 후보끼리 비교해야 나오는 항목이 있어 전체를 함께 넘긴다.
+  const prices = sorted
+    .map((item) => item.price)
+    .filter((price): price is number => typeof price === "number");
+  const cheapest = prices.length > 1 ? Math.min(...prices) : undefined;
+
+  return {
+    recommendations: sorted.map((item, index) => ({
       ...item,
       rank: index + 1,
-      fitChecks: derivedFitChecks(item, maxBudgetWon),
-    }));
-  return {
-    recommendations: sorted,
+      fitChecks: derivedFitChecks(item, maxBudgetWon, { cheapestPrice: cheapest }),
+    })),
     live: items.some((item) => typeof item.price === "number"),
   };
 }
