@@ -334,13 +334,23 @@ const PRODUCT_CACHE_MAX = 500;
  */
 export async function searchCoupangProduct(
   keyword: string,
-  maxPriceWon?: number
+  maxPriceWon?: number,
+  options: {
+    /**
+     * 이미 다른 후보에 쓴 상품 주소.
+     * 검색어가 달라도 같은 상품이 걸리는 일이 있어, 슬롯이 겹치지 않도록 뺀다.
+     */
+    excludeProductUrls?: ReadonlySet<string>;
+  } = {}
 ): Promise<CoupangProduct | null> {
   const normalizedKeyword = normalizeCoupangKeyword(keyword);
   if (!normalizedKeyword) return null;
 
+  const excluded = options.excludeProductUrls;
+  // 제외 목록이 있으면 결과가 달라질 수 있으므로 캐시를 쓰지 않는다.
+  const useCache = !excluded || excluded.size === 0;
   const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}`;
-  const cached = productCache.get(cacheKey);
+  const cached = useCache ? productCache.get(cacheKey) : undefined;
   if (cached && cached.expiresAt > Date.now()) return cached.product;
   if (productCache.size > PRODUCT_CACHE_MAX) {
     const now = Date.now();
@@ -395,24 +405,22 @@ export async function searchCoupangProduct(
     }
 
     const items = payload.data?.productData ?? [];
+    const isUsable = (item: (typeof items)[number]) =>
+      Boolean(item.productUrl) &&
+      Boolean(item.productName) &&
+      isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
+      !excluded?.has(String(item.productUrl));
+
     const picked = items.find((item) => {
-      if (!item.productUrl || !item.productName) return false;
-      if (!isAllowedCoupangRedirectUrl(item.productUrl)) return false;
+      if (!isUsable(item)) return false;
       const price = Number(item.productPrice);
       if (!Number.isFinite(price) || price <= 0) return false;
       return !maxPriceWon || price <= maxPriceWon;
     });
     // 예산을 넘더라도 아예 없는 것보다는 대표 상품 하나를 보여준다.
-    const chosen =
-      picked ??
-      items.find(
-        (item) =>
-          item.productUrl &&
-          item.productName &&
-          isAllowedCoupangRedirectUrl(item.productUrl)
-      );
+    const chosen = picked ?? items.find(isUsable);
     if (!chosen) {
-      productCache.set(cacheKey, { product: null, expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS });
+      if (useCache) productCache.set(cacheKey, { product: null, expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS });
       return null;
     }
 
@@ -424,10 +432,12 @@ export async function searchCoupangProduct(
       isRocket: Boolean(chosen.isRocket),
       isFreeShipping: Boolean(chosen.isFreeShipping),
     };
-    productCache.set(cacheKey, {
-      product,
-      expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS,
-    });
+    if (useCache) {
+      productCache.set(cacheKey, {
+        product,
+        expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS,
+      });
+    }
     return product;
   } catch (error) {
     console.error("[coupang] Product search failed", error);
