@@ -21,6 +21,7 @@ import {
   readFitChecks,
 } from "@/lib/recommendation/fit-checks";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
+import { resolveDisplayName } from "@/lib/monetization/brand-verify";
 import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
 import type {
   AnalyzeApiResult,
@@ -557,9 +558,17 @@ function keywordRules(categoryId: CategoryId): string {
     return `searchKeyword는 쿠팡 검색창에 그대로 넣었을 때 원하는 상품이 첫 화면에 나오도록 쓴다.
 - "제품군 + 핵심 구분 조건" 형태로 8~24자. 예: "텀블러"(X) → "보온 스테인리스 텀블러 500ml"(O)
 - 예: "블루투스 스피커"(X) → "휴대용 방수 블루투스 스피커"(O)
-- 널리 팔리는 브랜드가 명확하면 브랜드를 앞에 붙여도 된다. 확실하지 않으면 붙이지 않는다.
 - 광고 문구(최저가·정품·무료배송), 옵션 나열, 쉼표 연결은 금지한다.
-- name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.`;
+- name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.
+
+[브랜드 표기]
+name 에는 브랜드를 쓰지 않는 것을 원칙으로 하고, 어떤 종류의 제품인지로 쓴다.
+  예) "삼성 비스포크 제트"(X) → "먼지통 자동비움 로봇청소기"(O)
+실제로 링크되는 상품은 검색 결과로 정해지므로, 지금 단계에서 특정 브랜드를
+적으면 화면의 이름과 실제 상품이 어긋난다. 실제 브랜드는 서버가 상품을 찾은
+뒤 그 상품명에서 가져온다.
+서로 다른 회사를 붙여 쓰는 것은 어떤 경우에도 금지한다. 그런 제품은 없다.
+  예) "샤오미 로보락"(X), "삼성 다이슨"(X)`;
   }
   if (categoryId === "food") {
     return `mapKeyword 는 지도 앱에서 주변 가게가 뜨는 "업종·메뉴 이름" 하나만 쓴다.
@@ -776,7 +785,10 @@ async function enrichProductPrices(
             isRocket: product.isRocket,
             sourceUrl: product.productUrl,
             sourceLabel: "쿠팡에서 이 상품 보기",
-            name: candidate.name,
+            // AI 가 지은 이름과 실제로 링크되는 상품이 다를 수 있다.
+            // 브랜드가 실제 상품과 맞을 때만 그 이름을 쓰고,
+            // 아니면 실제 상품명에서 만들어 쓴다.
+            name: resolveDisplayName(candidate.name, product.productName),
           } satisfies QuickRecommendation;
         }
         return {
