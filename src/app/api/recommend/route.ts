@@ -599,6 +599,20 @@ async function generateCandidates(
 ): Promise<{ candidates: Candidate[]; live: boolean }> {
   const segmentedFallbacks = segmentFallbackCandidates(categoryId, fallbacks);
 
+  /*
+    버튼만 눌러 들어온 요청은 아직 둘러보는 중이므로, 최근 추천을 빼고 새로운
+    후보를 보여주는 편이 낫다.
+
+    반대로 원하는 것을 직접 적었다면 이야기가 다르다. "먼지통 자동으로
+    비워지는 걸로"라고 쓴 사람에게 가장 잘 맞는 답은 하나로 좁혀진다.
+    그 답을 이미 봤다는 이유로 빼면, 같은 조건을 다시 넣었을 때 더 나쁜
+    후보가 올라온다. 새로움이 정확도를 밀어내는 셈이다.
+
+    그래서 자유 입력이 있으면 제외 목록을 쓰지 않고, 생성도 덜 흔들리게 한다.
+  */
+  const accuracyFirst = userWish.length > 0;
+  const effectiveExcluded = accuracyFirst ? [] : excludedNames;
+
   const prompt = `당신은 한국 소비자의 선택을 돕는 구매·생활 의사결정 전문가다.
 
 ${
@@ -623,7 +637,7 @@ ${
 최우선 조건: ${priorityLabel}
 예산: ${budgetLabel}${maxBudgetWon ? ` (${maxBudgetWon.toLocaleString("ko-KR")}원 이하)` : ""}
 정밀 조건: ${advancedContext || "추가 조건 없음"}
-${excludedNames.length > 0 ? `이미 추천한 후보(반드시 제외): ${excludedNames.join(", ")}` : ""}
+${effectiveExcluded.length > 0 ? `이미 추천한 후보(반드시 제외): ${effectiveExcluded.join(", ")}` : ""}
 
 [뻔한 답 금지]
 검색만 해도 첫 화면에 나오는 정답은 이 서비스의 가치가 아니다.
@@ -687,7 +701,11 @@ JSON 배열만 응답:
   }}]`;
 
   try {
-    const generated = await generateJson(prompt);
+    // 같은 요청에 같은 답이 나오도록 흔들림을 줄인다.
+    const generated = await generateJson(
+      prompt,
+      accuracyFirst ? { temperature: 0.2 } : {}
+    );
     // 배열을 요구했지만 provider에 따라 {items:[...]} 형태로 감싸 오는 경우가 있다.
     const raw = generated?.parsed;
     const parsed = Array.isArray(raw)
@@ -1430,9 +1448,11 @@ export async function POST(request: Request) {
 
   const fallbacks = FALLBACKS[rawCategory][scenarioId];
   const location = readLocation(body.location);
-  const excludedNames = readExcludedNames(body.excludedNames);
   // 버튼만으로는 담기지 않는 실제 의도("매운 국물", "향수 말고")를 받는다.
   const userWish = clean(body.userWish, "", 100);
+  // 원하는 것을 직접 적었다면 새로움보다 정확도가 먼저다. 최근 추천을
+  // 빼지 않는다. 자세한 이유는 generateCandidates 주석에 적어 두었다.
+  const excludedNames = userWish ? [] : readExcludedNames(body.excludedNames);
 
   try {
     if (rawCategory === "food") {
