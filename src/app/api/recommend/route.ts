@@ -19,6 +19,7 @@ import {
   derivedFitChecks,
   placeFitChecks,
   readFitChecks,
+  readCaution,
 } from "@/lib/recommendation/fit-checks";
 import { alignValueLabelWithPrice } from "@/lib/recommendation/selection-labels";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
@@ -54,6 +55,7 @@ type Candidate = {
   scores?: QuickRecommendation["scores"];
   overall?: number;
   fitChecks?: QuickRecommendation["fitChecks"];
+  caution?: string;
   /** 음식 전용 — 지도에서 주변 가게가 뜨는 짧은 업종·메뉴명 */
   mapKeyword?: string;
 };
@@ -312,6 +314,9 @@ function candidate(name: string, reason: string, searchKeyword: string): Candida
     reason,
     searchKeyword,
     qualitySummary: "실제 평점과 후기 수는 연결된 판매처·지도에서 최종 확인해 주세요.",
+    // AI 호출이 모두 실패했을 때 나가는 후보다. 적어 주신 조건이 세부까지
+    // 반영되지 않았다는 것이 이 후보에서 감수해야 하는 점이다.
+    caution: "일반 후보라 적어 주신 조건이 세부까지 반영되지 않았습니다.",
   };
 }
 
@@ -392,6 +397,15 @@ function segmentFallbackCandidates(
     ...item,
     selectionType: SELECTION_ORDER[index],
     selectionLabel: selectionLabel(categoryId, SELECTION_ORDER[index]),
+    /*
+      폴백은 AI 호출이 모두 실패했을 때 나가는 후보다. 적어 주신 조건이
+      세부까지 반영되지 않았다는 것이 여기서 감수해야 하는 점이고,
+      그 사실을 숨기면 맞춤 추천을 받은 것으로 오해하게 된다.
+      후보를 만드는 경로가 여럿이라 마지막에 한 번만 채운다.
+    */
+    caution:
+      item.caution ||
+      "일반 후보라 적어 주신 조건이 세부까지 반영되지 않았습니다.",
   }));
 }
 
@@ -679,17 +693,22 @@ fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로
   확인할 조건: ${[scenarioLabel, `${priorityLabel} 우선`, budgetLabel, userWish]
     .filter(Boolean)
     .join(" / ")}
-- 구성은 항상 ok=true 1~2개 + ok=false 정확히 1개다. 4개 후보 모두 예외 없다.
-- ok=false 가 빠진 후보는 잘못된 응답으로 간주한다. 넣을 것이 없다고 판단되면
-  다시 생각하라. 어떤 제품에도 감수할 점은 있다. 값이 싸면 빠지는 기능이 있고,
-  기능이 많으면 관리할 것이 늘고, 관리가 편하면 소모품 값이 든다.
-- ok=false 예시: "물걸레 패드를 주기적으로 세탁해야 함",
-  "소음이 상위 모델보다 큼", "이 가격대는 자동비움이 빠지는 경우가 많음",
-  "편리함을 우선하면 관리 주기를 감수해야 함"
-- 4개 후보의 ok=false 가 서로 달라야 한다. 같은 문장을 돌려쓰지 않는다.
+- 여기에는 조건에 맞는 부분만 쓴다(ok=true). 감수할 점은 caution 에 따로 쓴다.
 - 각 항목은 20자 내외의 짧은 서술.
 
-[fitChecks 에 쓰면 안 되는 것 — 중요]
+caution: 이 후보를 골랐을 때 감수해야 하는 점을 정확히 한 문장으로 쓴다.
+- 빈 문자열은 허용하지 않는다. 비운 응답은 잘못된 응답으로 간주한다.
+- 넣을 것이 없다고 판단되면 다시 생각하라. 어떤 선택에도 대가는 있다.
+  값이 싸면 빠지는 기능이 있고, 기능이 많으면 관리할 것이 늘고,
+  관리가 편하면 소모품 값이 들고, 성능이 좋으면 크고 무겁다.
+- 예: "물걸레 패드를 주기적으로 세탁해야 합니다"
+      "스틱 형태라 사용 중 직접 들고 있어야 합니다"
+      "이 가격대는 자동 먼지비움이 빠지는 경우가 많습니다"
+- 4개 후보의 caution 이 서로 달라야 한다. 같은 문장을 돌려쓰지 않는다.
+- 30~50자, "~합니다" 로 끝나는 한 문장.
+- 사양을 단정하지 않는다는 아래 규칙은 caution 에도 그대로 적용된다.
+
+[fitChecks 와 caution 에 쓰면 안 되는 것 — 중요]
 당신은 실제로 링크될 상품을 보지 못한다. 검색 결과로 정해지기 때문이다.
 그러므로 특정 상품에 어떤 기능이나 사양이 있다고 단정하면 안 된다.
   쓰지 말 것: "자동 먼지비움 기능 탑재", "소음 55dB", "3년 무상보증",
@@ -703,7 +722,7 @@ fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로
         "편리함을 우선하면 관리 주기를 감수해야 함"
 
 JSON 배열만 응답:
-[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}]${
+[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}],"caution":""${
     categoryId === "food" ? ',"mapKeyword":""' : ""
   }}]`;
 
@@ -771,6 +790,7 @@ JSON 배열만 응답:
         })(),
         scores: readScores(record.scores, categoryId),
         fitChecks: readFitChecks(record.fitChecks),
+        caution: readCaution(record.caution, record.fitChecks),
         mapKeyword:
           categoryId === "food"
             ? clean(record.mapKeyword, "", 20) || undefined
