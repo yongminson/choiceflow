@@ -4,10 +4,13 @@ import test from "node:test";
 import {
   derivedFitChecks,
   placeFitChecks,
+  readCaution,
   readFitChecks,
 } from "../src/lib/recommendation/fit-checks.ts";
 
-test("충족·미충족이 함께 있으면 체크리스트로 쓴다", () => {
+test("체크리스트에는 충족 항목만 담는다", () => {
+  // 감수할 점은 caution 으로 따로 받는다. 한 배열에 섞어 두었더니
+  // AI 가 좋은 점만 채우고 단점을 빠뜨리는 쪽으로 계속 흘렀다.
   const parsed = readFitChecks([
     { ok: true, text: "예산 안에 들어옴" },
     { ok: false, text: "카펫 흡입력은 아쉬움" },
@@ -17,20 +20,27 @@ test("충족·미충족이 함께 있으면 체크리스트로 쓴다", () => {
   assert.deepEqual(parsed, [
     { ok: true, text: "예산 안에 들어옴", source: "guide" },
     { ok: true, text: "원룸에 세워둘 수 있는 크기", source: "guide" },
-    { ok: false, text: "카펫 흡입력은 아쉬움", source: "guide" },
   ]);
 });
 
-test("단점이 하나도 없으면 체크리스트를 쓰지 않는다", () => {
-  // 장점만 나열되면 광고 문구가 된다. 이럴 땐 줄글 이유로 되돌아가야 한다.
+test("caution 을 읽는다", () => {
   assert.equal(
-    readFitChecks([
-      { ok: true, text: "예산 안에 들어옴" },
-      { ok: true, text: "조용함" },
-      { ok: true, text: "가벼움" },
-    ]),
-    undefined
+    readCaution("물걸레 패드를 주기적으로 세탁해야 합니다"),
+    "물걸레 패드를 주기적으로 세탁해야 합니다"
   );
+});
+
+test("caution 이 비어 있으면 체크리스트의 감수 항목을 꺼내 쓴다", () => {
+  // 이전 방식으로 답한 응답도 버리지 않는다.
+  assert.equal(
+    readCaution("", [
+      { ok: true, text: "예산 안에 들어옴" },
+      { ok: false, text: "카펫 흡입력은 아쉬움" },
+    ]),
+    "카펫 흡입력은 아쉬움"
+  );
+  assert.equal(readCaution(undefined, undefined), undefined);
+  assert.equal(readCaution("   ", [{ ok: true, text: "조용함" }]), undefined);
 });
 
 test("충족 항목이 2개 미만이면 체크리스트를 쓰지 않는다", () => {
@@ -58,7 +68,7 @@ test("ok 가 없으면 충족으로 본다", () => {
     { text: "조용함" },
     { ok: false, text: "무거움" },
   ]);
-  assert.deepEqual(parsed?.map((item) => item.ok), [true, true, false]);
+  assert.deepEqual(parsed?.map((item) => item.ok), [true, true]);
 });
 
 test("확인된 가격·배송으로 체크리스트를 만든다", () => {
@@ -88,27 +98,24 @@ test("확인된 가격·배송으로 체크리스트를 만든다", () => {
   );
 });
 
-test("좋은 점만 남으면 체크리스트를 접는다", () => {
-  /*
-    AI 에게 단점을 하나 넣으라고 시켜 두었지만 매번 지키지는 않는다.
-    지키지 않은 요청에서 확인된 사실만 남으면 전부 좋은 점이라, 좋은 점만
-    늘어선 카드가 나간다. 없는 단점을 지어낼 수는 없으니 줄글로 되돌린다.
-  */
-  assert.equal(
-    derivedFitChecks(
-      {
-        rank: 1,
-        name: "무선청소기",
-        reason: "",
-        searchKeyword: "",
-        qualitySummary: "",
-        price: 169000,
-        isRocket: true,
-      },
-      200000
-    ),
-    undefined
+test("좋은 점만 남아도 체크리스트는 그대로 쓴다", () => {
+  // 감수할 점은 caution 으로 카드에 따로 붙으므로, 여기서 접을 이유가 없다.
+  const checks = derivedFitChecks(
+    {
+      rank: 1,
+      name: "무선청소기",
+      reason: "",
+      searchKeyword: "",
+      qualitySummary: "",
+      price: 169000,
+      isRocket: true,
+    },
+    200000
   );
+  assert.deepEqual(checks?.map((item) => item.text), [
+    "예산의 85% 수준",
+    "로켓배송으로 바로 받음",
+  ]);
 });
 
 test("확인된 사실에서도 감수할 점을 꺼낸다", () => {

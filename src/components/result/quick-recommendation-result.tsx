@@ -159,8 +159,10 @@ function OverallChart({
  */
 function FitChecklist({
   checks,
+  caution,
 }: {
   checks: QuickRecommendation["fitChecks"];
+  caution?: string;
 }) {
   if (!checks?.length) return null;
 
@@ -237,6 +239,18 @@ function FitChecklist({
             ))}
           </ul>
         </div>
+      )}
+
+      {/*
+        감수해야 하는 점은 체크리스트와 한 배열에 두지 않는다. 섞어 두면
+        AI 가 좋은 점만 채우고 이 항목을 빠뜨리는 쪽으로 계속 흘렀다.
+        자리를 따로 떼어 두면 비어 있는 것 자체가 드러난다.
+      */}
+      {caution && (
+        <p className="mt-2.5 flex items-start gap-2 text-[13px] leading-snug text-muted-foreground">
+          <Minus className="mt-[2px] size-3.5 shrink-0" aria-hidden />
+          <span>{caution}</span>
+        </p>
       )}
     </div>
   );
@@ -662,11 +676,20 @@ export function QuickRecommendationResult({
               )}
 
               {item.fitChecks?.length ? (
-                <FitChecklist checks={item.fitChecks} />
+                <FitChecklist checks={item.fitChecks} caution={item.caution} />
               ) : (
-                <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
-                  {item.reason}
-                </p>
+                <>
+                  <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
+                    {item.reason}
+                  </p>
+                  {/* 체크리스트를 못 만든 카드에서도 감수할 점은 빠지지 않아야 한다. */}
+                  {item.caution && (
+                    <p className="mt-2.5 flex items-start gap-2 text-[13px] leading-snug text-muted-foreground">
+                      <Minus className="mt-[2px] size-3.5 shrink-0" aria-hidden />
+                      <span>{item.caution}</span>
+                    </p>
+                  )}
+                </>
               )}
 
               <AxisBreakdown scores={item.scores} />
