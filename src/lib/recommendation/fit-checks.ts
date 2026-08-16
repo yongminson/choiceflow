@@ -53,28 +53,69 @@ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefi
  */
 export function derivedFitChecks(
   item: QuickRecommendation,
-  maxBudgetWon?: number
+  maxBudgetWon?: number,
+  context: { cheapestPrice?: number } = {}
 ): RecommendationFitCheck[] | undefined {
-  const verified = verifiedChecksFor(item, maxBudgetWon);
+  const verified = verifiedChecksFor(item, maxBudgetWon, context);
   const guides = item.fitChecks?.filter((check) => check.source !== "verified") ?? [];
 
-  const combined = [...verified, ...guides].slice(0, MAX_CHECKS);
+  /*
+    감수해야 하는 항목은 목록 끝에 오는데, 그대로 자르면 그것부터 잘려 나간다.
+    실제로 확인된 항목 2개에 좋은 점 2개가 채워지면서 단점이 사라진 화면이
+    나갔다. 단점을 먼저 보여주는 것이 이 서비스의 차별점이므로 자리를 먼저
+    비워 둔다.
+  */
+  const positives = guides.filter((check) => check.ok);
+  const drawbacks = guides.filter((check) => !check.ok);
+  const reserved = drawbacks.length > 0 ? 1 : 0;
+
+  const combined = [
+    ...[...verified, ...positives].slice(0, MAX_CHECKS - reserved),
+    ...drawbacks.slice(0, reserved),
+  ];
   return combined.length >= 2 ? combined : undefined;
 }
 
-/** 조회 결과에서 바로 확인되는 항목만 모은다. */
+/**
+ * 조회 결과에서 바로 확인되는 항목만 모은다.
+ *
+ * 후보 넷이 모두 "예산 안에 들어옴 / 로켓배송으로 바로 받음"만 달고 있으면
+ * 확인된 항목이 후보를 가르는 데 아무 도움이 되지 않는다. 예산 대비 어느
+ * 정도인지, 후보 중 가장 싼지처럼 서로 달라지는 값을 쓴다.
+ */
 function verifiedChecksFor(
   item: QuickRecommendation,
-  maxBudgetWon?: number
+  maxBudgetWon?: number,
+  context: { cheapestPrice?: number } = {}
 ): RecommendationFitCheck[] {
   const checks: RecommendationFitCheck[] = [];
 
   if (typeof item.price === "number" && maxBudgetWon) {
-    checks.push(
-      item.price <= maxBudgetWon
-        ? { ok: true, text: "예산 안에 들어옴", source: "verified" as const }
-        : { ok: false, text: "예산을 조금 넘음", source: "verified" as const }
-    );
+    if (item.price <= maxBudgetWon) {
+      const ratio = Math.round((item.price / maxBudgetWon) * 100);
+      checks.push({
+        ok: true,
+        text:
+          ratio <= 90
+            ? `예산의 ${ratio}% 수준`
+            : "예산 상한에 거의 맞음",
+        source: "verified",
+      });
+    } else {
+      const over = item.price - maxBudgetWon;
+      checks.push({
+        ok: false,
+        text: `예산을 ${over.toLocaleString("ko-KR")}원 넘음`,
+        source: "verified",
+      });
+    }
+  }
+  if (
+    typeof item.price === "number" &&
+    typeof context.cheapestPrice === "number" &&
+    item.price === context.cheapestPrice
+  ) {
+    checks.push({ ok: true, text: "후보 중 가장 저렴함", source: "verified" });
   }
   if (item.isRocket) {
     checks.push({ ok: true, text: "로켓배송으로 바로 받음", source: "verified" });
