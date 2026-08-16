@@ -145,6 +145,13 @@ export type QuickRecommendation = {
   scores?: RecommendationScore[];
   /** 내 조건을 지켰는지 항목별로 끊어 보여주는 체크리스트 */
   fitChecks?: RecommendationFitCheck[];
+  /**
+   * 이 후보를 골랐을 때 감수해야 하는 점 한 가지.
+   *
+   * 체크리스트와 한 배열에 두었더니 AI 가 좋은 점만 채우는 쪽으로 계속 흘렀다.
+   * 자리를 따로 떼어 두면 비워 놓는 것 자체가 눈에 띄어 빠뜨리기 어려워진다.
+   */
+  caution?: string;
 };
 
 /** POST /api/analyze 성공 시 본문 — 항상 JSON 객체 */
