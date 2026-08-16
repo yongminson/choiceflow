@@ -3,14 +3,16 @@ import type { QuickRecommendation, RecommendationFitCheck } from "@/lib/types/an
 /** 체크리스트 한 줄은 훑어서 읽혀야 한다. 길어지면 줄글과 다를 게 없다. */
 const MAX_TEXT_LENGTH = 34;
 const MAX_CHECKS = 4;
+/** 감수할 점은 한 문장이라 체크리스트 한 줄보다 여유를 준다. */
+const MAX_CAUTION_LENGTH = 60;
 
-function cleanText(value: unknown): string {
+function cleanText(value: unknown, maxLength = MAX_TEXT_LENGTH): string {
   if (typeof value !== "string") return "";
   return value
     .replace(/<[^>]*>/g, "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, MAX_TEXT_LENGTH);
+    .slice(0, maxLength);
 }
 
 /**
@@ -20,8 +22,31 @@ function cleanText(value: unknown): string {
  * 감수해야 할 항목이 하나도 없으면 체크리스트로 쓰지 않고 줄글 이유로 되돌린다.
  */
 export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const parsed = value
+  const parsed = parseChecks(value).filter((item) => item.ok);
+  return parsed.length >= 2 ? parsed.slice(0, MAX_CHECKS) : undefined;
+}
+
+/**
+ * 감수해야 하는 점을 읽는다.
+ *
+ * 체크리스트와 한 배열에 두었을 때는 AI 가 좋은 점만 채우고 단점을 빼먹는 일이
+ * 반복됐다. 항목 하나를 빠뜨리는 것은 티가 나지 않기 때문이다. 필드를 따로
+ * 두면 비어 있는 것이 그대로 드러나 빠뜨리기 어려워진다.
+ *
+ * 이전 방식으로 답한 응답도 버리지 않는다. caution 이 없고 체크리스트 안에
+ * 감수 항목이 들어 있으면 그것을 꺼내 쓴다.
+ */
+export function readCaution(value: unknown, fitChecks?: unknown): string | undefined {
+  const direct = cleanText(value, MAX_CAUTION_LENGTH);
+  if (direct) return direct;
+
+  const fromChecks = parseChecks(fitChecks).find((item) => !item.ok);
+  return fromChecks?.text;
+}
+
+function parseChecks(value: unknown): RecommendationFitCheck[] {
+  if (!Array.isArray(value)) return [];
+  return value
     .map((item) => {
       const record =
         item && typeof item === "object" ? (item as Record<string, unknown>) : {};
@@ -31,14 +56,7 @@ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefi
       // 확인된 사실과 섞이지 않게 guide 로 표시한다.
       return { ok: record.ok !== false, text, source: "guide" as const };
     })
-    .filter((item): item is NonNullable<typeof item> => item !== null)
-    .slice(0, MAX_CHECKS);
-
-  const met = parsed.filter((item) => item.ok);
-  const unmet = parsed.filter((item) => !item.ok);
-  if (met.length < 2 || unmet.length === 0) return undefined;
-  // 충족 항목을 먼저, 감수 항목을 마지막에 둔다.
-  return [...met, ...unmet];
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 }
 
 /**
@@ -69,19 +87,16 @@ export function derivedFitChecks(
   const drawbacks = [...verified, ...guides].filter((check) => !check.ok);
 
   /*
-    단점이 하나도 없으면 체크리스트를 만들지 않는다.
+    체크리스트가 좋은 점만 남는 것 자체는 이제 막지 않는다.
+    감수해야 하는 점은 caution 으로 따로 받아 카드에 항상 붙기 때문이다.
 
-    AI 에게 ok=false 를 하나 넣으라고 시켜 두었지만 매번 지키지는 않는다.
-    지키지 않은 요청에서 확인된 사실만 남으면 그것은 전부 좋은 점이라,
-    좋은 점만 넉 줄 늘어선 카드가 나간다. 그런 화면은 광고와 구별되지 않고,
-    이 서비스가 다른 추천 사이트와 갈리는 지점이 바로 거기다.
-    없는 단점을 지어내지는 않으므로, 대신 체크리스트를 접고 줄글 이유로 돌아간다.
+    다만 여기서 나오는 감수 항목(예산 초과 같은 것)은 조회로 확인된 사실이라
+    조건 판단에 속한다. 목록 끝에 자리를 비워 두어 잘려 나가지 않게 한다.
   */
-  if (drawbacks.length === 0) return undefined;
-
+  const reserved = drawbacks.length > 0 ? 1 : 0;
   const combined = [
-    ...positives.slice(0, MAX_CHECKS - 1),
-    ...drawbacks.slice(0, 1),
+    ...positives.slice(0, MAX_CHECKS - reserved),
+    ...drawbacks.slice(0, reserved),
   ];
   return combined.length >= 2 ? combined : undefined;
 }

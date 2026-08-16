@@ -87,6 +87,9 @@ function toSharedRecommendation(value: unknown): QuickRecommendation | null {
           .filter((check) => check.text)
           .slice(0, 4)
       : undefined,
+    // 감수해야 하는 점은 공유 링크에서도 빠지면 안 된다.
+    // 단점을 함께 보여주는 것이 이 결과 화면의 성격 자체다.
+    caution: text(item.caution, 60),
   };
 }
 
