@@ -678,8 +678,14 @@ fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로
   확인할 조건: ${[scenarioLabel, `${priorityLabel} 우선`, budgetLabel, userWish]
     .filter(Boolean)
     .join(" / ")}
-- ok=true 2~3개(조건에 맞는 부분), ok=false 정확히 1개(감수해야 하는 부분).
-- ok=false 는 반드시 넣는다. 단점이 없는 후보는 없고, 없다고 하면 이 화면 전체를 못 믿는다.
+- 구성은 항상 ok=true 1~2개 + ok=false 정확히 1개다. 4개 후보 모두 예외 없다.
+- ok=false 가 빠진 후보는 잘못된 응답으로 간주한다. 넣을 것이 없다고 판단되면
+  다시 생각하라. 어떤 제품에도 감수할 점은 있다. 값이 싸면 빠지는 기능이 있고,
+  기능이 많으면 관리할 것이 늘고, 관리가 편하면 소모품 값이 든다.
+- ok=false 예시: "물걸레 패드를 주기적으로 세탁해야 함",
+  "소음이 상위 모델보다 큼", "이 가격대는 자동비움이 빠지는 경우가 많음",
+  "편리함을 우선하면 관리 주기를 감수해야 함"
+- 4개 후보의 ok=false 가 서로 달라야 한다. 같은 문장을 돌려쓰지 않는다.
 - 각 항목은 20자 내외의 짧은 서술.
 
 [fitChecks 에 쓰면 안 되는 것 — 중요]
@@ -865,12 +871,16 @@ async function enrichProductPrices(
     .map((item) => item.price)
     .filter((price): price is number => typeof price === "number");
   const cheapest = prices.length > 1 ? Math.min(...prices) : undefined;
+  const priciest = prices.length > 1 ? Math.max(...prices) : undefined;
 
   return {
     recommendations: sorted.map((item, index) => ({
       ...item,
       rank: index + 1,
-      fitChecks: derivedFitChecks(item, maxBudgetWon, { cheapestPrice: cheapest }),
+      fitChecks: derivedFitChecks(item, maxBudgetWon, {
+        cheapestPrice: cheapest,
+        priciestPrice: priciest,
+      }),
     })),
     live: items.some((item) => typeof item.price === "number"),
   };
