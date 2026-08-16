@@ -76,10 +76,49 @@ test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
       200000
     ),
     [
-      { ok: true, text: "예산 안에 들어옴", source: "verified" },
+      // 후보끼리 갈리도록 예산 대비 비율을 쓴다. 넷이 모두 "예산 안에 들어옴"이면
+      // 확인된 항목이 후보를 고르는 데 도움이 되지 않는다.
+      { ok: true, text: "예산의 85% 수준", source: "verified" },
       { ok: true, text: "로켓배송으로 바로 받음", source: "verified" },
     ]
   );
+});
+
+test("예산을 넘으면 얼마나 넘는지 밝힌다", () => {
+  const checks = derivedFitChecks(
+    {
+      rank: 1,
+      name: "무선청소기",
+      reason: "",
+      searchKeyword: "",
+      qualitySummary: "",
+      price: 249000,
+      isRocket: true,
+    },
+    200000
+  );
+  assert.equal(checks?.[0].ok, false);
+  assert.equal(checks?.[0].text, "예산을 49,000원 넘음");
+});
+
+test("후보 중 가장 싼 것에만 표시한다", () => {
+  const base = {
+    rank: 1,
+    name: "무선청소기",
+    reason: "",
+    searchKeyword: "",
+    qualitySummary: "",
+    isRocket: true,
+  };
+  const cheap = derivedFitChecks({ ...base, price: 59000 }, 200000, {
+    cheapestPrice: 59000,
+  });
+  const other = derivedFitChecks({ ...base, price: 169000 }, 200000, {
+    cheapestPrice: 59000,
+  });
+
+  assert.ok(cheap?.some((item) => item.text === "후보 중 가장 저렴함"));
+  assert.ok(!other?.some((item) => item.text === "후보 중 가장 저렴함"));
 });
 
 test("확인된 사실이 부족하면 지어내지 않는다", () => {
@@ -136,7 +175,36 @@ test("확인된 사실을 앞에 두고 AI 판단을 뒤에 붙인다", () => {
     "guide",
     "guide",
   ]);
-  assert.equal(merged?.[0].text, "예산 안에 들어옴");
+  assert.equal(merged?.[0].text, "예산의 85% 수준");
+});
+
+test("항목이 넘쳐도 감수해야 하는 점은 남긴다", () => {
+  // 확인된 항목 2개에 좋은 점이 채워지면서 단점이 잘려 나가, 네 카드 모두
+  // 장점만 남은 화면이 나갔다. 단점을 먼저 보여주는 것이 이 서비스의
+  // 차별점이므로 자리를 먼저 비워 둔다.
+  const checks = derivedFitChecks(
+    {
+      rank: 1,
+      name: "무선청소기",
+      reason: "",
+      searchKeyword: "",
+      qualitySummary: "",
+      price: 169000,
+      isRocket: true,
+      fitChecks: [
+        { ok: true, text: "30평대 주행 경로에 유리", source: "guide" },
+        { ok: true, text: "관리 부담이 적은 구성", source: "guide" },
+        { ok: true, text: "설치가 간단한 편", source: "guide" },
+        { ok: false, text: "이 가격대는 흡입력이 아쉬움", source: "guide" },
+      ],
+    },
+    200000,
+    { cheapestPrice: 59000 }
+  );
+
+  const drawbacks = checks?.filter((item) => !item.ok) ?? [];
+  assert.equal(drawbacks.length, 1);
+  assert.equal(drawbacks[0].text, "이 가격대는 흡입력이 아쉬움");
 });
 
 test("지도 결과는 미달 조건도 그대로 표시한다", () => {
