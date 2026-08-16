@@ -24,7 +24,10 @@ import {
 import { alignValueLabelWithPrice } from "@/lib/recommendation/selection-labels";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { resolveDisplayName } from "@/lib/monetization/brand-verify";
-import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
+import {
+  productDedupKeys,
+  searchCoupangProduct,
+} from "@/lib/monetization/coupang-server";
 import type {
   AnalyzeApiResult,
   QuickRecommendation,
@@ -843,14 +846,15 @@ async function enrichProductPrices(
       // 쿠팡 상품 검색은 썸네일·실가격과 함께 제휴 추적이 포함된 상품 상세
       // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
       product = await searchCoupangProduct(searchKeyword, maxBudgetWon, {
-        excludeProductUrls: usedProductKeys,
+        excludeKeys: usedProductKeys,
       });
     } catch {
       product = null;
     }
 
     if (product) {
-      usedProductKeys.add(product.productUrl);
+      // 주소 하나만 담으면 추적 파라미터가 다른 같은 상품을 못 걸러낸다.
+      productDedupKeys(product).forEach((key) => usedProductKeys.add(key));
       items.push({
         rank: index + 1,
         ...candidate,

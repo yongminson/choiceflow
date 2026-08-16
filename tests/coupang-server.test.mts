@@ -7,6 +7,7 @@ import {
   formatCoupangSignedDate,
   isAllowedCoupangRedirectUrl,
   normalizeCoupangKeyword,
+  productDedupKeys,
 } from "../src/lib/monetization/coupang-server.ts";
 
 test("formats Coupang signed dates in UTC", () => {
@@ -60,4 +61,80 @@ test("only accepts known HTTPS Coupang redirect hosts", () => {
     false
   );
   assert.equal(isAllowedCoupangRedirectUrl("not-a-url"), false);
+});
+
+test("같은 상품인지 가릴 때 주소 하나만 보지 않는다", () => {
+  // 제휴 딥링크에는 호출마다 달라지는 추적 파라미터가 붙는다.
+  // 주소만 비교하면 같은 상품이 두 슬롯에 그대로 들어간다.
+  const first = productDedupKeys({
+    productId: "12345",
+    productName: "차이슨 무선청소기",
+    productPrice: 190000,
+    productImage: "https://img.coupangcdn.com/a.jpg",
+    productUrl: "https://link.coupang.com/re/AFF?pageKey=12345&traceid=aaa",
+    isRocket: true,
+    isFreeShipping: false,
+  });
+  const sameProductLaterCall = productDedupKeys({
+    productId: "12345",
+    productName: "차이슨 무선청소기",
+    productPrice: 190000,
+    productImage: "https://img.coupangcdn.com/a.jpg",
+    productUrl: "https://link.coupang.com/re/AFF?pageKey=12345&traceid=bbb",
+    isRocket: true,
+    isFreeShipping: false,
+  });
+
+  assert.notEqual(first[1], sameProductLaterCall[1]);
+  const used = new Set(first);
+  assert.ok(sameProductLaterCall.some((key) => used.has(key)));
+});
+
+test("판매자만 다른 같은 물건도 사진으로 걸러낸다", () => {
+  // 상품 번호는 갈리지만 화면에서는 같은 사진, 같은 값으로 보인다.
+  const used = new Set(
+    productDedupKeys({
+      productId: "111",
+      productName: "차이슨 무선청소기",
+      productPrice: 190000,
+      productImage: "https://img.coupangcdn.com/a.jpg",
+      productUrl: "https://link.coupang.com/re/AFF?pageKey=111",
+      isRocket: true,
+      isFreeShipping: false,
+    })
+  );
+  const otherSeller = productDedupKeys({
+    productId: "222",
+    productName: "차이슨 무선청소기",
+    productPrice: 190000,
+    productImage: "https://img.coupangcdn.com/a.jpg",
+    productUrl: "https://link.coupang.com/re/AFF?pageKey=222",
+    isRocket: true,
+    isFreeShipping: false,
+  });
+  assert.ok(otherSeller.some((key) => used.has(key)));
+});
+
+test("다른 상품은 걸러내지 않는다", () => {
+  const used = new Set(
+    productDedupKeys({
+      productId: "111",
+      productName: "차이슨 무선청소기",
+      productPrice: 190000,
+      productImage: "https://img.coupangcdn.com/a.jpg",
+      productUrl: "https://link.coupang.com/re/AFF?pageKey=111",
+      isRocket: true,
+      isFreeShipping: false,
+    })
+  );
+  const different = productDedupKeys({
+    productId: "999",
+    productName: "로보락 로봇청소기",
+    productPrice: 420000,
+    productImage: "https://img.coupangcdn.com/z.jpg",
+    productUrl: "https://link.coupang.com/re/AFF?pageKey=999",
+    isRocket: true,
+    isFreeShipping: false,
+  });
+  assert.ok(!different.some((key) => used.has(key)));
 });
