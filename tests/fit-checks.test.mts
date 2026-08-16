@@ -61,8 +61,40 @@ test("ok 가 없으면 충족으로 본다", () => {
   assert.deepEqual(parsed?.map((item) => item.ok), [true, true, false]);
 });
 
-test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
+test("확인된 가격·배송으로 체크리스트를 만든다", () => {
   assert.deepEqual(
+    derivedFitChecks(
+      {
+        rank: 1,
+        name: "무선청소기",
+        reason: "",
+        searchKeyword: "",
+        qualitySummary: "",
+        price: 169000,
+        isRocket: true,
+        fitChecks: [
+          { ok: false, text: "물걸레 패드를 자주 빨아야 함", source: "guide" },
+        ],
+      },
+      200000
+    ),
+    [
+      // 후보끼리 갈리도록 예산 대비 비율을 쓴다. 넷이 모두 "예산 안에 들어옴"이면
+      // 확인된 항목이 후보를 고르는 데 도움이 되지 않는다.
+      { ok: true, text: "예산의 85% 수준", source: "verified" },
+      { ok: true, text: "로켓배송으로 바로 받음", source: "verified" },
+      { ok: false, text: "물걸레 패드를 자주 빨아야 함", source: "guide" },
+    ]
+  );
+});
+
+test("좋은 점만 남으면 체크리스트를 접는다", () => {
+  /*
+    AI 에게 단점을 하나 넣으라고 시켜 두었지만 매번 지키지는 않는다.
+    지키지 않은 요청에서 확인된 사실만 남으면 전부 좋은 점이라, 좋은 점만
+    늘어선 카드가 나간다. 없는 단점을 지어낼 수는 없으니 줄글로 되돌린다.
+  */
+  assert.equal(
     derivedFitChecks(
       {
         rank: 1,
@@ -75,13 +107,41 @@ test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
       },
       200000
     ),
-    [
-      // 후보끼리 갈리도록 예산 대비 비율을 쓴다. 넷이 모두 "예산 안에 들어옴"이면
-      // 확인된 항목이 후보를 고르는 데 도움이 되지 않는다.
-      { ok: true, text: "예산의 85% 수준", source: "verified" },
-      { ok: true, text: "로켓배송으로 바로 받음", source: "verified" },
-    ]
+    undefined
   );
+});
+
+test("확인된 사실에서도 감수할 점을 꺼낸다", () => {
+  // 로켓배송이 아니면 기다려야 한다. 조회 결과라 지어낸 것이 아니다.
+  const checks = derivedFitChecks(
+    {
+      rank: 1,
+      name: "무선청소기",
+      reason: "",
+      searchKeyword: "",
+      qualitySummary: "",
+      price: 169000,
+      isRocket: false,
+    },
+    200000
+  );
+  assert.ok(checks?.some((item) => !item.ok && item.source === "verified"));
+
+  // 후보 중 가장 비싼 것도 그대로 밝힌다.
+  const priciest = derivedFitChecks(
+    {
+      rank: 1,
+      name: "무선청소기",
+      reason: "",
+      searchKeyword: "",
+      qualitySummary: "",
+      price: 190000,
+      isRocket: true,
+    },
+    200000,
+    { cheapestPrice: 120000, priciestPrice: 190000 }
+  );
+  assert.ok(priciest?.some((item) => item.text === "후보 중 가장 비쌈"));
 });
 
 test("예산을 넘으면 얼마나 넘는지 밝힌다", () => {
@@ -97,8 +157,11 @@ test("예산을 넘으면 얼마나 넘는지 밝힌다", () => {
     },
     200000
   );
-  assert.equal(checks?.[0].ok, false);
-  assert.equal(checks?.[0].text, "예산을 49,000원 넘음");
+  // 감수할 점은 목록 끝에 둔다. 마지막 줄로 읽히게 하려는 것이다.
+  const drawback = checks?.filter((item) => !item.ok);
+  assert.equal(drawback?.length, 1);
+  assert.equal(drawback?.[0].text, "예산을 49,000원 넘음");
+  assert.equal(checks?.at(-1)?.ok, false);
 });
 
 test("후보 중 가장 싼 것에만 표시한다", () => {
@@ -109,6 +172,8 @@ test("후보 중 가장 싼 것에만 표시한다", () => {
     searchKeyword: "",
     qualitySummary: "",
     isRocket: true,
+    // 단점이 없으면 체크리스트 자체가 만들어지지 않으므로 하나 붙여 둔다.
+    fitChecks: [{ ok: false, text: "소음이 있는 편", source: "guide" as const }],
   };
   const cheap = derivedFitChecks({ ...base, price: 59000 }, 200000, {
     cheapestPrice: 59000,
@@ -122,19 +187,18 @@ test("후보 중 가장 싼 것에만 표시한다", () => {
 });
 
 test("확인된 사실이 부족하면 지어내지 않는다", () => {
-  // 가격만 있고 다른 근거가 없으면 한 줄짜리 체크리스트가 된다. 그건 안 만든다.
+  // 배송 조건 하나만 남으면 한 줄짜리 체크리스트가 된다. 그건 안 만든다.
+  // 예산을 받지 못해 예산 대비 비율을 낼 수 없는 경우다.
   assert.equal(
-    derivedFitChecks(
-      {
-        rank: 1,
-        name: "무선청소기",
-        reason: "",
-        searchKeyword: "",
-        qualitySummary: "",
-        price: 169000,
-      },
-      200000
-    ),
+    derivedFitChecks({
+      rank: 1,
+      name: "무선청소기",
+      reason: "",
+      searchKeyword: "",
+      qualitySummary: "",
+      price: 169000,
+      isRocket: true,
+    }),
     undefined
   );
   assert.equal(
