@@ -54,7 +54,7 @@ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefi
 export function derivedFitChecks(
   item: QuickRecommendation,
   maxBudgetWon?: number,
-  context: { cheapestPrice?: number } = {}
+  context: FitCheckContext = {}
 ): RecommendationFitCheck[] | undefined {
   const verified = verifiedChecksFor(item, maxBudgetWon, context);
   const guides = item.fitChecks?.filter((check) => check.source !== "verified") ?? [];
@@ -65,16 +65,31 @@ export function derivedFitChecks(
     나갔다. 단점을 먼저 보여주는 것이 이 서비스의 차별점이므로 자리를 먼저
     비워 둔다.
   */
-  const positives = guides.filter((check) => check.ok);
-  const drawbacks = guides.filter((check) => !check.ok);
-  const reserved = drawbacks.length > 0 ? 1 : 0;
+  const positives = [...verified, ...guides].filter((check) => check.ok);
+  const drawbacks = [...verified, ...guides].filter((check) => !check.ok);
+
+  /*
+    단점이 하나도 없으면 체크리스트를 만들지 않는다.
+
+    AI 에게 ok=false 를 하나 넣으라고 시켜 두었지만 매번 지키지는 않는다.
+    지키지 않은 요청에서 확인된 사실만 남으면 그것은 전부 좋은 점이라,
+    좋은 점만 넉 줄 늘어선 카드가 나간다. 그런 화면은 광고와 구별되지 않고,
+    이 서비스가 다른 추천 사이트와 갈리는 지점이 바로 거기다.
+    없는 단점을 지어내지는 않으므로, 대신 체크리스트를 접고 줄글 이유로 돌아간다.
+  */
+  if (drawbacks.length === 0) return undefined;
 
   const combined = [
-    ...[...verified, ...positives].slice(0, MAX_CHECKS - reserved),
-    ...drawbacks.slice(0, reserved),
+    ...positives.slice(0, MAX_CHECKS - 1),
+    ...drawbacks.slice(0, 1),
   ];
   return combined.length >= 2 ? combined : undefined;
 }
+
+export type FitCheckContext = {
+  cheapestPrice?: number;
+  priciestPrice?: number;
+};
 
 /**
  * 조회 결과에서 바로 확인되는 항목만 모은다.
@@ -86,7 +101,7 @@ export function derivedFitChecks(
 function verifiedChecksFor(
   item: QuickRecommendation,
   maxBudgetWon?: number,
-  context: { cheapestPrice?: number } = {}
+  context: FitCheckContext = {}
 ): RecommendationFitCheck[] {
   const checks: RecommendationFitCheck[] = [];
 
@@ -117,8 +132,32 @@ function verifiedChecksFor(
   ) {
     checks.push({ ok: true, text: "후보 중 가장 저렴함", source: "verified" });
   }
+  /*
+    감수할 점도 조회 결과에서 나온다.
+
+    AI 가 단점을 빼먹은 요청에서도 카드가 좋은 점만 늘어놓지 않으려면,
+    확인된 사실 쪽에서도 불리한 것을 꺼낼 수 있어야 한다.
+    지어낸 것이 아니라 실제 값이므로 그대로 쓸 수 있다.
+  */
+  if (
+    typeof item.price === "number" &&
+    typeof context.priciestPrice === "number" &&
+    typeof context.cheapestPrice === "number" &&
+    context.priciestPrice > context.cheapestPrice &&
+    item.price === context.priciestPrice
+  ) {
+    checks.push({ ok: false, text: "후보 중 가장 비쌈", source: "verified" });
+  }
   if (item.isRocket) {
     checks.push({ ok: true, text: "로켓배송으로 바로 받음", source: "verified" });
+  } else if (typeof item.price === "number") {
+    // 상품을 찾았는데 로켓배송이 아니면 배송을 기다려야 한다.
+    // 상품을 못 찾았을 때는 배송 조건 자체를 모르므로 아무 말도 하지 않는다.
+    checks.push({
+      ok: false,
+      text: "로켓배송이 아니라 배송이 걸림",
+      source: "verified",
+    });
   }
   if (typeof item.rating === "number" && item.rating >= 4) {
     checks.push({
