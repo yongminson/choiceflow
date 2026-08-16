@@ -6,12 +6,18 @@
  * 스테이션"이라고 띄우고 전혀 다른 무명 스틱청소기로 링크가 나간 적이 있다.
  *
  * 브랜드를 지우는 것이 답은 아니다. 브랜드가 보여야 신뢰가 생긴다.
- * 그래서 지우는 대신 검증한다. AI 가 붙인 브랜드가 실제 상품명에도 있으면
- * 그대로 쓰고, 없으면 그 이름을 버리고 실제 상품명에서 만들어 쓴다.
- * 결과적으로 화면에 뜨는 브랜드는 항상 실제 판매 상품의 브랜드가 된다.
+ * 그래서 지우는 대신, 상품을 찾았으면 그 상품의 이름을 그대로 쓴다.
+ * 화면에 뜨는 브랜드가 곧 링크되는 상품의 브랜드가 되므로 오표기가 생길 자리가 없다.
+ * 상품을 못 찾았을 때만 AI 이름을 쓰고, 이때는 대조할 것이 없어 브랜드를 걷어낸다.
  */
 
-/** 표기가 갈리는 브랜드는 별칭을 함께 둔다. 하나라도 걸리면 같은 브랜드로 본다. */
+/**
+ * 표기가 갈리는 브랜드는 별칭을 함께 둔다. 하나라도 걸리면 같은 브랜드로 본다.
+ *
+ * 일상어와 겹치는 한글 표기는 넣지 않는다. "브라운 색상", "캐리어 가방",
+ * "레이저 프린터", "샤프심"처럼 브랜드가 아닌 쓰임이 더 흔하면, 그 낱말을
+ * 브랜드로 보다가 멀쩡한 이름을 잘라먹는다. 이런 브랜드는 영문 표기만 둔다.
+ */
 const BRAND_ALIASES: string[][] = [
   ["삼성", "삼성전자", "samsung", "비스포크", "bespoke"],
   ["lg", "엘지", "엘G", "코드제로", "codezero", "오브제", "objet"],
@@ -35,11 +41,11 @@ const BRAND_ALIASES: string[][] = [
   ["신일", "shinil"],
   ["한일", "hanil"],
   ["보국", "bokuk"],
-  ["캐리어", "carrier"],
+  ["carrier"],
   ["위니아", "winia", "딤채", "dimchae"],
-  ["대우", "daewoo"],
+  ["daewoo"],
   ["필립스", "philips"],
-  ["브라운", "braun"],
+  ["braun"],
   ["테팔", "tefal"],
   ["일렉트로룩스", "electrolux"],
   ["밀레", "miele"],
@@ -50,13 +56,13 @@ const BRAND_ALIASES: string[][] = [
   ["에이수스", "asus", "젠북", "zenbook", "비보북", "vivobook"],
   ["에이서", "acer"],
   ["hp", "휴렛팩커드"],
-  ["델", "dell"],
+  ["dell"],
   ["msi", "엠에스아이"],
   ["기가바이트", "gigabyte"],
-  ["레이저", "razer"],
+  ["razer"],
   ["소니", "sony"],
   ["파나소닉", "panasonic"],
-  ["샤프", "sharp"],
+  ["sharp"],
   ["도시바", "toshiba"],
   ["나이키", "nike"],
   ["아디다스", "adidas"],
@@ -69,11 +75,10 @@ const BRAND_ALIASES: string[][] = [
   ["크록스", "crocs"],
   ["노스페이스", "northface", "north face"],
   ["파타고니아", "patagonia"],
-  ["콜롬비아", "columbia"],
+  ["컬럼비아", "columbia"],
   ["유니클로", "uniqlo"],
-  ["자라", "zara"],
+  ["zara"],
   ["무신사", "musinsa"],
-  ["샤오미미지아"],
 ];
 
 function normalize(value: string): string {
@@ -120,43 +125,47 @@ export function cleanProductName(productName: string, maxLength = 34): string {
   return cleaned || productName.slice(0, maxLength);
 }
 
-export type NameCheck =
-  | { ok: true }
-  | { ok: false; reason: "multiple-brands" | "brand-not-in-product" };
-
-/**
- * AI 가 지은 이름을 그대로 써도 되는지 본다.
- *
- * 막는 것은 두 가지다.
- * - 한 이름에 서로 다른 브랜드가 둘 이상 (예: "샤오미 로보락"). 그런 제품은 없다.
- * - 실제 상품에 없는 브랜드 (예: 무명 스틱청소기를 "삼성전자"로 표기).
- */
-export function checkNameAgainstProduct(
-  aiName: string,
-  productName: string
-): NameCheck {
-  const nameBrands = extractBrands(aiName);
-  if (nameBrands.length === 0) return { ok: true };
-  if (nameBrands.length > 1) return { ok: false, reason: "multiple-brands" };
-
-  const productBrands = extractBrands(productName);
-  return productBrands.includes(nameBrands[0])
-    ? { ok: true }
-    : { ok: false, reason: "brand-not-in-product" };
-}
-
 /**
  * 화면에 띄울 이름을 정한다.
- * 검증을 통과하면 AI 이름을, 아니면 실제 상품명을 정리해 쓴다.
+ *
+ * 상품을 찾았으면 그 상품의 이름을 쓴다. AI 가 지은 이름은 브랜드를 빼고 나면
+ * "자동 먼지비움 로봇청소기"처럼 분류 설명이 되어, 읽는 사람이 무엇을 사라는
+ * 것인지 알 수 없다. 실제 상품명을 쓰면 그 문제와 브랜드 오표기가 함께 사라진다.
+ * 표시되는 이름이 곧 링크되는 상품이 되기 때문이다.
+ *
+ * 검색이 실패해 붙일 상품이 없을 때만 AI 이름을 쓴다. 이때는 대조할 상품이
+ * 없으므로 브랜드를 믿을 수 없어 브랜드가 섞여 있으면 통째로 버린다.
  */
 export function resolveDisplayName(
   aiName: string,
   productName: string | undefined
 ): string {
   const trimmedAi = aiName.trim();
-  if (!productName?.trim()) return trimmedAi;
+  if (productName?.trim()) return cleanProductName(productName);
 
-  return checkNameAgainstProduct(trimmedAi, productName).ok
-    ? trimmedAi
-    : cleanProductName(productName);
+  return extractBrands(trimmedAi).length > 0
+    ? stripBrands(trimmedAi)
+    : trimmedAi;
+}
+
+/**
+ * 대조할 상품이 없을 때 이름에서 브랜드로 보이는 낱말을 걷어낸다.
+ *
+ * 낱말 단위로만 지운다. 부분 문자열로 지우면 "샤프심"의 "샤프"처럼 브랜드가
+ * 아닌 쓰임까지 걸려 멀쩡한 단어가 잘려 나간다.
+ * 긴 표기부터 지워야 "삼성전자"가 "삼성"만 지워지고 "전자"가 남는 일이 없다.
+ */
+const BRAND_TOKENS = BRAND_ALIASES.flat().sort((a, b) => b.length - a.length);
+
+function stripBrands(name: string): string {
+  const kept = name
+    .split(/\s+/)
+    .filter((token) => {
+      const normalized = normalize(token);
+      return !BRAND_TOKENS.some((brand) => normalized === normalize(brand));
+    })
+    .join(" ")
+    .trim();
+
+  return kept || name;
 }
