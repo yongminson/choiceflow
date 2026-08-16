@@ -206,13 +206,33 @@ function FitChecklist({
             {guides.map((check) => (
               <li
                 key={check.text}
-                className="flex items-start gap-2 text-[13px] leading-snug text-muted-foreground"
+                className="flex items-start gap-2 text-[13px] leading-snug"
               >
+                {/*
+                  감수해야 하는 점은 반드시 눈에 띄어야 한다. 이 서비스가 다른
+                  추천과 갈리는 지점이 "단점을 먼저 보여준다"이기 때문이다.
+                  좋은 점과 같은 표시로 나열하면 그 차이가 사라진다.
+                */}
+                {check.ok ? (
+                  <span
+                    className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60"
+                    aria-hidden
+                  />
+                ) : (
+                  <Minus
+                    className="mt-[2px] size-3.5 shrink-0 text-amber-600"
+                    aria-hidden
+                  />
+                )}
                 <span
-                  className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60"
-                  aria-hidden
-                />
-                <span>{check.text}</span>
+                  className={cn(
+                    check.ok
+                      ? "text-muted-foreground"
+                      : "font-medium text-amber-700 dark:text-amber-500"
+                  )}
+                >
+                  {check.text}
+                </span>
               </li>
             ))}
           </ul>
