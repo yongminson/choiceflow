@@ -112,3 +112,21 @@ test("미리보기 문구에 1등과 조건이 들어간다", () => {
   assert.ok(preview.title.includes("원룸 자취방"));
   assert.ok(preview.description.length > 0);
 });
+
+test("감수해야 하는 점도 공유 링크에 담는다", () => {
+  // 단점을 함께 보여주는 것이 이 결과 화면의 성격이다. 공유하면서 빠지면
+  // 링크를 받은 사람은 흔한 홍보 화면을 보게 된다.
+  const payload = toSharedResultPayload({
+    ...baseResult,
+    quickRecommendations: [
+      {
+        ...baseResult.quickRecommendations[0],
+        caution: "물걸레 패드를 주기적으로 세탁해야 합니다",
+      },
+    ],
+  });
+  assert.equal(
+    payload?.recommendations[0].caution,
+    "물걸레 패드를 주기적으로 세탁해야 합니다"
+  );
+});
