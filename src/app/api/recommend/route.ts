@@ -548,7 +548,10 @@ function isAdvisoryOnly(categoryId: CategoryId): boolean {
   return categoryId === "asset";
 }
 
-function categoryDecisionRules(categoryId: CategoryId): string {
+function categoryDecisionRules(
+  categoryId: CategoryId,
+  scenarioId: string
+): string {
   if (categoryId === "gift") {
     return "받는 사람·관계·기념일 적합성, 포장과 배송, 취향 실패 시 교환 가능성을 판단한다. A/S와 중고 감가는 전자제품 후보가 아닌 한 언급하지 않는다.";
   }
@@ -562,9 +565,62 @@ function categoryDecisionRules(categoryId: CategoryId): string {
     return "이동 시간, 예약·취소, 날씨 영향, 함께하는 사람에게 맞는 경험을 판단한다.";
   }
   if (categoryId === "asset") {
-    return "초기 비용보다 총비용, 계약·중도해지 위험, 보증, 환금성과 감가를 판단한다.";
+    return assetDecisionRules(scenarioId);
   }
   return "선택한 상황과 우선조건에 직접 관련된 근거만 판단한다.";
+}
+
+/**
+ * 렌탈·큰 지출은 하위 용도가 서로 너무 달라 한 가지 기준으로 묶을 수 없다.
+ * 자동차 기준을 통신 요금제에 그대로 대면 감가와 재판매 이야기가 나오는데,
+ * 요금제는 되팔 수 있는 물건이 아니다.
+ */
+function assetDecisionRules(scenarioId: string): string {
+  if (scenarioId === "car" || scenarioId === "property") {
+    return "초기 비용보다 총비용, 계약·중도해지 위험, 보증, 환금성과 감가를 판단한다.";
+  }
+  if (scenarioId === "subscription") {
+    return `월 고정 지출, 약정 잔여 기간과 위약금, 결합 할인이 풀릴 때의 반환금,
+실제 사용량 대비 낭비를 판단한다. 되팔 수 있는 물건이 아니므로
+감가·재판매·중고 시세는 어떤 경우에도 언급하지 않는다.`;
+  }
+  if (scenarioId === "insurance") {
+    return `보장 범위의 중복과 공백, 갱신 시 보험료 인상, 해지환급금, 면책 기간을 판단한다.
+감가·재판매·중고 시세는 언급하지 않는다.`;
+  }
+  if (scenarioId === "rental") {
+    return `월 납입액 총합, 의무 사용 기간, 중도해지 위약금, 반납·철거 비용,
+자가 구매와의 총비용 비교를 판단한다.
+빌려 쓰는 것이므로 사용자의 재판매·감가는 언급하지 않는다.`;
+  }
+  if (scenarioId === "business") {
+    return `구매와 렌탈의 총비용 비교, 계약 종료 시 반납 조건과 구매 전환가,
+유지보수 범위를 판단한다.`;
+  }
+  return "초기 비용보다 총비용, 계약·중도해지 위험, 보증을 판단한다.";
+}
+
+/**
+ * 후보 넷이 서로 달라야 고르는 의미가 있다.
+ *
+ * 통신·구독에서 "결합 해지 후 단독 회선", "OTT 1개만 남기고 정리",
+ * "무약정 다이렉트로 이동" 넷이 나왔는데 결국 같은 이야기의 강도만 달랐다.
+ * 무엇을 기준으로 갈라야 하는지 카테고리마다 다르게 일러 준다.
+ */
+function differentiationRules(categoryId: CategoryId): string {
+  if (categoryId === "asset") {
+    return `4개 후보는 접근 방식 자체가 달라야 한다. 같은 전략의 강도만 바꾼 변형은 금지한다.
+서로 다른 축에서 하나씩 고른다.
+- 지금 구조를 유지하면서 불필요한 것만 덜어내는 방식
+- 공급자(통신사·보험사·렌탈사)를 바꾸는 방식
+- 계약 형태를 바꾸는 방식(약정↔무약정, 렌탈↔구매, 결합↔단독)
+- 필요 자체를 줄이거나 전면 정리하는 방식
+두 후보의 실행 절차가 사실상 같다면 하나를 버리고 다른 축에서 다시 고른다.`;
+  }
+  if (categoryId === "food" || categoryId === "date") {
+    return "4개 후보는 서로 뚜렷하게 다른 종류여야 한다.";
+  }
+  return "4개 후보는 서로 뚜렷하게 다른 제품군이어야 한다.";
 }
 
 /**
@@ -606,6 +662,7 @@ name 에는 브랜드를 쓰지 않는 것을 원칙으로 하고, 어떤 종류
 
 async function generateCandidates(
   categoryId: CategoryId,
+  scenarioId: string,
   scenarioLabel: string,
   priorityLabel: string,
   budgetLabel: string,
@@ -669,13 +726,14 @@ ${effectiveExcluded.length > 0 ? `이미 추천한 후보(반드시 제외): ${e
 - reliable: 이 카테고리에 맞는 실패 위험과 후기 신뢰성을 우선한 선택
 - premium: 예산 범위 안에서 성능·소재·경험을 높인 프리미엄 선택
 
-카테고리별 판단 규칙: ${categoryDecisionRules(categoryId)}
+카테고리별 판단 규칙: ${categoryDecisionRules(categoryId, scenarioId)}
 ${keywordRules(categoryId)}
 
 확인하지 않은 실시간 평점·후기 수·가격은 절대 만들지 않는다.
 사용자가 직접 적은 요청이 있으면 그것을 다른 어떤 조건보다 우선한다.
 요청에 "~말고", "~빼고" 같은 제외 조건이 있으면 그 항목은 후보에서 완전히 뺀다.
-최우선 조건과 예산을 반드시 지킨다. 4개 후보는 서로 뚜렷하게 다른 제품군이어야 한다.
+최우선 조건과 예산을 반드시 지킨다.
+${differentiationRules(categoryId)}
 reason은 이 사용자의 상황(${scenarioLabel} · ${priorityLabel} 우선)에 직접 연결해 70~110자로 쓴다.
 "무난해요" 같은 뭉뚱그린 표현 대신, 무엇이 어떻게 좋은지 한 가지는 구체적으로 짚는다.
 4개의 reason이 서로 다른 근거를 담게 하고 같은 문장을 반복하지 않는다.
@@ -777,13 +835,18 @@ JSON 배열만 응답:
           categoryId === "appliance" || categoryId === "asset"
             ? clean(record.asSummary, fallback.asSummary)
             : undefined,
+        // 감가는 되팔 수 있는 것에만 뜻이 있다. 요금제·보험에 붙이면
+        // 읽는 사람에게 아무 뜻도 없는 줄이 된다.
         depreciationSummary:
-          categoryId === "appliance" || categoryId === "asset"
+          categoryId === "appliance" ||
+          (categoryId === "asset" &&
+            (scenarioId === "car" || scenarioId === "property"))
             ? clean(record.depreciationSummary, fallback.depreciationSummary)
             : undefined,
         evidence: categoryEvidence(
           categoryId,
-          clean(record.reason, fallback.reason)
+          clean(record.reason, fallback.reason),
+          scenarioId
         ),
         overall: (() => {
           const raw = Number(record.overall);
@@ -1317,13 +1380,15 @@ function buildFallbackFoodRecommendations(
 
 function buildFallbackNonFoodRecommendations(
   categoryId: CategoryId,
+  scenarioId: string,
   candidates: Candidate[]
 ): QuickRecommendation[] {
   const shopping = ["gift", "appliance", "fashion"].includes(categoryId);
   return segmentFallbackCandidates(categoryId, candidates).map((item, index) => ({
     rank: index + 1,
     ...item,
-    evidence: item.evidence || categoryEvidence(categoryId, item.reason),
+    evidence:
+      item.evidence || categoryEvidence(categoryId, item.reason, scenarioId),
     ...(shopping
       ? {
           sourceUrl: buildDirectCoupangNpSearchUrl(
@@ -1532,6 +1597,7 @@ export async function POST(request: Request) {
         ? null
         : await generateCandidates(
             rawCategory,
+            scenario.id,
             scenario.label,
             priority.label,
             budget.label,
@@ -1592,6 +1658,7 @@ export async function POST(request: Request) {
     // 제휴 전환이 사실상 일어나지 않는다.
     const generated = await generateCandidates(
       rawCategory,
+      scenario.id,
       scenario.label,
       priority.label,
       budget.label,
@@ -1610,7 +1677,8 @@ export async function POST(request: Request) {
             rank: index + 1,
             ...item,
             evidence:
-              item.evidence || categoryEvidence(rawCategory, item.reason),
+              item.evidence ||
+              categoryEvidence(rawCategory, item.reason, scenario.id),
             // 고가·렌탈은 외부 판매 링크로 넘기지 않는다. 계약 조건이 개인마다
             // 달라 검색 결과로 넘기는 것이 오히려 잘못된 판단을 부른다.
             ...(isAdvisoryOnly(rawCategory)
@@ -1654,7 +1722,11 @@ export async function POST(request: Request) {
             advancedContext,
             location
           )
-        : buildFallbackNonFoodRecommendations(rawCategory, fallbacks)
+        : buildFallbackNonFoodRecommendations(
+            rawCategory,
+            scenario.id,
+            fallbacks
+          )
     ).slice(0, 4);
     const result = toAnalyzeResult(
       rawCategory,

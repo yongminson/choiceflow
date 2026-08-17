@@ -36,7 +36,9 @@ export function normalizeProductSearchKeyword(
 
 export function categoryEvidence(
   categoryId: CategoryId,
-  reason: string
+  reason: string,
+  /** 같은 분야 안에서도 용도에 따라 봐야 할 것이 갈린다(렌탈·큰 지출). */
+  scenarioId?: string
 ): RecommendationEvidence[] {
   if (categoryId === "gift") {
     return [
@@ -96,17 +98,73 @@ export function categoryEvidence(
   if (categoryId === "asset") {
     return [
       { label: "총비용", text: reason, kind: "guide" },
-      {
-        label: "계약 위험",
-        text: "보증 범위, 면책, 중도해지 비용을 서면 조건으로 확인하세요.",
-        kind: "caution",
-      },
-      {
-        label: "처분 가치",
-        text: "보유 기간 뒤 재판매 수요와 예상 감가를 별도로 계산하세요.",
-        kind: "caution",
-      },
+      ...assetChecks(scenarioId),
     ];
   }
   return [{ label: "선택 이유", text: reason, kind: "guide" }];
+}
+
+/**
+ * 렌탈·큰 지출은 하위 용도가 서로 너무 다르다.
+ *
+ * 자동차·부동산 기준을 그대로 쓰면 통신 요금제 카드에 "처분 가치 — 보유 기간
+ * 뒤 재판매 수요와 예상 감가"가 붙는다. 요금제는 되팔 수 있는 물건이 아니라
+ * 읽는 사람에게 아무 뜻도 없는 줄이 되고, 나머지 판단까지 의심하게 만든다.
+ *
+ * 되팔 수 있는 것에만 처분 가치를 두고, 계약으로 묶이는 것에는 빠져나올 때
+ * 드는 비용을 대신 둔다. 실제로 돈이 갈리는 지점이 거기이기 때문이다.
+ */
+function assetChecks(scenarioId?: string): RecommendationEvidence[] {
+  const resale: Record<string, RecommendationEvidence> = {
+    car: {
+      label: "처분 가치",
+      text: "보유 기간 뒤 재판매 수요와 예상 감가를 별도로 계산하세요.",
+      kind: "caution",
+    },
+    property: {
+      label: "환금성",
+      text: "되팔 때 걸리는 기간과 보유 기간 뒤 시세 변동을 함께 보세요.",
+      kind: "caution",
+    },
+  };
+  const exit: Record<string, RecommendationEvidence> = {
+    subscription: {
+      label: "해지 조건",
+      text: "약정 잔여 기간, 위약금, 결합 할인 반환금을 함께 확인하세요.",
+      kind: "caution",
+    },
+    insurance: {
+      label: "해지·갱신",
+      text: "해지환급금, 갱신 시 보험료 인상 폭, 면책 기간을 확인하세요.",
+      kind: "caution",
+    },
+    rental: {
+      label: "의무 기간",
+      text: "의무 사용 기간, 중도해지 위약금, 반납·철거 비용을 확인하세요.",
+      kind: "caution",
+    },
+    business: {
+      label: "반납·전환",
+      text: "계약 종료 시 반납 조건과 구매 전환가를 함께 계산하세요.",
+      kind: "caution",
+    },
+  };
+
+  const contract: RecommendationEvidence =
+    scenarioId && scenarioId in exit
+      ? {
+          label: "계약 위험",
+          text: "약정 기간과 요금 인상 조건을 가입 전에 서면으로 확인하세요.",
+          kind: "caution",
+        }
+      : {
+          label: "계약 위험",
+          text: "보증 범위, 면책, 중도해지 비용을 서면 조건으로 확인하세요.",
+          kind: "caution",
+        };
+
+  const second = scenarioId ? (resale[scenarioId] ?? exit[scenarioId]) : undefined;
+  // 용도를 모를 때는 어느 쪽도 단정하지 않는다. 틀린 기준을 붙이는 것보다
+  // 계약 위험만 남기는 편이 낫다.
+  return second ? [contract, second] : [contract];
 }

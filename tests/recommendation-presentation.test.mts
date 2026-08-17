@@ -39,3 +39,48 @@ test("does not attach appliance criteria to gifts or fashion", () => {
   assert.match(applianceText, /A\/S/);
   assert.match(applianceText, /감가/);
 });
+
+test("되팔 수 없는 것에 감가·재판매 기준을 붙이지 않는다", () => {
+  // 통신 요금제 카드에 "처분 가치 — 보유 기간 뒤 재판매 수요와 예상 감가"가
+  // 붙어 나갔다. 요금제는 되팔 수 있는 물건이 아니라 아무 뜻도 없는 줄이 된다.
+  const text = (scenarioId: string) =>
+    categoryEvidence("asset", "월 고정 지출을 줄이는 후보", scenarioId)
+      .map((item) => `${item.label} ${item.text}`)
+      .join(" ");
+
+  for (const scenarioId of ["subscription", "insurance", "rental"]) {
+    assert.doesNotMatch(text(scenarioId), /감가|재판매|처분 가치/);
+  }
+});
+
+test("계약으로 묶이는 용도에는 빠져나올 때 드는 비용을 보여준다", () => {
+  assert.match(text("subscription"), /위약금/);
+  assert.match(text("insurance"), /해지환급금|갱신/);
+  assert.match(text("rental"), /의무 사용 기간|위약금/);
+
+  function text(scenarioId: string) {
+    return categoryEvidence("asset", "후보", scenarioId)
+      .map((item) => `${item.label} ${item.text}`)
+      .join(" ");
+  }
+});
+
+test("되팔 수 있는 것에는 감가·환금성을 그대로 둔다", () => {
+  const car = categoryEvidence("asset", "후보", "car")
+    .map((item) => `${item.label} ${item.text}`)
+    .join(" ");
+  const property = categoryEvidence("asset", "후보", "property")
+    .map((item) => `${item.label} ${item.text}`)
+    .join(" ");
+
+  assert.match(car, /감가/);
+  assert.match(property, /환금성|시세/);
+});
+
+test("용도를 모르면 어느 쪽 기준도 단정하지 않는다", () => {
+  const text = categoryEvidence("asset", "후보")
+    .map((item) => `${item.label} ${item.text}`)
+    .join(" ");
+  assert.doesNotMatch(text, /감가|재판매|위약금/);
+  assert.match(text, /계약 위험/);
+});
