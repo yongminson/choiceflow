@@ -21,7 +21,10 @@ import {
   readFitChecks,
   readCaution,
 } from "@/lib/recommendation/fit-checks";
-import { alignLabelsWithPrice } from "@/lib/recommendation/selection-labels";
+import {
+  alignLabelsWithPrice,
+  dropUnmatchedWhenOthersMatched,
+} from "@/lib/recommendation/selection-labels";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { resolveDisplayName } from "@/lib/monetization/brand-verify";
 import {
@@ -635,6 +638,18 @@ function keywordRules(categoryId: CategoryId): string {
 - 광고 문구(최저가·정품·무료배송), 옵션 나열, 쉼표 연결은 금지한다.
 - name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.
 
+[4개 검색어는 서로 다른 상품이 걸리게 쓴다 — 중요]
+수식어만 바꾼 검색어는 쿠팡에서 같은 상품을 물어 온다. 실제로
+"올스텐 대용량 에어프라이어" / "대용량 가성비 에어프라이어" /
+"대용량 오븐 에어프라이어" 셋이 같은 상품 하나로 걸려, 이름만 다른
+카드 셋이 같은 값 같은 사진으로 나란히 선 화면이 나갔다.
+- 4개 검색어는 용량·형태·가격대 중 최소 하나가 서로 달라야 한다.
+  예) 4L 바스켓형 / 12L 오븐형 / 스팀 겸용 / 소형 1~2인용
+- "가성비", "고급", "프리미엄" 같은 수식어로만 가르는 것은 금지한다.
+  검색 결과를 가르지 못하는 말이다.
+- 두 검색어를 쿠팡에 넣었을 때 같은 상품이 첫 화면에 뜰 것 같으면,
+  둘 중 하나를 다른 형태나 다른 용량으로 바꿔 다시 쓴다.
+
 [브랜드 표기]
 name 에는 브랜드를 쓰지 않는 것을 원칙으로 하고, 어떤 종류의 제품인지로 쓴다.
   예) "삼성 비스포크 제트"(X) → "먼지통 자동비움 로봇청소기"(O)
@@ -937,6 +952,16 @@ async function enrichProductPrices(
       continue;
     }
 
+    /*
+      검색어가 서로 비슷하면 같은 상품이 걸리는데, 앞에서 이미 쓴 상품을
+      빼고 나면 남는 것이 없어 여기로 온다. 같은 상품을 이름만 바꿔 다시
+      세우느니 이 후보를 버린다. 넷을 채우는 것보다 넷이 서로 다른 것이
+      중요하다. 이 자리는 뒤에서 걸러 카드 수를 줄인다.
+    */
+    console.warn("[recommend] 겹치지 않는 상품을 찾지 못했습니다.", {
+      searchKeyword,
+      selectionType: candidate.selectionType,
+    });
     items.push({
       rank: index + 1,
       ...candidate,
@@ -947,7 +972,7 @@ async function enrichProductPrices(
     });
   }
 
-  const labelled = alignLabelsWithPrice(items);
+  const labelled = alignLabelsWithPrice(dropUnmatchedWhenOthersMatched(items));
 
   const sorted = [...labelled].sort(
     (a, b) =>

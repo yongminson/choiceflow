@@ -167,3 +167,32 @@ function warnIfMisordered(
     });
   }
 }
+
+/** 후보가 이보다 적어지면 "다른 관점"이라는 말이 무색해진다. */
+const MIN_RECOMMENDATIONS = 3;
+
+/**
+ * 상품을 못 붙인 후보를 덜어낸다.
+ *
+ * 검색어가 서로 비슷하면 넷 중 셋이 같은 상품에 걸린다. 이미 쓴 상품을
+ * 빼고 나면 남는 것이 없어 그 후보는 가격도 사진도 없이 검색 링크만 달고
+ * 선다. 값이 채워진 카드 옆에 그런 카드가 서면 비교가 되지 않는다.
+ *
+ * 넷을 채우는 것보다 넷이 서로 다른 것이 중요하므로 그런 자리는 뺀다.
+ * 다만 쿠팡 조회 자체가 실패한 경우(하나도 못 붙인 경우)는 다르다.
+ * 그때는 모두 같은 처지라 덜어낼 것이 없고, 검색 링크라도 있는 편이 낫다.
+ */
+export function dropUnmatchedWhenOthersMatched(
+  items: QuickRecommendation[]
+): QuickRecommendation[] {
+  const matched = items.filter((item) => typeof item.price === "number");
+  if (matched.length === items.length || matched.length === 0) return items;
+  if (matched.length < MIN_RECOMMENDATIONS) return items;
+
+  console.warn("[recommend] 겹치는 후보를 빼고 카드 수를 줄입니다.", {
+    before: items.length,
+    after: matched.length,
+  });
+  return matched;
+}
+

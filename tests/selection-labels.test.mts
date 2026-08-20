@@ -1,7 +1,10 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import { alignLabelsWithPrice } from "../src/lib/recommendation/selection-labels.ts";
+import {
+  alignLabelsWithPrice,
+  dropUnmatchedWhenOthersMatched,
+} from "../src/lib/recommendation/selection-labels.ts";
 import type { QuickRecommendation } from "../src/lib/types/analyze.ts";
 
 const LABELS = {
@@ -179,4 +182,39 @@ test("비교할 가격이 하나뿐이면 그대로 둔다", () => {
     candidate("reliable", undefined),
   ];
   assert.deepEqual(alignLabelsWithPrice(items), items);
+});
+
+test("상품을 못 붙인 후보는 빼고 카드 수를 줄인다", () => {
+  // 검색어가 비슷해 넷 중 셋이 같은 상품에 걸리면, 이미 쓴 상품을 빼고
+  // 남는 것이 없는 후보가 생긴다. 값도 사진도 없는 카드를 옆에 세우느니 뺀다.
+  const kept = dropUnmatchedWhenOthersMatched([
+    candidate("best", 260000),
+    candidate("value", 198000),
+    candidate("reliable", 240000),
+    candidate("premium", undefined),
+  ]);
+  assert.equal(kept.length, 3);
+  assert.ok(kept.every((item) => typeof item.price === "number"));
+});
+
+test("셋을 못 채우면 빼지 않는다", () => {
+  // 둘만 남으면 "다른 관점의 선택들"이라는 말이 무색해진다.
+  const items = [
+    candidate("best", 260000),
+    candidate("value", 198000),
+    candidate("reliable", undefined),
+    candidate("premium", undefined),
+  ];
+  assert.deepEqual(dropUnmatchedWhenOthersMatched(items), items);
+});
+
+test("쿠팡 조회가 통째로 실패하면 그대로 둔다", () => {
+  // 모두 같은 처지라 덜어낼 것이 없다. 검색 링크라도 있는 편이 낫다.
+  const items = [
+    candidate("best", undefined),
+    candidate("value", undefined),
+    candidate("reliable", undefined),
+    candidate("premium", undefined),
+  ];
+  assert.deepEqual(dropUnmatchedWhenOthersMatched(items), items);
 });
