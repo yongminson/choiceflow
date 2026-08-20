@@ -21,7 +21,7 @@ import {
   readFitChecks,
   readCaution,
 } from "@/lib/recommendation/fit-checks";
-import { alignValueLabelWithPrice } from "@/lib/recommendation/selection-labels";
+import { alignLabelsWithPrice } from "@/lib/recommendation/selection-labels";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { resolveDisplayName } from "@/lib/monetization/brand-verify";
 import {
@@ -947,7 +947,7 @@ async function enrichProductPrices(
     });
   }
 
-  const labelled = alignValueLabelWithPrice(items);
+  const labelled = alignLabelsWithPrice(items);
 
   const sorted = [...labelled].sort(
     (a, b) =>
