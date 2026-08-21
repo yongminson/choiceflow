@@ -13,7 +13,7 @@ export function AppNavbar() {
   return (
     <header
       className={cn(
-        "fixed top-0 z-50 w-full transition-all",
+        "relative z-50 w-full transition-all",
         isEditorialPage
           ? "pointer-events-none border-transparent bg-transparent px-3 pt-3"
           : "border-b border-border bg-background",

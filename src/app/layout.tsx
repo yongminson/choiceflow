@@ -61,7 +61,7 @@ export default function RootLayout({
         <CreditsRefreshProvider>
           <BillingProvider>
             <AppNavbarWrapper />
-            <div className="flex min-h-screen flex-col pt-14">
+            <div className="flex min-h-screen flex-col">
               <main className="relative flex-1">{children}</main>
               <AppFooter />
             </div>

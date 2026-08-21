@@ -1,0 +1,463 @@
+
+> choiceflow@0.1.0 dev
+> next dev -p 3100
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3100
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.3s
+ ○ Compiling / ...
+request to https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&display=swap failed, reason: connect EACCES 172.217.211.95:443
+
+Retrying 1/3...
+request to https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap failed, reason: connect EACCES 172.217.211.95:443
+
+Retrying 1/3...
+request to https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&display=swap failed, reason: connect EACCES 172.217.211.95:443
+
+Retrying 2/3...
+request to https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap failed, reason: connect EACCES 172.217.211.95:443
+
+Retrying 2/3...
+request to https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&display=swap failed, reason: connect EACCES 172.217.211.95:443
+
+Retrying 3/3...
+request to https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap failed, reason: connect EACCES 172.217.211.95:443
+
+Retrying 3/3...
+FetchError: request to https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&display=swap failed, reason: connect EACCES 172.217.211.95:443
+    at ClientRequest.<anonymous> (F:\choiceflow\node_modules\next\dist\compiled\node-fetch\index.js:1:66160)
+    at ClientRequest.emit (node:events:508:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at TLSSocket.socketErrorListener (node:_http_client:575:5)
+    at TLSSocket.emit (node:events:508:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  type: 'system',
+  errno: 'EACCES',
+  code: 'EACCES'
+}
+ ⨯ Failed to download `Plus Jakarta Sans` from Google Fonts. Using fallback font instead.
+
+Failed to fetch `Plus Jakarta Sans` from Google Fonts.}
+FetchError: request to https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap failed, reason: connect EACCES 172.217.211.95:443
+    at ClientRequest.<anonymous> (F:\choiceflow\node_modules\next\dist\compiled\node-fetch\index.js:1:66160)
+    at ClientRequest.emit (node:events:508:28)
+    at emitErrorEvent (node:_http_client:108:11)
+    at TLSSocket.socketErrorListener (node:_http_client:575:5)
+    at TLSSocket.emit (node:events:508:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  type: 'system',
+  errno: 'EACCES',
+  code: 'EACCES'
+}
+ ⨯ Failed to download `Noto Sans KR` from Google Fonts. Using fallback font instead.
+
+Failed to fetch `Noto Sans KR` from Google Fonts.}
+ ✓ Compiled / in 6s (968 modules)
+Watchpack Error (initial scan): Error: EINVAL: invalid argument, lstat 'F:\System Volume Information'
+ GET / 200 in 1536ms
+ ✓ Compiled in 637ms (457 modules)
+ GET / 200 in 55ms
+ ⚠ Cross origin request detected from 127.0.0.1 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ ○ Compiling /icon.png ...
+ ✓ Compiled /icon.png in 565ms (525 modules)
+ GET /icon.png?141600b7ab83f0db 200 in 900ms
+ GET / 200 in 182ms
+ GET /icon.png?141600b7ab83f0db 200 in 87ms
+ GET / 200 in 32ms
+ GET /icon.png?141600b7ab83f0db 200 in 139ms
+ ○ Compiling /api/recommend ...
+ ✓ Compiled /api/recommend in 801ms (676 modules)
+[ai] gemini:gemini-3.5-flash-lite failed TypeError: fetch failed
+    at node:internal/deps/undici/undici:16416:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async makeRequest (webpack-internal:///(rsc)/./node_modules/@google/generative-ai/dist/index.mjs:418:20)
+    at async generateContent (webpack-internal:///(rsc)/./node_modules/@google/generative-ai/dist/index.mjs:888:22)
+    at async tryGemini (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:44:28)
+    at async generateJson (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:129:48)
+    at async generateCandidates (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:826:27)
+    at async POST (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:1397:27)
+    at async F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (F:\choiceflow\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (F:\choiceflow\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (F:\choiceflow\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (F:\choiceflow\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:818:17)
+    at async F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (F:\choiceflow\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13)
+[ai] gemini:gemini-3.6-flash failed TypeError: fetch failed
+    at node:internal/deps/undici/undici:16416:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async makeRequest (webpack-internal:///(rsc)/./node_modules/@google/generative-ai/dist/index.mjs:418:20)
+    at async generateContent (webpack-internal:///(rsc)/./node_modules/@google/generative-ai/dist/index.mjs:888:22)
+    at async tryGemini (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:44:28)
+    at async generateJson (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:129:48)
+    at async generateCandidates (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:826:27)
+    at async POST (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:1397:27)
+    at async F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (F:\choiceflow\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (F:\choiceflow\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (F:\choiceflow\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (F:\choiceflow\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:818:17)
+    at async F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (F:\choiceflow\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13)
+[ai] gemini:gemini-2.5-flash-lite failed TypeError: fetch failed
+    at node:internal/deps/undici/undici:16416:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async makeRequest (webpack-internal:///(rsc)/./node_modules/@google/generative-ai/dist/index.mjs:418:20)
+    at async generateContent (webpack-internal:///(rsc)/./node_modules/@google/generative-ai/dist/index.mjs:888:22)
+    at async tryGemini (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:44:28)
+    at async generateJson (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:129:48)
+    at async generateCandidates (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:826:27)
+    at async POST (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:1397:27)
+    at async F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (F:\choiceflow\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (F:\choiceflow\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (F:\choiceflow\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (F:\choiceflow\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:818:17)
+    at async F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (F:\choiceflow\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13)
+[ai] openai:gpt-5-mini failed APIConnectionError: Connection error.
+    at OpenAI.makeRequest (webpack-internal:///(rsc)/./node_modules/openai/client.mjs:389:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async tryOpenAi (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:90:32)
+    ... 20 lines matching cause stack trace ...
+    at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  status: undefined,
+  headers: undefined,
+  requestID: undefined,
+  error: undefined,
+  code: undefined,
+  param: undefined,
+  type: undefined,
+  cause: TypeError: fetch failed
+      at node:internal/deps/undici/undici:16416:13
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async OpenAI.fetchWithTimeout (webpack-internal:///(rsc)/./node_modules/openai/client.mjs:494:20)
+      at async OpenAI.fetchWithAuth (webpack-internal:///(rsc)/./node_modules/openai/client.mjs:470:26)
+      at async OpenAI.makeRequest (webpack-internal:///(rsc)/./node_modules/openai/client.mjs:353:26)
+      at async tryOpenAi (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:90:32)
+      at async generateJson (webpack-internal:///(rsc)/./src/lib/ai/generate-json.ts:129:85)
+      at async generateCandidates (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:826:27)
+      at async POST (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:1397:27)
+      at async F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+      at async eT.execute (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+      at async eT.handle (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+      at async doRender (F:\choiceflow\node_modules\next\dist\server\base-server.js:1366:42)
+      at async cacheEntry.responseCache.get.routeKind (F:\choiceflow\node_modules\next\dist\server\base-server.js:1588:28)
+      at async DevServer.renderToResponseWithComponentsImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1496:28)
+      at async DevServer.renderPageComponent (F:\choiceflow\node_modules\next\dist\server\base-server.js:1924:24)
+      at async DevServer.renderToResponseImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1962:32)
+      at async DevServer.pipeImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:922:25)
+      at async NextNodeServer.handleCatchallRenderRequest (F:\choiceflow\node_modules\next\dist\server\next-server.js:272:17)
+      at async DevServer.handleRequestImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:818:17)
+      at async F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+      at async Span.traceAsyncFn (F:\choiceflow\node_modules\next\dist\trace\trace.js:154:20)
+      at async DevServer.handleRequest (F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+      at async invokeRender (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:179:21)
+      at async handleRequest (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:359:24)
+      at async requestHandlerImpl (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:383:13)
+      at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13) {
+    [cause]: AggregateError [EACCES]: 
+        at internalConnectMultiple (node:net:1134:18)
+        at afterConnectMultiple (node:net:1715:7) {
+      code: 'EACCES',
+      [errors]: [Array]
+    }
+  }
+}
+[ai] All providers failed; falling back to static candidates.
+[coupang] Product search failed TypeError: fetch failed
+    at node:internal/deps/undici/undici:16416:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async searchCoupangProduct (webpack-internal:///(rsc)/./src/lib/monetization/coupang-server.ts:242:26)
+    at async eval (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:882:29)
+    at async Promise.all (index 0)
+    at async enrichProductPrices (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:877:19)
+    at async POST (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:1404:43)
+    at async F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (F:\choiceflow\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (F:\choiceflow\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (F:\choiceflow\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (F:\choiceflow\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:818:17)
+    at async F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (F:\choiceflow\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  [cause]: Error: connect EACCES 23.60.186.72:443
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+    errno: -4092,
+    code: 'EACCES',
+    syscall: 'connect',
+    address: '23.60.186.72',
+    port: 443
+  }
+}
+[coupang] Product search failed TypeError: fetch failed
+    at node:internal/deps/undici/undici:16416:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async searchCoupangProduct (webpack-internal:///(rsc)/./src/lib/monetization/coupang-server.ts:242:26)
+    at async eval (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:882:29)
+    at async Promise.all (index 1)
+    at async enrichProductPrices (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:877:19)
+    at async POST (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:1404:43)
+    at async F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (F:\choiceflow\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (F:\choiceflow\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (F:\choiceflow\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (F:\choiceflow\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:818:17)
+    at async F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (F:\choiceflow\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  [cause]: Error: connect EACCES 23.60.186.72:443
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+    errno: -4092,
+    code: 'EACCES',
+    syscall: 'connect',
+    address: '23.60.186.72',
+    port: 443
+  }
+}
+[coupang] Product search failed TypeError: fetch failed
+    at node:internal/deps/undici/undici:16416:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async searchCoupangProduct (webpack-internal:///(rsc)/./src/lib/monetization/coupang-server.ts:242:26)
+    at async eval (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:882:29)
+    at async Promise.all (index 2)
+    at async enrichProductPrices (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:877:19)
+    at async POST (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:1404:43)
+    at async F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (F:\choiceflow\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (F:\choiceflow\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (F:\choiceflow\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (F:\choiceflow\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:818:17)
+    at async F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (F:\choiceflow\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  [cause]: Error: connect EACCES 23.60.186.72:443
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+    errno: -4092,
+    code: 'EACCES',
+    syscall: 'connect',
+    address: '23.60.186.72',
+    port: 443
+  }
+}
+[coupang] Product search failed TypeError: fetch failed
+    at node:internal/deps/undici/undici:16416:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async searchCoupangProduct (webpack-internal:///(rsc)/./src/lib/monetization/coupang-server.ts:242:26)
+    at async eval (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:882:29)
+    at async Promise.all (index 3)
+    at async enrichProductPrices (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:877:19)
+    at async POST (webpack-internal:///(rsc)/./src/app/api/recommend/route.ts:1404:43)
+    at async F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:57228
+    at async eT.execute (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:46851)
+    at async eT.handle (F:\choiceflow\node_modules\next\dist\compiled\next-server\app-route.runtime.dev.js:6:58760)
+    at async doRender (F:\choiceflow\node_modules\next\dist\server\base-server.js:1366:42)
+    at async cacheEntry.responseCache.get.routeKind (F:\choiceflow\node_modules\next\dist\server\base-server.js:1588:28)
+    at async DevServer.renderToResponseWithComponentsImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1496:28)
+    at async DevServer.renderPageComponent (F:\choiceflow\node_modules\next\dist\server\base-server.js:1924:24)
+    at async DevServer.renderToResponseImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:1962:32)
+    at async DevServer.pipeImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (F:\choiceflow\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (F:\choiceflow\node_modules\next\dist\server\base-server.js:818:17)
+    at async F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (F:\choiceflow\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (F:\choiceflow\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:179:21)
+    at async handleRequest (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:359:24)
+    at async requestHandlerImpl (F:\choiceflow\node_modules\next\dist\server\lib\router-server.js:383:13)
+    at async Server.requestListener (F:\choiceflow\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  [cause]: Error: connect EACCES 23.60.186.72:443
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+    errno: -4092,
+    code: 'EACCES',
+    syscall: 'connect',
+    address: '23.60.186.72',
+    port: 443
+  }
+}
+ POST /api/recommend 200 in 2626ms
+ ○ Compiling /result ...
+ ✓ Compiled /result in 781ms (1200 modules)
+ GET /result 200 in 163ms
+ GET /icon.png?141600b7ab83f0db 200 in 161ms
+ ⨯ ./src/components/landing/choice-motion-field.tsx
+Error: Failed to read source code from F:\choiceflow\src\components\landing\choice-motion-field.tsx
+
+Caused by:
+    지정된 파일을 찾을 수 없습니다. (os error 2)
+
+Import trace for requested module:
+./src/components/landing/choice-motion-field.tsx
+./src/components/dashboard/quick-recommendation-dashboard.tsx
+./src/components/dashboard/home-client.tsx
+ ⨯ ./src/components/landing/choice-motion-field.tsx
+Error: Failed to read source code from F:\choiceflow\src\components\landing\choice-motion-field.tsx
+
+Caused by:
+    지정된 파일을 찾을 수 없습니다. (os error 2)
+
+Import trace for requested module:
+./src/components/landing/choice-motion-field.tsx
+./src/components/dashboard/quick-recommendation-dashboard.tsx
+./src/components/dashboard/home-client.tsx
+ ✓ Compiled in 1138ms (1033 modules)
+ ✓ Compiled in 864ms (1033 modules)
+ ✓ Compiled in 205ms (497 modules)
+ ✓ Compiled in 1281ms (1033 modules)
+ ✓ Compiled in 461ms (1033 modules)
+ ✓ Compiled in 800ms (1033 modules)
+ GET / 200 in 220ms
+ GET / 200 in 29ms
+ ✓ Compiled /_not-found in 444ms (1020 modules)
+ GET /_next/static/chunks/app-pages-internals.js 404 in 753ms
+ GET /_next/static/chunks/main-app.js?v=1786334802591 404 in 751ms
+ GET / 200 in 414ms
+ GET /_next/static/chunks/main-app.js?v=1786334803364 404 in 58ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 58ms
+ ✓ Compiled /icon.png in 168ms (569 modules)
+ GET /icon.png?141600b7ab83f0db 200 in 410ms
+ GET / 200 in 100ms
+ GET /_next/static/chunks/main-app.js?v=1786334814823 404 in 68ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 68ms
+ GET /icon.png?141600b7ab83f0db 200 in 68ms
+ ✓ Compiled in 807ms (1068 modules)
+ GET / 200 in 122ms
+ GET /_next/static/chunks/main-app.js?v=1786334838529 404 in 42ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 41ms
+ GET /icon.png?141600b7ab83f0db 200 in 103ms
+ GET /result 200 in 85ms
+ GET /_next/static/chunks/main-app.js?v=1786334850711 404 in 53ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 53ms
+ GET / 200 in 38ms
+ GET /_next/static/chunks/main-app.js?v=1786334865439 404 in 52ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 49ms
+ ✓ Compiled in 1148ms (1033 modules)
+ ✓ Compiled in 478ms (1033 modules)
+ ✓ Compiled in 373ms (1033 modules)
+ ✓ Compiled in 419ms (1033 modules)
+ ✓ Compiled in 829ms (1033 modules)
+ GET / 200 in 237ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 751ms (1020 modules)
+ GET /_next/static/chunks/app-pages-internals.js 404 in 1037ms
+ GET /_next/static/chunks/main-app.js?v=1786337383424 404 in 1039ms
+ GET / 200 in 627ms
+ GET /_next/static/chunks/main-app.js?v=1786337384514 404 in 74ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 81ms
+ ✓ Compiled /icon.png in 285ms (569 modules)
+ GET /icon.png?141600b7ab83f0db 200 in 473ms
+ GET / 200 in 98ms
+ GET /_next/static/chunks/main-app.js?v=1786337404480 404 in 51ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 50ms
+ GET /icon.png?141600b7ab83f0db 200 in 76ms
+ ✓ Compiled in 1437ms (1033 modules)
+ ✓ Compiled in 271ms (497 modules)
+ ✓ Compiled in 532ms (1033 modules)
+ ✓ Compiled in 445ms (1033 modules)
+ ✓ Compiled in 372ms (1033 modules)
+ ✓ Compiled in 421ms (1033 modules)
+ ✓ Compiled in 378ms (1033 modules)
+ ✓ Compiled in 515ms (1033 modules)
+ ✓ Compiled in 433ms (1033 modules)
+ ✓ Compiled in 367ms (1033 modules)
+ GET / 200 in 248ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 639ms (1036 modules)
+ GET /_next/static/chunks/main-app.js?v=1786347400077 404 in 964ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 962ms
+ GET / 200 in 497ms
+ GET /_next/static/chunks/main-app.js?v=1786347401214 404 in 62ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 61ms
+ ✓ Compiled /icon.png in 289ms (569 modules)
+ GET /icon.png?141600b7ab83f0db 200 in 477ms
+ ✓ Compiled in 389ms (497 modules)
+ ✓ Compiled in 280ms (497 modules)
+ ✓ Compiled in 1193ms (1038 modules)
+ ✓ Compiled in 482ms (1038 modules)
+ ✓ Compiled in 697ms (1022 modules)
+ ✓ Compiled in 739ms (1038 modules)
+ ✓ Compiled in 601ms (1022 modules)
+ ✓ Compiled in 711ms (1038 modules)
+ ✓ Compiled in 357ms (1038 modules)
+ ✓ Compiled in 380ms (1038 modules)
+ ✓ Compiled in 366ms (1038 modules)
+ ✓ Compiled in 255ms (1038 modules)
+ ✓ Compiled in 5.1s (499 modules)
+ ✓ Compiled in 3.6s (499 modules)
+ ✓ Compiled in 3.1s (499 modules)
+ ✓ Compiled in 1223ms (499 modules)
+ ✓ Compiled in 3.7s (1033 modules)
+ ✓ Compiled in 2.2s (1033 modules)
+ ✓ Compiled in 2s (1033 modules)
+ ✓ Compiled in 887ms (1038 modules)

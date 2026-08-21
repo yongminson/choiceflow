@@ -1,0 +1,812 @@
+From ebd73734273c6815cb485a715a07e07d17d4540d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 9 Aug 2026 13:22:50 +0000
+Subject: [PATCH] feat: show condition-by-condition fit checks and finish the
+ landing page
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+결과 카드가 줄글 이유만 보여줘서 후보 4개를 나란히 놓아도 비교가 되지
+않았다. "그래서 내 조건을 지켰나"가 끝까지 남는다.
+
+- /api/recommend 가 fitChecks(조건별 충족 여부)를 함께 내려준다.
+  프롬프트에서 ok=false 를 반드시 하나 요구한다. 단점 없는 후보는 없고,
+  장점만 나열하면 광고 문구로 읽혀 화면 전체를 못 믿게 된다.
+- AI 응답이 없을 때는 서버가 확인한 값(쿠팡 실가격·로켓배송, 지도
+  거리·평점·후기·영업 여부)으로만 만든다. 두 줄을 못 채우면 아예 만들지
+  않고 기존 줄글로 되돌아간다.
+- 판정 규칙을 lib/recommendation/fit-checks.ts 로 빼고 테스트 10개를 붙여
+  "없는 항목을 지어내지 않는다"를 깨지지 않게 고정했다.
+
+결과 페이지
+- 후보 카드가 체크리스트를 먼저 보여주고 줄글 이유는 상세로 내렸다.
+- 후보는 항상 4개인데 3열이라 마지막 하나만 다음 줄에 떨어져 있었다.
+  4열로 바꾸고 구매 버튼을 카드 바닥에 붙여 같은 선에 오게 했다.
+- 정밀 추천 카드에 남아 있던 보라·하늘 그라디언트를 브랜드 색으로 교체.
+- Tailwind 기본 스케일에 없어 무시되던 min-h-13 을 실제 값으로 교체.
+
+랜딩
+- 카테고리 그리드에서 화면이 끊겨 "그래서 뭘 해주는 건데"가 남았다.
+  결과 화면에서 실제로 제공하는 것 3가지와 3단계 흐름을 아래에 붙이고,
+  쿠팡 파트너스 고지를 함께 두었다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ package.json                                  |   5 +-
+ src/app/api/recommend/route.ts                |  33 +++-
+ .../quick-recommendation-dashboard.tsx        |  81 +++++++++
+ .../result/quick-recommendation-result.tsx    | 139 +++++++++++-----
+ src/lib/recommendation/fit-checks.ts          | 122 ++++++++++++++
+ src/lib/types/analyze.ts                      |  15 ++
+ tests/fit-checks.test.mts                     | 154 ++++++++++++++++++
+ 7 files changed, 501 insertions(+), 48 deletions(-)
+ create mode 100644 src/lib/recommendation/fit-checks.ts
+ create mode 100644 tests/fit-checks.test.mts
+
+diff --git a/package.json b/package.json
+index 37da2b7..d89222b 100644
+--- a/package.json
++++ b/package.json
+@@ -7,11 +7,12 @@
+     "build": "next build",
+     "start": "next start",
+     "lint": "next lint",
+-    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map",
++    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map && npm run test:fit",
+     "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts",
+     "test:quick": "node --experimental-strip-types --test tests/quick-options.test.mts",
+     "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts",
+-    "test:map": "node --experimental-strip-types --test tests/map-keyword.test.mts"
++    "test:map": "node --experimental-strip-types --test tests/map-keyword.test.mts",
++    "test:fit": "node --experimental-strip-types --test tests/fit-checks.test.mts"
+   },
+   "dependencies": {
+     "@base-ui/react": "^1.4.0",
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index f584a72..7dae5af 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -15,6 +15,11 @@ import {
+   normalizeProductSearchKeyword,
+ } from "@/lib/recommendation/recommendation-presentation";
+ import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
++import {
++  derivedFitChecks,
++  placeFitChecks,
++  readFitChecks,
++} from "@/lib/recommendation/fit-checks";
+ import { toMapKeyword } from "@/lib/recommendation/map-keyword";
+ import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
+ import type {
+@@ -46,6 +51,7 @@ type Candidate = {
+   evidence?: QuickRecommendation["evidence"];
+   scores?: QuickRecommendation["scores"];
+   overall?: number;
++  fitChecks?: QuickRecommendation["fitChecks"];
+   /** 음식 전용 — 지도에서 주변 가게가 뜨는 짧은 업종·메뉴명 */
+   mapKeyword?: string;
+ };
+@@ -644,8 +650,18 @@ scores: 아래 축으로 후보끼리 비교한 상대 점수를 0~100으로 매
+ - 절대 수치가 아니라 이 4개 후보 사이의 상대 비교다.
+ - 가격 부담 축은 "부담이 적을수록 높은 점수"다.
+ 
++fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로 끊어 쓴다.
++- 줄글을 요약하지 말고, 사용자가 실제로 고른 조건을 하나씩 확인해 준다.
++  확인할 조건: ${[scenarioLabel, `${priorityLabel} 우선`, budgetLabel, userWish]
++    .filter(Boolean)
++    .join(" / ")}
++- ok=true 2~3개(조건을 지킨 부분), ok=false 정확히 1개(감수해야 하는 부분).
++- ok=false 는 반드시 넣는다. 단점이 없는 후보는 없고, 없다고 하면 이 화면 전체를 못 믿는다.
++- 각 항목은 20자 내외의 짧은 서술. 예: "예산 안에 들어옴", "원룸에 놓기엔 조금 큼".
++- 확인하지 않은 평점·후기 수·가격은 여기에 쓰지 않는다.
++
+ JSON 배열만 응답:
+-[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}]${
++[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}]${
+     categoryId === "food" ? ',"mapKeyword":""' : ""
+   }}]`;
+ 
+@@ -708,6 +724,7 @@ JSON 배열만 응답:
+             : undefined;
+         })(),
+         scores: readScores(record.scores, categoryId),
++        fitChecks: readFitChecks(record.fitChecks),
+         mapKeyword:
+           categoryId === "food"
+             ? clean(record.mapKeyword, "", 20) || undefined
+@@ -787,7 +804,12 @@ async function enrichProductPrices(
+         SELECTION_ORDER.indexOf(a.selectionType || "best") -
+         SELECTION_ORDER.indexOf(b.selectionType || "best")
+     )
+-    .map((item, index) => ({ ...item, rank: index + 1 }));
++    // 체크리스트는 실제 가격·배송이 확정된 뒤에 채워야 "예산 안에 들어옴"이 사실이 된다.
++    .map((item, index) => ({
++      ...item,
++      rank: index + 1,
++      fitChecks: derivedFitChecks(item, maxBudgetWon),
++    }));
+   return {
+     recommendations: sorted,
+     live: items.some((item) => typeof item.price === "number"),
+@@ -1094,6 +1116,13 @@ async function findGooglePlaces(
+           kind: "guide" as const,
+         },
+       ],
++      // 지도 데이터는 실제로 확인된 사실이라 체크리스트로 쓰기에 가장 적합하다.
++      fitChecks: placeFitChecks({
++        distanceMeters: distance,
++        rating: place.rating,
++        reviewCount: place.userRatingCount,
++        openNow: place.currentOpeningHours?.openNow,
++      }),
+       rating: place.rating,
+       reviewCount: place.userRatingCount,
+       priceLevel: place.priceLevel,
+diff --git a/src/components/dashboard/quick-recommendation-dashboard.tsx b/src/components/dashboard/quick-recommendation-dashboard.tsx
+index 60bfc86..80c8177 100644
+--- a/src/components/dashboard/quick-recommendation-dashboard.tsx
++++ b/src/components/dashboard/quick-recommendation-dashboard.tsx
+@@ -7,11 +7,14 @@ import {
+   Gift,
+   HousePlug,
+   KeyRound,
++  ListChecks,
+   LocateFixed,
+   Plane,
+   RefreshCw,
+   Scale,
+   Shirt,
++  Tag,
++  Trophy,
+   Utensils,
+   type LucideIcon,
+ } from "lucide-react";
+@@ -74,6 +77,31 @@ const POPULAR_PICKS: Array<{ label: string; categoryId: CategoryId }> = [
+   { label: "옷·신발", categoryId: "fashion" },
+ ];
+ 
++/** 결과 화면에서 실제로 제공하는 것만 적는다. 못 지킬 약속은 넣지 않는다. */
++const VALUE_POINTS: Array<{ icon: LucideIcon; title: string; body: string }> = [
++  {
++    icon: Trophy,
++    title: "1등을 하나만 지목",
++    body: "4개를 나열하고 끝내지 않고 종합 적합도로 순위를 세워 하나를 고릅니다.",
++  },
++  {
++    icon: ListChecks,
++    title: "조건별 충족 여부",
++    body: "예산·용도·빼고 싶은 것까지 항목으로 끊어 지켰는지 아닌지 표시합니다.",
++  },
++  {
++    icon: Tag,
++    title: "지금 살 수 있는 가격",
++    body: "쿠팡에 실제로 등록된 상품의 가격·썸네일을 붙여 바로 확인할 수 있게 합니다.",
++  },
++];
++
++const STEPS = [
++  "고민 중인 분야 고르기",
++  "용도·조건·예산 3번 탭",
++  "결과에서 하나 고르기",
++];
++
+ const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
+   food: Utensils,
+   gift: Gift,
+@@ -398,6 +426,59 @@ export function QuickRecommendationDashboard() {
+               </span>
+               <ArrowUpRight className="size-5 shrink-0 text-primary" />
+             </a>
++
++            {/*
++              카테고리 그리드에서 화면이 끊기면 "그래서 뭘 해주는 건데"가 남는다.
++              추상적인 홍보 문구 대신 결과 화면에서 실제로 보게 될 것만 적는다.
++            */}
++            <section className="mt-14 border-t border-border pt-12">
++              <h2 className="text-[20px] font-black tracking-tight sm:text-[24px]">
++                고르고 나면 이런 게 나와요
++              </h2>
++              <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
++                후보만 늘어놓고 끝내지 않습니다. 하나를 지목하고, 왜 그건지까지
++                남깁니다.
++              </p>
++
++              <div className="mt-6 grid gap-3 sm:grid-cols-3">
++                {VALUE_POINTS.map((point) => (
++                  <div
++                    key={point.title}
++                    className="rounded-2xl border border-border bg-card p-5"
++                  >
++                    <span className="inline-flex size-9 items-center justify-center rounded-lg bg-primary-soft text-primary">
++                      <point.icon className="size-4" aria-hidden />
++                    </span>
++                    <p className="mt-3.5 text-[15px] font-black tracking-tight">
++                      {point.title}
++                    </p>
++                    <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
++                      {point.body}
++                    </p>
++                  </div>
++                ))}
++              </div>
++
++              <ol className="mt-3 grid gap-3 sm:grid-cols-3">
++                {STEPS.map((stepLabel, index) => (
++                  <li
++                    key={stepLabel}
++                    className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4"
++                  >
++                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground text-[12px] font-black text-background">
++                      {index + 1}
++                    </span>
++                    <span className="text-[14px] font-bold">{stepLabel}</span>
++                  </li>
++                ))}
++              </ol>
++
++              <p className="mt-6 text-[12px] leading-relaxed text-muted-foreground">
++                일부 결과에는 쿠팡 파트너스 링크가 포함되며, 이에 따라 일정액의
++                수수료를 제공받습니다. 수수료 유무가 추천 순위에 영향을 주지
++                않습니다.
++              </p>
++            </section>
+           </>
+         )}
+ 
+diff --git a/src/components/result/quick-recommendation-result.tsx b/src/components/result/quick-recommendation-result.tsx
+index 31ec2ba..7b1f080 100644
+--- a/src/components/result/quick-recommendation-result.tsx
++++ b/src/components/result/quick-recommendation-result.tsx
+@@ -9,6 +9,7 @@ import {
+   ExternalLink,
+   Loader2,
+   MapPin,
++  Minus,
+   RotateCcw,
+   ShoppingBag,
+   Sparkles,
+@@ -149,6 +150,45 @@ function OverallChart({
+   );
+ }
+ 
++/**
++ * 조건 충족 체크리스트.
++ *
++ * 줄글 이유는 카드 4개를 나란히 놓았을 때 비교가 안 된다.
++ * 조건 단위로 끊어 두면 훑기만 해도 "내 조건을 지켰는지"가 바로 보인다.
++ */
++function FitChecklist({
++  checks,
++}: {
++  checks: QuickRecommendation["fitChecks"];
++}) {
++  if (!checks?.length) return null;
++  return (
++    <ul className="mt-3.5 space-y-1.5">
++      {checks.map((check) => (
++        <li
++          key={check.text}
++          className="flex items-start gap-2 text-[13.5px] leading-snug"
++        >
++          {check.ok ? (
++            <Check
++              className="mt-[3px] size-4 shrink-0 text-success"
++              aria-hidden
++            />
++          ) : (
++            <Minus
++              className="mt-[3px] size-4 shrink-0 text-muted-foreground"
++              aria-hidden
++            />
++          )}
++          <span className={cn(!check.ok && "text-muted-foreground")}>
++            {check.text}
++          </span>
++        </li>
++      ))}
++    </ul>
++  );
++}
++
+ /** 카드 안 세부 축 — 종합 점수를 보조 설명하는 역할만 한다. */
+ function AxisBreakdown({ scores }: { scores: QuickRecommendation["scores"] }) {
+   if (!scores?.length) return null;
+@@ -462,7 +502,8 @@ export function QuickRecommendationResult({
+         </p>
+       )}
+ 
+-      <div className="grid gap-3 lg:grid-cols-3">
++      {/* 후보는 항상 4개다. 3열로 두면 마지막 하나만 다음 줄에 떨어져 빈 칸이 생긴다. */}
++      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+         {recommendations.map((item, index) => {
+           const priceLevel = formatPriceLevel(item.priceLevel);
+           const badge = item.selectionType
+@@ -553,9 +594,13 @@ export function QuickRecommendationResult({
+                 </p>
+               )}
+ 
+-              <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
+-                {item.reason}
+-              </p>
++              {item.fitChecks?.length ? (
++                <FitChecklist checks={item.fitChecks} />
++              ) : (
++                <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
++                  {item.reason}
++                </p>
++              )}
+ 
+               <AxisBreakdown scores={item.scores} />
+ 
+@@ -564,6 +609,9 @@ export function QuickRecommendationResult({
+                   왜 이 후보를 골랐나요?
+                 </summary>
+                 <div className="mt-3 space-y-2 text-[13px] leading-relaxed text-muted-foreground">
++                  {item.fitChecks?.length ? (
++                    <p className="leading-relaxed">{item.reason}</p>
++                  ) : null}
+                   {recommendationEvidence(item).map((evidence) => (
+                     <p
+                       key={`${item.name}-detail-${evidence.label}`} className="flex items-start gap-2"
+@@ -580,41 +628,44 @@ export function QuickRecommendationResult({
+                 </div>
+               </details>
+ 
++              {/* 카드 높이가 제각각이어도 구매 버튼은 같은 선에 오도록 바닥에 붙인다. */}
+               {item.sourceUrl && (
+-                <a
+-                  href={item.sourceUrl}
+-                  target="_blank"
+-                  rel="noopener noreferrer sponsored"
+-                  onClick={() =>
+-                    trackOutboundClick({
+-                      categoryId: data.categoryId,
+-                      selectionType: item.selectionType,
+-                      name: item.name,
+-                      keyword: item.searchKeyword,
+-                      position: index + 1,
+-                    })
+-                  } className={cn(
+-                    "mt-3 flex min-h-[48px] w-full items-center justify-center rounded-lg text-[15px] font-black transition",
+-                    isFood
+-                      ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+-                      : isCoupang
+-                        ? "bg-[#ae0000] text-white hover:bg-[#8f0000]"
+-                        : "border border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a]/5"
++                <div className="mt-auto pt-4">
++                  <a
++                    href={item.sourceUrl}
++                    target="_blank"
++                    rel="noopener noreferrer sponsored"
++                    onClick={() =>
++                      trackOutboundClick({
++                        categoryId: data.categoryId,
++                        selectionType: item.selectionType,
++                        name: item.name,
++                        keyword: item.searchKeyword,
++                        position: index + 1,
++                      })
++                    } className={cn(
++                      "flex min-h-[48px] w-full items-center justify-center rounded-lg px-3 text-center text-[15px] font-black transition",
++                      isFood
++                        ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
++                        : isCoupang
++                          ? "bg-[#ae0000] text-white hover:bg-[#8f0000]"
++                          : "border border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a]/5"
++                    )}
++                  >
++                    {item.sourceLabel ||
++                      (isFood
++                        ? "지도에서 최신 정보 보기"
++                        : isCoupang
++                          ? "쿠팡에서 최저가 확인"
++                          : "네이버에서 조건 확인")}
++                    <ExternalLink className="ml-2 size-4 shrink-0" />
++                  </a>
++                  {isCoupang && (
++                    <p className="mt-1.5 truncate text-center text-[11px] text-muted-foreground">
++                      검색어 &lsquo;{item.searchKeyword}&rsquo;
++                    </p>
+                   )}
+-                >
+-                  {item.sourceLabel ||
+-                    (isFood
+-                      ? "지도에서 최신 정보 보기"
+-                      : isCoupang
+-                        ? "쿠팡에서 최저가 확인"
+-                        : "네이버에서 조건 확인")}
+-                  <ExternalLink className="ml-2 size-4" />
+-                </a>
+-              )}
+-              {isCoupang && item.sourceUrl && (
+-                <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+-                  검색어 &lsquo;{item.searchKeyword}&rsquo;
+-                </p>
++                </div>
+               )}
+             </article>
+           );
+@@ -622,7 +673,7 @@ export function QuickRecommendationResult({
+       </div>
+ 
+       {recommendations.length === 0 && (
+-        <div className="mt-8 rounded-3xl border border-destructive/25 bg-destructive/5 p-7 text-center">
++        <div className="mt-8 rounded-2xl border border-destructive/25 bg-destructive/5 p-7 text-center">
+           <p className="font-bold">추천 후보를 불러오지 못했어요.</p>
+           <p className="mt-2 text-sm text-muted-foreground">
+             빈 화면 대신 이전 화면에서 조건을 다시 선택할 수 있어요.
+@@ -683,7 +734,7 @@ export function QuickRecommendationResult({
+       )}
+ 
+       {isFood && relatedKeyword && (
+-        <section className="mt-6 rounded-3xl border border-[#ae0000]/20 bg-[#ae0000]/[0.04] p-5 sm:p-6">
++        <section className="mt-6 rounded-2xl border border-[#ae0000]/20 bg-[#ae0000]/[0.04] p-5 sm:p-6">
+           <div className="flex items-center gap-2">
+             <ShoppingBag className="size-5 text-[#ae0000]" />
+             <h2 className="font-display text-lg font-black">
+@@ -707,7 +758,7 @@ export function QuickRecommendationResult({
+               })
+             } className={cn(
+               buttonVariants({ variant: "default" }),
+-              "mt-4 min-h-13 w-full rounded-2xl bg-[#ae0000] text-[15px] font-black text-white hover:bg-[#8f0000]"
++              "mt-4 min-h-[52px] w-full rounded-2xl bg-[#ae0000] text-[15px] font-black text-white hover:bg-[#8f0000]"
+             )}
+           >
+             &lsquo;{relatedKeyword}&rsquo; 쿠팡에서 보기
+@@ -719,10 +770,10 @@ export function QuickRecommendationResult({
+ 
+ 
+ 
+-      <section className="mt-8 overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.08] to-sky-500/[0.06] p-5 sm:p-6">
++      <section className="mt-8 overflow-hidden rounded-2xl border border-primary/20 bg-primary-soft p-5 sm:p-6">
+         {!showAdvanced ? (
+           <>
+-            <div className="flex size-10 items-center justify-center rounded-2xl bg-foreground text-background">
++            <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+               <Sparkles className="size-5" />
+             </div>
+             <h2 className="mt-4 text-xl font-black">결과가 애매한가요?</h2>
+@@ -772,7 +823,7 @@ export function QuickRecommendationResult({
+                 <span
+                   key={item.id} className={cn(
+                     "h-1 rounded-full",
+-                    index <= questionIndex ? "bg-foreground" : "bg-foreground/10"
++                    index <= questionIndex ? "bg-primary" : "bg-primary/15"
+                   )}
+                 />
+               ))}
+@@ -801,7 +852,7 @@ export function QuickRecommendationResult({
+                         onClick={() => selectAdvancedOption(question.id, option)} className={cn(
+                           "flex min-h-14 items-center justify-between rounded-2xl border bg-background/80 px-4 text-left text-sm font-bold transition hover:border-foreground/25",
+                           selected &&
+-                            "border-foreground bg-foreground text-background"
++                            "border-primary bg-primary text-primary-foreground"
+                         )}
+                       >
+                         {option.label}
+diff --git a/src/lib/recommendation/fit-checks.ts b/src/lib/recommendation/fit-checks.ts
+new file mode 100644
+index 0000000..f9ceb90
+--- /dev/null
++++ b/src/lib/recommendation/fit-checks.ts
+@@ -0,0 +1,122 @@
++import type { QuickRecommendation, RecommendationFitCheck } from "@/lib/types/analyze";
++
++/** 체크리스트 한 줄은 훑어서 읽혀야 한다. 길어지면 줄글과 다를 게 없다. */
++const MAX_TEXT_LENGTH = 34;
++const MAX_CHECKS = 4;
++
++function cleanText(value: unknown): string {
++  if (typeof value !== "string") return "";
++  return value
++    .replace(/<[^>]*>/g, "")
++    .replace(/\s+/g, " ")
++    .trim()
++    .slice(0, MAX_TEXT_LENGTH);
++}
++
++/**
++ * AI가 준 조건 체크리스트를 정리한다.
++ *
++ * 충족 항목만 늘어놓으면 광고 문구처럼 읽혀 오히려 신뢰를 잃는다.
++ * 감수해야 할 항목이 하나도 없으면 체크리스트로 쓰지 않고 줄글 이유로 되돌린다.
++ */
++export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefined {
++  if (!Array.isArray(value)) return undefined;
++  const parsed = value
++    .map((item) => {
++      const record =
++        item && typeof item === "object" ? (item as Record<string, unknown>) : {};
++      const text = cleanText(record.text);
++      if (!text) return null;
++      return { ok: record.ok !== false, text };
++    })
++    .filter((item): item is RecommendationFitCheck => item !== null)
++    .slice(0, MAX_CHECKS);
++
++  const met = parsed.filter((item) => item.ok);
++  const unmet = parsed.filter((item) => !item.ok);
++  if (met.length < 2 || unmet.length === 0) return undefined;
++  // 충족 항목을 먼저, 감수 항목을 마지막에 둔다.
++  return [...met, ...unmet];
++}
++
++/**
++ * AI 체크리스트가 없을 때 서버가 확인한 사실만으로 만드는 최소 체크리스트.
++ *
++ * 없는 항목을 지어내면 이 화면 전체를 못 믿게 된다.
++ * 실제 가격·배송처럼 확인된 값만 쓰고, 그것으로 두 줄을 못 채우면 아예 만들지 않는다.
++ */
++export function derivedFitChecks(
++  item: QuickRecommendation,
++  maxBudgetWon?: number
++): RecommendationFitCheck[] | undefined {
++  if (item.fitChecks?.length) return item.fitChecks;
++  const checks: RecommendationFitCheck[] = [];
++
++  if (typeof item.price === "number" && maxBudgetWon) {
++    checks.push(
++      item.price <= maxBudgetWon
++        ? { ok: true, text: "예산 안에 들어옴" }
++        : { ok: false, text: "예산을 조금 넘음" }
++    );
++  }
++  if (item.isRocket) {
++    checks.push({ ok: true, text: "로켓배송으로 바로 받음" });
++  }
++  if (typeof item.rating === "number" && item.rating >= 4) {
++    checks.push({ ok: true, text: `지도 평점 ${item.rating.toFixed(1)}점` });
++  }
++  if (typeof item.distanceMeters === "number" && item.distanceMeters <= 1000) {
++    checks.push({ ok: true, text: "걸어서 갈 수 있는 거리" });
++  }
++
++  return checks.length >= 2 ? checks.slice(0, MAX_CHECKS) : undefined;
++}
++
++/**
++ * 지도에서 확인된 사실로 만드는 체크리스트.
++ *
++ * 평점·후기 수·영업 여부는 실제 조회 결과이므로 충족/미달을 그대로 쓸 수 있다.
++ */
++export function placeFitChecks(input: {
++  distanceMeters?: number;
++  rating?: number;
++  reviewCount?: number;
++  openNow?: boolean;
++}): RecommendationFitCheck[] | undefined {
++  const checks: RecommendationFitCheck[] = [];
++
++  if (typeof input.distanceMeters === "number") {
++    checks.push(
++      input.distanceMeters <= 1000
++        ? { ok: true, text: `걸어서 갈 만한 ${input.distanceMeters}m` }
++        : {
++            ok: false,
++            text: `${(input.distanceMeters / 1000).toFixed(1)}km — 이동이 필요함`,
++          }
++    );
++  }
++  if (typeof input.rating === "number") {
++    checks.push(
++      input.rating >= 4
++        ? { ok: true, text: `평점 ${input.rating.toFixed(1)}점` }
++        : { ok: false, text: `평점 ${input.rating.toFixed(1)}점으로 낮음` }
++    );
++  }
++  if (typeof input.reviewCount === "number") {
++    checks.push(
++      input.reviewCount >= 50
++        ? {
++            ok: true,
++            text: `후기 ${input.reviewCount.toLocaleString("ko-KR")}개로 충분함`,
++          }
++        : { ok: false, text: `후기 ${input.reviewCount}개로 적음` }
++    );
++  }
++  if (input.openNow === true) {
++    checks.push({ ok: true, text: "지금 영업 중" });
++  } else if (input.openNow === false) {
++    checks.push({ ok: false, text: "지금은 영업 종료" });
++  }
++
++  return checks.length >= 2 ? checks.slice(0, MAX_CHECKS) : undefined;
++}
+diff --git a/src/lib/types/analyze.ts b/src/lib/types/analyze.ts
+index 73d8b35..c07df50 100644
+--- a/src/lib/types/analyze.ts
++++ b/src/lib/types/analyze.ts
+@@ -86,6 +86,19 @@ export type RecommendationScore = {
+   value: number;
+ };
+ 
++/**
++ * 후보가 내 조건을 지켰는지 한 줄씩 표시하는 체크 항목.
++ *
++ * 줄글 이유는 읽는 데 시간이 걸려 결국 "그래서 사도 되나"가 남는다.
++ * 조건 단위로 쪼개서 충족/미달을 눈으로 세게 만든다.
++ */
++export type RecommendationFitCheck = {
++  /** true면 조건을 지킴, false면 감수해야 하는 부분 */
++  ok: boolean;
++  /** "예산 안에 들어옴" 처럼 조건을 그대로 확인해 주는 짧은 문장 */
++  text: string;
++};
++
+ export type QuickRecommendation = {
+   rank: number;
+   name: string;
+@@ -119,6 +132,8 @@ export type QuickRecommendation = {
+   overall?: number;
+   /** 세부 축별 상대 점수 — 카드 안에 보조로 표시한다 */
+   scores?: RecommendationScore[];
++  /** 내 조건을 지켰는지 항목별로 끊어 보여주는 체크리스트 */
++  fitChecks?: RecommendationFitCheck[];
+ };
+ 
+ /** POST /api/analyze 성공 시 본문 — 항상 JSON 객체 */
+diff --git a/tests/fit-checks.test.mts b/tests/fit-checks.test.mts
+new file mode 100644
+index 0000000..55263e4
+--- /dev/null
++++ b/tests/fit-checks.test.mts
+@@ -0,0 +1,154 @@
++import { strict as assert } from "node:assert";
++import test from "node:test";
++
++import {
++  derivedFitChecks,
++  placeFitChecks,
++  readFitChecks,
++} from "../src/lib/recommendation/fit-checks.ts";
++
++test("충족·미충족이 함께 있으면 체크리스트로 쓴다", () => {
++  const parsed = readFitChecks([
++    { ok: true, text: "예산 안에 들어옴" },
++    { ok: false, text: "카펫 흡입력은 아쉬움" },
++    { ok: true, text: "원룸에 세워둘 수 있는 크기" },
++  ]);
++  assert.deepEqual(parsed, [
++    { ok: true, text: "예산 안에 들어옴" },
++    { ok: true, text: "원룸에 세워둘 수 있는 크기" },
++    { ok: false, text: "카펫 흡입력은 아쉬움" },
++  ]);
++});
++
++test("단점이 하나도 없으면 체크리스트를 쓰지 않는다", () => {
++  // 장점만 나열되면 광고 문구가 된다. 이럴 땐 줄글 이유로 되돌아가야 한다.
++  assert.equal(
++    readFitChecks([
++      { ok: true, text: "예산 안에 들어옴" },
++      { ok: true, text: "조용함" },
++      { ok: true, text: "가벼움" },
++    ]),
++    undefined
++  );
++});
++
++test("충족 항목이 2개 미만이면 체크리스트를 쓰지 않는다", () => {
++  assert.equal(
++    readFitChecks([
++      { ok: true, text: "예산 안에 들어옴" },
++      { ok: false, text: "무거움" },
++    ]),
++    undefined
++  );
++});
++
++test("배열이 아니거나 빈 문장이면 버린다", () => {
++  assert.equal(readFitChecks("예산 안에 들어옴"), undefined);
++  assert.equal(readFitChecks(undefined), undefined);
++  assert.equal(
++    readFitChecks([{ ok: true, text: "  " }, { ok: false, text: "" }]),
++    undefined
++  );
++});
++
++test("ok 가 없으면 충족으로 본다", () => {
++  const parsed = readFitChecks([
++    { text: "예산 안에 들어옴" },
++    { text: "조용함" },
++    { ok: false, text: "무거움" },
++  ]);
++  assert.deepEqual(parsed?.map((item) => item.ok), [true, true, false]);
++});
++
++test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
++  assert.deepEqual(
++    derivedFitChecks(
++      {
++        rank: 1,
++        name: "무선청소기",
++        reason: "",
++        searchKeyword: "",
++        qualitySummary: "",
++        price: 169000,
++        isRocket: true,
++      },
++      200000
++    ),
++    [
++      { ok: true, text: "예산 안에 들어옴" },
++      { ok: true, text: "로켓배송으로 바로 받음" },
++    ]
++  );
++});
++
++test("확인된 사실이 부족하면 지어내지 않는다", () => {
++  // 가격만 있고 다른 근거가 없으면 한 줄짜리 체크리스트가 된다. 그건 안 만든다.
++  assert.equal(
++    derivedFitChecks(
++      {
++        rank: 1,
++        name: "무선청소기",
++        reason: "",
++        searchKeyword: "",
++        qualitySummary: "",
++        price: 169000,
++      },
++      200000
++    ),
++    undefined
++  );
++  assert.equal(
++    derivedFitChecks({
++      rank: 1,
++      name: "무선청소기",
++      reason: "",
++      searchKeyword: "",
++      qualitySummary: "",
++    }),
++    undefined
++  );
++});
++
++test("AI가 이미 준 체크리스트가 있으면 덮어쓰지 않는다", () => {
++  const given = [
++    { ok: true, text: "예산 안에 들어옴" },
++    { ok: false, text: "무거움" },
++  ];
++  assert.equal(
++    derivedFitChecks(
++      {
++        rank: 1,
++        name: "무선청소기",
++        reason: "",
++        searchKeyword: "",
++        qualitySummary: "",
++        price: 999000,
++        fitChecks: given,
++      },
++      200000
++    ),
++    given
++  );
++});
++
++test("지도 결과는 미달 조건도 그대로 표시한다", () => {
++  assert.deepEqual(
++    placeFitChecks({
++      distanceMeters: 2400,
++      rating: 3.4,
++      reviewCount: 12,
++      openNow: false,
++    }),
++    [
++      { ok: false, text: "2.4km — 이동이 필요함" },
++      { ok: false, text: "평점 3.4점으로 낮음" },
++      { ok: false, text: "후기 12개로 적음" },
++      { ok: false, text: "지금은 영업 종료" },
++    ]
++  );
++});
++
++test("확인된 지도 정보가 하나뿐이면 체크리스트를 만들지 않는다", () => {
++  assert.equal(placeFitChecks({ rating: 4.5 }), undefined);
++  assert.equal(placeFitChecks({}), undefined);
++});
+-- 
+2.43.0
+

@@ -1,0 +1,1034 @@
+From 77d535d7c409dca6163197ff3335913f3d16a9af Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 05:58:35 +0000
+Subject: [PATCH 1/3] fix: show the real brand of the product we actually link
+ to
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+카드 제목과 링크되는 상품이 서로 다른 물건이었다. 실제로 나간 화면에서
+"삼성전자 비스포크 제트 스테이션"이라고 띄우고 168,000원짜리 무명 스틱
+청소기로 링크가 나갔다. "샤오미 로보락"처럼 서로 다른 회사를 붙인 이름도
+있었다. 그런 제품은 없다.
+
+원인은 두 곳이었다.
+- 프롬프트가 "널리 팔리는 브랜드가 명확하면 브랜드를 앞에 붙여도 된다"고
+  허용하고 있었다. AI 는 이 시점에 어떤 상품이 링크될지 모른다.
+- searchCoupangProduct 는 예산 안에 드는 첫 결과를 그대로 집는다. 그것이
+  AI 가 의도한 제품인지 확인하지 않는다.
+
+브랜드를 없애는 것은 답이 아니다. 브랜드가 보여야 어떤 물건인지 감이 온다.
+그래서 지우는 대신 검증한다.
+
+- brand-verify.ts 를 추가했다. AI 가 붙인 브랜드가 실제 상품명에도 있으면
+  그 이름을 그대로 쓰고, 없으면 버리고 실제 상품명에서 만들어 쓴다.
+  화면에 뜨는 브랜드는 언제나 실제 판매 상품의 브랜드가 된다.
+- 서로 다른 회사가 한 이름에 둘 이상 들어가면 무조건 막는다.
+- 표기가 갈리는 브랜드는 별칭으로 묶었다. Dyson·다이슨, Xiaomi·샤오미,
+  LG·엘지·코드제로를 같은 브랜드로 본다.
+- 쿠팡 상품명은 광고 수식어와 옵션이 길게 붙어 그대로 쓸 수 없다.
+  걷어내고 단어 경계에서 잘라 제목으로 쓴다.
+- 프롬프트에서 브랜드 허용 문구를 빼고, 제품 종류로 쓰도록 바꿨다.
+  실제 브랜드는 상품을 찾은 뒤 그 상품명에서 가져온다.
+
+실제로 나갔던 두 사례를 테스트로 고정했다.
+
+A/B 비교는 사용자가 직접 적은 이름을 쓰므로 같은 문제가 없다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ package.json                         |   3 +-
+ src/app/api/recommend/route.ts       |  18 ++-
+ src/lib/monetization/brand-verify.ts | 162 +++++++++++++++++++++++++++
+ tests/brand-verify.test.mts          | 109 ++++++++++++++++++
+ 4 files changed, 288 insertions(+), 4 deletions(-)
+ create mode 100644 src/lib/monetization/brand-verify.ts
+ create mode 100644 tests/brand-verify.test.mts
+
+diff --git a/package.json b/package.json
+index 6bb87f0..7146a44 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,7 @@
+     "build": "next build",
+     "start": "next start",
+     "lint": "next lint",
+-    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map && npm run test:fit && npm run test:share && npm run test:blog",
++    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map && npm run test:fit && npm run test:share && npm run test:blog && npm run test:brand",
+     "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts",
+     "test:quick": "node --experimental-strip-types --test tests/quick-options.test.mts",
+     "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts",
+@@ -15,6 +15,7 @@
+     "test:fit": "node --experimental-strip-types --test tests/fit-checks.test.mts",
+     "test:share": "node --experimental-strip-types --test tests/share-payload.test.mts",
+     "test:blog": "node --experimental-strip-types --test tests/blog-post.test.mts",
++    "test:brand": "node --experimental-strip-types --test tests/brand-verify.test.mts",
+     "blog:generate": "node --experimental-strip-types scripts/generate-blog-posts.mts",
+     "android:sync": "npm --prefix platforms/android run sync",
+     "android:assets": "npm --prefix platforms/android run assets",
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 7dae5af..6fb72fa 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -21,6 +21,7 @@ import {
+   readFitChecks,
+ } from "@/lib/recommendation/fit-checks";
+ import { toMapKeyword } from "@/lib/recommendation/map-keyword";
++import { resolveDisplayName } from "@/lib/monetization/brand-verify";
+ import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
+ import type {
+   AnalyzeApiResult,
+@@ -557,9 +558,17 @@ function keywordRules(categoryId: CategoryId): string {
+     return `searchKeyword는 쿠팡 검색창에 그대로 넣었을 때 원하는 상품이 첫 화면에 나오도록 쓴다.
+ - "제품군 + 핵심 구분 조건" 형태로 8~24자. 예: "텀블러"(X) → "보온 스테인리스 텀블러 500ml"(O)
+ - 예: "블루투스 스피커"(X) → "휴대용 방수 블루투스 스피커"(O)
+-- 널리 팔리는 브랜드가 명확하면 브랜드를 앞에 붙여도 된다. 확실하지 않으면 붙이지 않는다.
+ - 광고 문구(최저가·정품·무료배송), 옵션 나열, 쉼표 연결은 금지한다.
+-- name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.`;
++- name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.
++
++[브랜드 표기]
++name 에는 브랜드를 쓰지 않는 것을 원칙으로 하고, 어떤 종류의 제품인지로 쓴다.
++  예) "삼성 비스포크 제트"(X) → "먼지통 자동비움 로봇청소기"(O)
++실제로 링크되는 상품은 검색 결과로 정해지므로, 지금 단계에서 특정 브랜드를
++적으면 화면의 이름과 실제 상품이 어긋난다. 실제 브랜드는 서버가 상품을 찾은
++뒤 그 상품명에서 가져온다.
++서로 다른 회사를 붙여 쓰는 것은 어떤 경우에도 금지한다. 그런 제품은 없다.
++  예) "샤오미 로보락"(X), "삼성 다이슨"(X)`;
+   }
+   if (categoryId === "food") {
+     return `mapKeyword 는 지도 앱에서 주변 가게가 뜨는 "업종·메뉴 이름" 하나만 쓴다.
+@@ -776,7 +785,10 @@ async function enrichProductPrices(
+             isRocket: product.isRocket,
+             sourceUrl: product.productUrl,
+             sourceLabel: "쿠팡에서 이 상품 보기",
+-            name: candidate.name,
++            // AI 가 지은 이름과 실제로 링크되는 상품이 다를 수 있다.
++            // 브랜드가 실제 상품과 맞을 때만 그 이름을 쓰고,
++            // 아니면 실제 상품명에서 만들어 쓴다.
++            name: resolveDisplayName(candidate.name, product.productName),
+           } satisfies QuickRecommendation;
+         }
+         return {
+diff --git a/src/lib/monetization/brand-verify.ts b/src/lib/monetization/brand-verify.ts
+new file mode 100644
+index 0000000..39d5cc6
+--- /dev/null
++++ b/src/lib/monetization/brand-verify.ts
+@@ -0,0 +1,162 @@
++/**
++ * 카드에 띄울 상품 이름을 정한다.
++ *
++ * AI 는 후보 이름을 스스로 짓고, 서버는 그 검색어로 쿠팡에서 상품을 찾는다.
++ * 두 값이 같은 물건이라는 보장이 없다. 실제로 "삼성전자 비스포크 제트
++ * 스테이션"이라고 띄우고 전혀 다른 무명 스틱청소기로 링크가 나간 적이 있다.
++ *
++ * 브랜드를 지우는 것이 답은 아니다. 브랜드가 보여야 신뢰가 생긴다.
++ * 그래서 지우는 대신 검증한다. AI 가 붙인 브랜드가 실제 상품명에도 있으면
++ * 그대로 쓰고, 없으면 그 이름을 버리고 실제 상품명에서 만들어 쓴다.
++ * 결과적으로 화면에 뜨는 브랜드는 항상 실제 판매 상품의 브랜드가 된다.
++ */
++
++/** 표기가 갈리는 브랜드는 별칭을 함께 둔다. 하나라도 걸리면 같은 브랜드로 본다. */
++const BRAND_ALIASES: string[][] = [
++  ["삼성", "삼성전자", "samsung", "비스포크", "bespoke"],
++  ["lg", "엘지", "엘G", "코드제로", "codezero", "오브제", "objet"],
++  ["다이슨", "dyson"],
++  ["샤오미", "xiaomi", "미지아", "mijia"],
++  ["로보락", "roborock"],
++  ["에코백스", "ecovacs", "디봇", "deebot"],
++  ["에브리봇", "everybot"],
++  ["아이닉", "ainic", "iinic"],
++  ["아이로봇", "irobot", "룸바", "roomba"],
++  ["차이슨", "chaison"],
++  ["르팡", "lefant"],
++  ["드리미", "dreame"],
++  ["나르왈", "narwal"],
++  ["위닉스", "winix"],
++  ["쿠쿠", "cuckoo"],
++  ["쿠첸", "cuchen"],
++  ["코웨이", "coway"],
++  ["청호나이스", "chungho"],
++  ["SK매직", "sk매직", "skmagic"],
++  ["신일", "shinil"],
++  ["한일", "hanil"],
++  ["보국", "bokuk"],
++  ["캐리어", "carrier"],
++  ["위니아", "winia", "딤채", "dimchae"],
++  ["대우", "daewoo"],
++  ["필립스", "philips"],
++  ["브라운", "braun"],
++  ["테팔", "tefal"],
++  ["일렉트로룩스", "electrolux"],
++  ["밀레", "miele"],
++  ["보쉬", "bosch"],
++  ["발뮤다", "balmuda"],
++  ["애플", "apple", "아이폰", "iphone", "맥북", "macbook", "아이패드", "ipad"],
++  ["레노버", "lenovo", "씽크패드", "thinkpad"],
++  ["에이수스", "asus", "젠북", "zenbook", "비보북", "vivobook"],
++  ["에이서", "acer"],
++  ["hp", "휴렛팩커드"],
++  ["델", "dell"],
++  ["msi", "엠에스아이"],
++  ["기가바이트", "gigabyte"],
++  ["레이저", "razer"],
++  ["소니", "sony"],
++  ["파나소닉", "panasonic"],
++  ["샤프", "sharp"],
++  ["도시바", "toshiba"],
++  ["나이키", "nike"],
++  ["아디다스", "adidas"],
++  ["뉴발란스", "newbalance", "new balance"],
++  ["아식스", "asics"],
++  ["푸마", "puma"],
++  ["리복", "reebok"],
++  ["컨버스", "converse"],
++  ["반스", "vans"],
++  ["크록스", "crocs"],
++  ["노스페이스", "northface", "north face"],
++  ["파타고니아", "patagonia"],
++  ["콜롬비아", "columbia"],
++  ["유니클로", "uniqlo"],
++  ["자라", "zara"],
++  ["무신사", "musinsa"],
++  ["샤오미미지아"],
++];
++
++function normalize(value: string): string {
++  return value.toLowerCase().replace(/[\s\-_·・,()[\]/]/g, "");
++}
++
++/** 텍스트에 등장하는 브랜드를 대표 이름으로 모아 돌려준다. */
++export function extractBrands(text: string): string[] {
++  const haystack = normalize(text);
++  const found: string[] = [];
++
++  for (const aliases of BRAND_ALIASES) {
++    const hit = aliases.some((alias) => haystack.includes(normalize(alias)));
++    if (hit) found.push(aliases[0]);
++  }
++  return found;
++}
++
++/**
++ * 쿠팡 상품명은 광고 수식어와 옵션이 길게 붙는다.
++ * 카드 제목으로 쓸 수 있게 앞뒤 군더더기를 걷어낸다.
++ */
++export function cleanProductName(productName: string, maxLength = 34): string {
++  let cleaned = productName
++    // 괄호 안 부연은 대개 옵션·색상이다.
++    .replace(/[([{][^)\]}]*[)\]}]/g, " ")
++    // 판매 문구
++    .replace(
++      /(최신형|신형|정품|무료배송|당일발송|무료 ?설치|공식|공식판매|본사직영|한정특가|초특가|특가|사은품|증정|1\+1|국내산|해외직구)/g,
++      " "
++    )
++    // 옵션 나열 구분자 이후는 잘라낸다.
++    .split(/[,/|]|＋|\+/)[0]
++    .replace(/\s+/g, " ")
++    .trim();
++
++  if (cleaned.length > maxLength) {
++    // 단어 중간에서 끊기지 않게 마지막 공백에서 자른다.
++    const cut = cleaned.slice(0, maxLength);
++    const lastSpace = cut.lastIndexOf(" ");
++    cleaned = (lastSpace > maxLength * 0.6 ? cut.slice(0, lastSpace) : cut).trim();
++  }
++
++  return cleaned || productName.slice(0, maxLength);
++}
++
++export type NameCheck =
++  | { ok: true }
++  | { ok: false; reason: "multiple-brands" | "brand-not-in-product" };
++
++/**
++ * AI 가 지은 이름을 그대로 써도 되는지 본다.
++ *
++ * 막는 것은 두 가지다.
++ * - 한 이름에 서로 다른 브랜드가 둘 이상 (예: "샤오미 로보락"). 그런 제품은 없다.
++ * - 실제 상품에 없는 브랜드 (예: 무명 스틱청소기를 "삼성전자"로 표기).
++ */
++export function checkNameAgainstProduct(
++  aiName: string,
++  productName: string
++): NameCheck {
++  const nameBrands = extractBrands(aiName);
++  if (nameBrands.length === 0) return { ok: true };
++  if (nameBrands.length > 1) return { ok: false, reason: "multiple-brands" };
++
++  const productBrands = extractBrands(productName);
++  return productBrands.includes(nameBrands[0])
++    ? { ok: true }
++    : { ok: false, reason: "brand-not-in-product" };
++}
++
++/**
++ * 화면에 띄울 이름을 정한다.
++ * 검증을 통과하면 AI 이름을, 아니면 실제 상품명을 정리해 쓴다.
++ */
++export function resolveDisplayName(
++  aiName: string,
++  productName: string | undefined
++): string {
++  const trimmedAi = aiName.trim();
++  if (!productName?.trim()) return trimmedAi;
++
++  return checkNameAgainstProduct(trimmedAi, productName).ok
++    ? trimmedAi
++    : cleanProductName(productName);
++}
+diff --git a/tests/brand-verify.test.mts b/tests/brand-verify.test.mts
+new file mode 100644
+index 0000000..583d6a7
+--- /dev/null
++++ b/tests/brand-verify.test.mts
+@@ -0,0 +1,109 @@
++import { strict as assert } from "node:assert";
++import test from "node:test";
++
++import {
++  checkNameAgainstProduct,
++  cleanProductName,
++  extractBrands,
++  resolveDisplayName,
++} from "../src/lib/monetization/brand-verify.ts";
++
++test("실제로 나갔던 오표기를 잡는다", () => {
++  // 카드에는 "삼성전자 비스포크 제트 스테이션"이라고 띄우고
++  // 무명 스틱청소기로 링크가 나갔던 사례다.
++  const check = checkNameAgainstProduct(
++    "삼성전자 비스포크 제트 스테이션",
++    "최신형 비브로 무선 스틱 청소기 BLDC 흡입력"
++  );
++  assert.equal(check.ok, false);
++  if (!check.ok) assert.equal(check.reason, "brand-not-in-product");
++});
++
++test("존재하지 않는 브랜드 조합을 막는다", () => {
++  // 샤오미와 로보락은 다른 회사다. 둘을 붙인 제품은 없다.
++  const check = checkNameAgainstProduct(
++    "샤오미 로보락 자동 먼지비움 청소기",
++    "JONR 로봇청소기 T5 PRO GEN 2"
++  );
++  assert.equal(check.ok, false);
++  if (!check.ok) assert.equal(check.reason, "multiple-brands");
++});
++
++test("브랜드가 실제 상품과 맞으면 통과시킨다", () => {
++  // 브랜드를 무조건 지우면 신뢰가 떨어진다. 맞으면 그대로 쓴다.
++  assert.equal(
++    checkNameAgainstProduct("삼성전자 비스포크 제트", "삼성전자 비스포크 제트 청소기").ok,
++    true
++  );
++  assert.equal(
++    checkNameAgainstProduct("다이슨 무선청소기", "Dyson V15 무선청소기").ok,
++    true
++  );
++});
++
++test("표기가 달라도 같은 브랜드로 본다", () => {
++  assert.equal(checkNameAgainstProduct("샤오미 로봇청소기", "Xiaomi 로봇청소기").ok, true);
++  assert.equal(checkNameAgainstProduct("르팡 물걸레 청소기", "Lefant M3 max").ok, true);
++  assert.equal(checkNameAgainstProduct("LG 코드제로", "엘지 코드제로 A9").ok, true);
++});
++
++test("브랜드가 없는 이름은 그대로 통과한다", () => {
++  assert.equal(
++    checkNameAgainstProduct("자동 먼지비움 로봇청소기", "JONR 로봇청소기 T5 PRO").ok,
++    true
++  );
++});
++
++test("브랜드를 찾아낸다", () => {
++  assert.deepEqual(extractBrands("삼성전자 비스포크"), ["삼성"]);
++  assert.deepEqual(extractBrands("Dyson V15"), ["다이슨"]);
++  assert.deepEqual(extractBrands("브랜드 없는 청소기"), []);
++  assert.equal(extractBrands("샤오미 로보락 청소기").length, 2);
++});
++
++test("쿠팡 상품명에서 광고 문구와 옵션을 걷어낸다", () => {
++  assert.equal(
++    cleanProductName("최신형 비브로 무선 스틱 청소기 BLDC"),
++    "비브로 무선 스틱 청소기 BLDC"
++  );
++  assert.equal(
++    cleanProductName("Lefant (르팡)M3 max 물걸레 로봇청소기"),
++    "Lefant M3 max 물걸레 로봇청소기"
++  );
++  // 옵션 나열은 첫 항목까지만 남긴다.
++  assert.equal(
++    cleanProductName("JONR 로봇청소기 T5 PRO, 화이트, 1개"),
++    "JONR 로봇청소기 T5 PRO"
++  );
++});
++
++test("긴 상품명은 단어 중간에서 끊지 않는다", () => {
++  const cleaned = cleanProductName(
++    "차이슨 AI 자동 충전 먼지 비움 로봇청소기 물걸레 겸용 흡입력 강력",
++    34
++  );
++  assert.ok(cleaned.length <= 34);
++  assert.ok(!cleaned.endsWith(" "));
++  // 잘린 자리가 단어 경계여야 한다.
++  assert.ok(/[가-힣a-zA-Z0-9]$/.test(cleaned));
++});
++
++test("검증에 걸리면 실제 상품명을 쓴다", () => {
++  assert.equal(
++    resolveDisplayName("삼성전자 비스포크 제트 스테이션", "최신형 비브로 무선 스틱 청소기"),
++    "비브로 무선 스틱 청소기"
++  );
++});
++
++test("검증을 통과하면 AI 이름을 그대로 쓴다", () => {
++  assert.equal(
++    resolveDisplayName("다이슨 무선청소기", "Dyson V15 Detect 무선청소기 정품"),
++    "다이슨 무선청소기"
++  );
++});
++
++test("쿠팡 상품이 없으면 AI 이름을 그대로 둔다", () => {
++  // 검색 실패로 상품을 못 붙인 경우다. 비교할 대상이 없으므로 검증하지 않는다.
++  assert.equal(resolveDisplayName("자동 먼지비움 로봇청소기", undefined), "자동 먼지비움 로봇청소기");
++  assert.equal(resolveDisplayName("자동 먼지비움 로봇청소기", ""), "자동 먼지비움 로봇청소기");
++});
+-- 
+2.43.0
+
+
+From 84821bafd987bc19391efb0fe3c156355f68743e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 09:28:33 +0000
+Subject: [PATCH 2/3] fix: separate verified facts from AI judgment in the
+ checklist
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+체크리스트가 확인된 사실과 AI 추측을 같은 체크 표시로 나란히 보여주고
+있었다. "✓ 자동 먼지 비움 기능 탑재" 같은 항목은 AI 가 실제로 링크되는
+상품을 보지 않고 쓴 것이다. 상품은 검색 결과로 정해지므로 AI 는 그 사양을
+알 수 없다. 사실처럼 표시하면 안 된다.
+
+- fitChecks 에 source 를 넣었다. verified 는 서버가 조회 결과로 확인한
+  것(쿠팡 판매가, 로켓배송, 지도 평점·거리·영업 상태), guide 는 AI 가
+  조건만으로 판단한 것이다. 값이 없으면 guide 로 본다. 확인했다고 단정하는
+  쪽이 더 위험하다.
+- 화면에서 둘을 나눴다. 확인된 것은 기존대로 체크 표시로, AI 판단은
+  "조건으로 본 판단" 아래에 점으로 구분해 보여준다.
+- 원래는 AI 체크리스트가 있으면 서버가 확인한 항목을 아예 버렸다. 이제
+  확인된 것을 앞에 두고 AI 판단을 뒤에 붙인다. 실제 가격과 배송 조건은
+  버릴 이유가 없는 사실이다.
+- 프롬프트에서 사양 주장을 금지했다. 기능·소음·보증·배터리처럼 확인할 수
+  없는 것 대신, 사용자가 고른 조건이 무엇을 뜻하는지 쓰게 했다.
+    금지: "자동 먼지비움 기능 탑재"
+    허용: "30평대면 흡입력보다 주행 경로가 중요"
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/api/recommend/route.ts                | 18 ++++-
+ .../result/quick-recommendation-result.tsx    | 78 +++++++++++++------
+ src/lib/recommendation/fit-checks.ts          | 71 ++++++++++++-----
+ src/lib/types/analyze.ts                      | 11 +++
+ tests/fit-checks.test.mts                     | 64 ++++++++-------
+ 5 files changed, 170 insertions(+), 72 deletions(-)
+
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 6fb72fa..5a3ce5f 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -664,10 +664,22 @@ fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로
+   확인할 조건: ${[scenarioLabel, `${priorityLabel} 우선`, budgetLabel, userWish]
+     .filter(Boolean)
+     .join(" / ")}
+-- ok=true 2~3개(조건을 지킨 부분), ok=false 정확히 1개(감수해야 하는 부분).
++- ok=true 2~3개(조건에 맞는 부분), ok=false 정확히 1개(감수해야 하는 부분).
+ - ok=false 는 반드시 넣는다. 단점이 없는 후보는 없고, 없다고 하면 이 화면 전체를 못 믿는다.
+-- 각 항목은 20자 내외의 짧은 서술. 예: "예산 안에 들어옴", "원룸에 놓기엔 조금 큼".
+-- 확인하지 않은 평점·후기 수·가격은 여기에 쓰지 않는다.
++- 각 항목은 20자 내외의 짧은 서술.
++
++[fitChecks 에 쓰면 안 되는 것 — 중요]
++당신은 실제로 링크될 상품을 보지 못한다. 검색 결과로 정해지기 때문이다.
++그러므로 특정 상품에 어떤 기능이나 사양이 있다고 단정하면 안 된다.
++  쓰지 말 것: "자동 먼지비움 기능 탑재", "소음 55dB", "3년 무상보증",
++             "배터리 2시간", "정품 인증" — 확인할 수 없는 사양 주장이다.
++  가격·배송·평점·후기 수도 쓰지 않는다. 서버가 실제 값으로 따로 채운다.
++
++대신 사용자의 조건이 무엇을 뜻하는지를 쓴다. 상품이 아니라 조건에 대한 설명이다.
++  쓸 것: "30평대라면 흡입력보다 주행 경로가 중요",
++        "아이가 있으면 소음 기준을 먼저 볼 것",
++        "이 가격대는 자동비움 기능이 빠지는 경우가 많음",
++        "편리함을 우선하면 관리 주기를 감수해야 함"
+ 
+ JSON 배열만 응답:
+ [{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}]${
+diff --git a/src/components/result/quick-recommendation-result.tsx b/src/components/result/quick-recommendation-result.tsx
+index 8a7d056..ce69ca4 100644
+--- a/src/components/result/quick-recommendation-result.tsx
++++ b/src/components/result/quick-recommendation-result.tsx
+@@ -163,30 +163,62 @@ function FitChecklist({
+   checks: QuickRecommendation["fitChecks"];
+ }) {
+   if (!checks?.length) return null;
++
++  // 확인된 사실과 AI 판단을 나눠 보여준다. 같은 체크 표시로 나란히 두면
++  // 어느 쪽이 실제로 확인된 것인지 구분할 수 없다.
++  const verified = checks.filter((check) => check.source === "verified");
++  const guides = checks.filter((check) => check.source !== "verified");
++
+   return (
+-    <ul className="mt-3.5 space-y-1.5">
+-      {checks.map((check) => (
+-        <li
+-          key={check.text}
+-          className="flex items-start gap-2 text-[13.5px] leading-snug"
+-        >
+-          {check.ok ? (
+-            <Check
+-              className="mt-[3px] size-4 shrink-0 text-success"
+-              aria-hidden
+-            />
+-          ) : (
+-            <Minus
+-              className="mt-[3px] size-4 shrink-0 text-muted-foreground"
+-              aria-hidden
+-            />
+-          )}
+-          <span className={cn(!check.ok && "text-muted-foreground")}>
+-            {check.text}
+-          </span>
+-        </li>
+-      ))}
+-    </ul>
++    <div className="mt-3.5">
++      {verified.length > 0 && (
++        <ul className="space-y-1.5">
++          {verified.map((check) => (
++            <li
++              key={check.text}
++              className="flex items-start gap-2 text-[13.5px] leading-snug"
++            >
++              {check.ok ? (
++                <Check
++                  className="mt-[3px] size-4 shrink-0 text-success"
++                  aria-hidden
++                />
++              ) : (
++                <Minus
++                  className="mt-[3px] size-4 shrink-0 text-muted-foreground"
++                  aria-hidden
++                />
++              )}
++              <span className={cn(!check.ok && "text-muted-foreground")}>
++                {check.text}
++              </span>
++            </li>
++          ))}
++        </ul>
++      )}
++
++      {guides.length > 0 && (
++        <div className={cn(verified.length > 0 && "mt-3 border-t border-border pt-3")}>
++          <p className="text-[11px] font-bold text-muted-foreground">
++            조건으로 본 판단
++          </p>
++          <ul className="mt-1.5 space-y-1.5">
++            {guides.map((check) => (
++              <li
++                key={check.text}
++                className="flex items-start gap-2 text-[13px] leading-snug text-muted-foreground"
++              >
++                <span
++                  className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60"
++                  aria-hidden
++                />
++                <span>{check.text}</span>
++              </li>
++            ))}
++          </ul>
++        </div>
++      )}
++    </div>
+   );
+ }
+ 
+diff --git a/src/lib/recommendation/fit-checks.ts b/src/lib/recommendation/fit-checks.ts
+index f9ceb90..c334450 100644
+--- a/src/lib/recommendation/fit-checks.ts
++++ b/src/lib/recommendation/fit-checks.ts
+@@ -27,9 +27,11 @@ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefi
+         item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+       const text = cleanText(record.text);
+       if (!text) return null;
+-      return { ok: record.ok !== false, text };
++      // AI 가 쓴 항목이다. 링크되는 상품의 사양을 확인하고 쓴 것이 아니므로
++      // 확인된 사실과 섞이지 않게 guide 로 표시한다.
++      return { ok: record.ok !== false, text, source: "guide" as const };
+     })
+-    .filter((item): item is RecommendationFitCheck => item !== null)
++    .filter((item): item is NonNullable<typeof item> => item !== null)
+     .slice(0, MAX_CHECKS);
+ 
+   const met = parsed.filter((item) => item.ok);
+@@ -40,36 +42,55 @@ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefi
+ }
+ 
+ /**
+- * AI 체크리스트가 없을 때 서버가 확인한 사실만으로 만드는 최소 체크리스트.
++ * 서버가 확인한 사실과 AI 의 판단을 합쳐 최종 체크리스트를 만든다.
+  *
+- * 없는 항목을 지어내면 이 화면 전체를 못 믿게 된다.
+- * 실제 가격·배송처럼 확인된 값만 쓰고, 그것으로 두 줄을 못 채우면 아예 만들지 않는다.
++ * 확인된 것을 앞에 둔다. 실제 판매가와 배송 조건은 조회 결과라 사실이고,
++ * AI 가 쓴 항목은 링크되는 상품을 보지 않고 조건만으로 판단한 것이다.
++ * 둘을 섞어 같은 모양으로 보여주면 어느 쪽이 사실인지 알 수 없다.
++ *
++ * 없는 항목을 지어내지는 않는다. 확인된 것이 없고 AI 항목도 없으면
++ * 체크리스트를 만들지 않고 줄글 이유로 돌아간다.
+  */
+ export function derivedFitChecks(
+   item: QuickRecommendation,
+   maxBudgetWon?: number
+ ): RecommendationFitCheck[] | undefined {
+-  if (item.fitChecks?.length) return item.fitChecks;
++  const verified = verifiedChecksFor(item, maxBudgetWon);
++  const guides = item.fitChecks?.filter((check) => check.source !== "verified") ?? [];
++
++  const combined = [...verified, ...guides].slice(0, MAX_CHECKS);
++  return combined.length >= 2 ? combined : undefined;
++}
++
++/** 조회 결과에서 바로 확인되는 항목만 모은다. */
++function verifiedChecksFor(
++  item: QuickRecommendation,
++  maxBudgetWon?: number
++): RecommendationFitCheck[] {
+   const checks: RecommendationFitCheck[] = [];
+ 
+   if (typeof item.price === "number" && maxBudgetWon) {
+     checks.push(
+       item.price <= maxBudgetWon
+-        ? { ok: true, text: "예산 안에 들어옴" }
+-        : { ok: false, text: "예산을 조금 넘음" }
++        ? { ok: true, text: "예산 안에 들어옴", source: "verified" as const }
++        : { ok: false, text: "예산을 조금 넘음", source: "verified" as const }
+     );
+   }
+   if (item.isRocket) {
+-    checks.push({ ok: true, text: "로켓배송으로 바로 받음" });
++    checks.push({ ok: true, text: "로켓배송으로 바로 받음", source: "verified" });
+   }
+   if (typeof item.rating === "number" && item.rating >= 4) {
+-    checks.push({ ok: true, text: `지도 평점 ${item.rating.toFixed(1)}점` });
++    checks.push({
++      ok: true,
++      text: `지도 평점 ${item.rating.toFixed(1)}점`,
++      source: "verified",
++    });
+   }
+   if (typeof item.distanceMeters === "number" && item.distanceMeters <= 1000) {
+-    checks.push({ ok: true, text: "걸어서 갈 수 있는 거리" });
++    checks.push({ ok: true, text: "걸어서 갈 수 있는 거리", source: "verified" });
+   }
+ 
+-  return checks.length >= 2 ? checks.slice(0, MAX_CHECKS) : undefined;
++  return checks;
+ }
+ 
+ /**
+@@ -88,18 +109,27 @@ export function placeFitChecks(input: {
+   if (typeof input.distanceMeters === "number") {
+     checks.push(
+       input.distanceMeters <= 1000
+-        ? { ok: true, text: `걸어서 갈 만한 ${input.distanceMeters}m` }
++        ? {
++            ok: true,
++            text: `걸어서 갈 만한 ${input.distanceMeters}m`,
++            source: "verified" as const,
++          }
+         : {
+             ok: false,
+             text: `${(input.distanceMeters / 1000).toFixed(1)}km — 이동이 필요함`,
++            source: "verified" as const,
+           }
+     );
+   }
+   if (typeof input.rating === "number") {
+     checks.push(
+       input.rating >= 4
+-        ? { ok: true, text: `평점 ${input.rating.toFixed(1)}점` }
+-        : { ok: false, text: `평점 ${input.rating.toFixed(1)}점으로 낮음` }
++        ? { ok: true, text: `평점 ${input.rating.toFixed(1)}점`, source: "verified" as const }
++        : {
++            ok: false,
++            text: `평점 ${input.rating.toFixed(1)}점으로 낮음`,
++            source: "verified" as const,
++          }
+     );
+   }
+   if (typeof input.reviewCount === "number") {
+@@ -108,14 +138,19 @@ export function placeFitChecks(input: {
+         ? {
+             ok: true,
+             text: `후기 ${input.reviewCount.toLocaleString("ko-KR")}개로 충분함`,
++            source: "verified" as const,
++          }
++        : {
++            ok: false,
++            text: `후기 ${input.reviewCount}개로 적음`,
++            source: "verified" as const,
+           }
+-        : { ok: false, text: `후기 ${input.reviewCount}개로 적음` }
+     );
+   }
+   if (input.openNow === true) {
+-    checks.push({ ok: true, text: "지금 영업 중" });
++    checks.push({ ok: true, text: "지금 영업 중", source: "verified" });
+   } else if (input.openNow === false) {
+-    checks.push({ ok: false, text: "지금은 영업 종료" });
++    checks.push({ ok: false, text: "지금은 영업 종료", source: "verified" });
+   }
+ 
+   return checks.length >= 2 ? checks.slice(0, MAX_CHECKS) : undefined;
+diff --git a/src/lib/types/analyze.ts b/src/lib/types/analyze.ts
+index c07df50..4a3cea3 100644
+--- a/src/lib/types/analyze.ts
++++ b/src/lib/types/analyze.ts
+@@ -97,6 +97,17 @@ export type RecommendationFitCheck = {
+   ok: boolean;
+   /** "예산 안에 들어옴" 처럼 조건을 그대로 확인해 주는 짧은 문장 */
+   text: string;
++  /**
++   * 이 항목이 확인된 사실인지, AI 의 판단인지.
++   *
++   * verified — 서버가 실제 값으로 확인했다. 쿠팡 판매가, 로켓배송 여부,
++   *   지도의 평점·거리·영업 상태처럼 조회 결과에서 나온 것.
++   * guide — 사용자가 고른 조건을 바탕으로 한 AI 의 판단이다. 링크되는 상품의
++   *   실제 사양을 확인하고 쓴 것이 아니므로 사실로 표시하면 안 된다.
++   *
++   * 값이 없으면 guide 로 본다. 확인했다고 단정하는 쪽이 더 위험하다.
++   */
++  source?: "verified" | "guide";
+ };
+ 
+ export type QuickRecommendation = {
+diff --git a/tests/fit-checks.test.mts b/tests/fit-checks.test.mts
+index 55263e4..0d013be 100644
+--- a/tests/fit-checks.test.mts
++++ b/tests/fit-checks.test.mts
+@@ -13,10 +13,11 @@ test("충족·미충족이 함께 있으면 체크리스트로 쓴다", () => {
+     { ok: false, text: "카펫 흡입력은 아쉬움" },
+     { ok: true, text: "원룸에 세워둘 수 있는 크기" },
+   ]);
++  // AI 가 쓴 항목은 실제 상품을 보고 쓴 것이 아니므로 guide 로 표시된다.
+   assert.deepEqual(parsed, [
+-    { ok: true, text: "예산 안에 들어옴" },
+-    { ok: true, text: "원룸에 세워둘 수 있는 크기" },
+-    { ok: false, text: "카펫 흡입력은 아쉬움" },
++    { ok: true, text: "예산 안에 들어옴", source: "guide" },
++    { ok: true, text: "원룸에 세워둘 수 있는 크기", source: "guide" },
++    { ok: false, text: "카펫 흡입력은 아쉬움", source: "guide" },
+   ]);
+ });
+ 
+@@ -75,8 +76,8 @@ test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
+       200000
+     ),
+     [
+-      { ok: true, text: "예산 안에 들어옴" },
+-      { ok: true, text: "로켓배송으로 바로 받음" },
++      { ok: true, text: "예산 안에 들어옴", source: "verified" },
++      { ok: true, text: "로켓배송으로 바로 받음", source: "verified" },
+     ]
+   );
+ });
+@@ -109,26 +110,33 @@ test("확인된 사실이 부족하면 지어내지 않는다", () => {
+   );
+ });
+ 
+-test("AI가 이미 준 체크리스트가 있으면 덮어쓰지 않는다", () => {
+-  const given = [
+-    { ok: true, text: "예산 안에 들어옴" },
+-    { ok: false, text: "무거움" },
+-  ];
+-  assert.equal(
+-    derivedFitChecks(
+-      {
+-        rank: 1,
+-        name: "무선청소기",
+-        reason: "",
+-        searchKeyword: "",
+-        qualitySummary: "",
+-        price: 999000,
+-        fitChecks: given,
+-      },
+-      200000
+-    ),
+-    given
++test("확인된 사실을 앞에 두고 AI 판단을 뒤에 붙인다", () => {
++  // 실제 판매가·배송은 조회 결과라 사실이고, AI 항목은 상품을 보지 않고 쓴 것이다.
++  // 둘을 합치되 순서와 표시를 나눠 어느 쪽이 확인된 것인지 알 수 있게 한다.
++  const merged = derivedFitChecks(
++    {
++      rank: 1,
++      name: "무선청소기",
++      reason: "",
++      searchKeyword: "",
++      qualitySummary: "",
++      price: 169000,
++      isRocket: true,
++      fitChecks: [
++        { ok: true, text: "30평대면 주행 경로가 중요", source: "guide" },
++        { ok: false, text: "이 가격대는 자동비움이 빠지기도 함", source: "guide" },
++      ],
++    },
++    200000
+   );
++
++  assert.deepEqual(merged?.map((item) => item.source), [
++    "verified",
++    "verified",
++    "guide",
++    "guide",
++  ]);
++  assert.equal(merged?.[0].text, "예산 안에 들어옴");
+ });
+ 
+ test("지도 결과는 미달 조건도 그대로 표시한다", () => {
+@@ -140,10 +148,10 @@ test("지도 결과는 미달 조건도 그대로 표시한다", () => {
+       openNow: false,
+     }),
+     [
+-      { ok: false, text: "2.4km — 이동이 필요함" },
+-      { ok: false, text: "평점 3.4점으로 낮음" },
+-      { ok: false, text: "후기 12개로 적음" },
+-      { ok: false, text: "지금은 영업 종료" },
++      { ok: false, text: "2.4km — 이동이 필요함", source: "verified" },
++      { ok: false, text: "평점 3.4점으로 낮음", source: "verified" },
++      { ok: false, text: "후기 12개로 적음", source: "verified" },
++      { ok: false, text: "지금은 영업 종료", source: "verified" },
+     ]
+   );
+ });
+-- 
+2.43.0
+
+
+From 80a92f03cf81e7a68bedf363145be8eb92ada58f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 10:31:47 +0000
+Subject: [PATCH 3/3] fix: keep results stable when the user wrote what they
+ want
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+같은 조건으로 다시 추천받으면 매번 다른 후보가 나왔다. 원인은 두 가지였다.
+
+- 최근 추천한 이름을 프롬프트에 넣어 "반드시 제외"시키고 있었다.
+- 생성 온도를 지정하지 않아 기본값(높은 쪽)으로 돌고 있었다.
+
+버튼만 눌러 들어온 요청이면 새로운 후보를 보여주는 편이 낫다. 아직
+둘러보는 중이기 때문이다. 하지만 원하는 것을 직접 적었다면 이야기가
+다르다. "먼지통 자동으로 비워지는 걸로"라고 쓴 사람에게 잘 맞는 답은
+하나로 좁혀진다. 이미 봤다는 이유로 그 답을 빼면 다음 번에 더 나쁜 후보가
+올라온다. 새로움이 정확도를 밀어내는 셈이다.
+
+그래서 자유 입력이 있을 때만 다르게 동작하게 했다.
+- 최근 추천 제외를 적용하지 않는다.
+- 생성 온도를 0.2 로 낮춰 같은 요청에 같은 답이 나올 확률을 높인다.
+
+generateJson 에 temperature 를 넘길 수 있게 했다. 일부 최신 OpenAI 모델은
+temperature 를 아예 받지 않고 요청을 거부하므로, 거부당하면 온도 없이 한 번
+더 시도한다. 답이 조금 흔들리더라도 provider 가 통째로 실패해 정적 폴백으로
+떨어지는 것보다 낫다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/api/recommend/route.ts | 26 ++++++++++++--
+ src/lib/ai/generate-json.ts    | 65 ++++++++++++++++++++++++----------
+ 2 files changed, 69 insertions(+), 22 deletions(-)
+
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 5a3ce5f..41e42db 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -599,6 +599,20 @@ async function generateCandidates(
+ ): Promise<{ candidates: Candidate[]; live: boolean }> {
+   const segmentedFallbacks = segmentFallbackCandidates(categoryId, fallbacks);
+ 
++  /*
++    버튼만 눌러 들어온 요청은 아직 둘러보는 중이므로, 최근 추천을 빼고 새로운
++    후보를 보여주는 편이 낫다.
++
++    반대로 원하는 것을 직접 적었다면 이야기가 다르다. "먼지통 자동으로
++    비워지는 걸로"라고 쓴 사람에게 가장 잘 맞는 답은 하나로 좁혀진다.
++    그 답을 이미 봤다는 이유로 빼면, 같은 조건을 다시 넣었을 때 더 나쁜
++    후보가 올라온다. 새로움이 정확도를 밀어내는 셈이다.
++
++    그래서 자유 입력이 있으면 제외 목록을 쓰지 않고, 생성도 덜 흔들리게 한다.
++  */
++  const accuracyFirst = userWish.length > 0;
++  const effectiveExcluded = accuracyFirst ? [] : excludedNames;
++
+   const prompt = `당신은 한국 소비자의 선택을 돕는 구매·생활 의사결정 전문가다.
+ 
+ ${
+@@ -623,7 +637,7 @@ ${
+ 최우선 조건: ${priorityLabel}
+ 예산: ${budgetLabel}${maxBudgetWon ? ` (${maxBudgetWon.toLocaleString("ko-KR")}원 이하)` : ""}
+ 정밀 조건: ${advancedContext || "추가 조건 없음"}
+-${excludedNames.length > 0 ? `이미 추천한 후보(반드시 제외): ${excludedNames.join(", ")}` : ""}
++${effectiveExcluded.length > 0 ? `이미 추천한 후보(반드시 제외): ${effectiveExcluded.join(", ")}` : ""}
+ 
+ [뻔한 답 금지]
+ 검색만 해도 첫 화면에 나오는 정답은 이 서비스의 가치가 아니다.
+@@ -687,7 +701,11 @@ JSON 배열만 응답:
+   }}]`;
+ 
+   try {
+-    const generated = await generateJson(prompt);
++    // 같은 요청에 같은 답이 나오도록 흔들림을 줄인다.
++    const generated = await generateJson(
++      prompt,
++      accuracyFirst ? { temperature: 0.2 } : {}
++    );
+     // 배열을 요구했지만 provider에 따라 {items:[...]} 형태로 감싸 오는 경우가 있다.
+     const raw = generated?.parsed;
+     const parsed = Array.isArray(raw)
+@@ -1430,9 +1448,11 @@ export async function POST(request: Request) {
+ 
+   const fallbacks = FALLBACKS[rawCategory][scenarioId];
+   const location = readLocation(body.location);
+-  const excludedNames = readExcludedNames(body.excludedNames);
+   // 버튼만으로는 담기지 않는 실제 의도("매운 국물", "향수 말고")를 받는다.
+   const userWish = clean(body.userWish, "", 100);
++  // 원하는 것을 직접 적었다면 새로움보다 정확도가 먼저다. 최근 추천을
++  // 빼지 않는다. 자세한 이유는 generateCandidates 주석에 적어 두었다.
++  const excludedNames = userWish ? [] : readExcludedNames(body.excludedNames);
+ 
+   try {
+     if (rawCategory === "food") {
+diff --git a/src/lib/ai/generate-json.ts b/src/lib/ai/generate-json.ts
+index cb23a2e..4a387bb 100644
+--- a/src/lib/ai/generate-json.ts
++++ b/src/lib/ai/generate-json.ts
+@@ -38,7 +38,8 @@ function orderedModels(candidates: string[], lastGood: string | null): string[]
+ 
+ async function tryGemini(
+   prompt: string,
+-  timeoutMs: number
++  timeoutMs: number,
++  temperature?: number
+ ): Promise<GenerateJsonResult | null> {
+   const apiKey = process.env.GEMINI_API_KEY?.trim();
+   if (!apiKey) return null;
+@@ -56,7 +57,10 @@ async function tryGemini(
+         .generateContent(
+           {
+             contents: [{ role: "user", parts: [{ text: prompt }] }],
+-            generationConfig: { responseMimeType: "application/json" },
++            generationConfig: {
++              responseMimeType: "application/json",
++              ...(temperature === undefined ? {} : { temperature }),
++            },
+           },
+           { timeout: timeoutMs }
+         );
+@@ -72,7 +76,8 @@ async function tryGemini(
+ 
+ async function tryOpenAi(
+   prompt: string,
+-  timeoutMs: number
++  timeoutMs: number,
++  temperature?: number
+ ): Promise<GenerateJsonResult | null> {
+   const apiKey = process.env.OPENAI_API_KEY?.trim();
+   if (!apiKey) return null;
+@@ -84,19 +89,38 @@ async function tryOpenAi(
+   const client = new OpenAI({ apiKey, timeout: timeoutMs, maxRetries: 0 });
+ 
+   for (const model of models) {
+-    try {
+-      const completion = await client.chat.completions.create({
+-        model,
+-        messages: [{ role: "user", content: prompt }],
+-        response_format: { type: "json_object" },
+-      });
+-      const text = completion.choices[0]?.message?.content;
+-      if (!text) continue;
+-      const parsed = JSON.parse(text) as unknown;
+-      lastGoodOpenAiModel = model;
+-      return { parsed, provider: "openai", model };
+-    } catch (error) {
+-      console.warn(`[ai] openai:${model} failed`, error);
++    // 일부 최신 모델은 temperature 를 아예 받지 않고 요청을 거부한다.
++    // 거부당하면 온도 없이 한 번 더 시도한다. 답이 조금 흔들리더라도
++    // provider 가 통째로 실패해 정적 폴백으로 떨어지는 것보다 낫다.
++    const attempts =
++      temperature === undefined ? [undefined] : [temperature, undefined];
++
++    for (const attemptTemperature of attempts) {
++      try {
++        const completion = await client.chat.completions.create({
++          model,
++          messages: [{ role: "user", content: prompt }],
++          response_format: { type: "json_object" },
++          ...(attemptTemperature === undefined
++            ? {}
++            : { temperature: attemptTemperature }),
++        });
++        const text = completion.choices[0]?.message?.content;
++        if (!text) break;
++        const parsed = JSON.parse(text) as unknown;
++        lastGoodOpenAiModel = model;
++        return { parsed, provider: "openai", model };
++      } catch (error) {
++        const unsupported =
++          attemptTemperature !== undefined &&
++          /temperature/i.test(error instanceof Error ? error.message : "");
++        if (unsupported) {
++          console.warn(`[ai] openai:${model} temperature 미지원, 기본값으로 재시도`);
++          continue;
++        }
++        console.warn(`[ai] openai:${model} failed`, error);
++        break;
++      }
+     }
+   }
+   return null;
+@@ -107,10 +131,13 @@ async function tryOpenAi(
+  * 호출부가 정적 폴백을 쓰도록 한다.
+  *
+  * `AI_PROVIDER_ORDER=openai,gemini` 로 우선순위를 바꿀 수 있다.
++ *
++ * temperature 를 낮추면 같은 입력에 같은 답이 나올 확률이 높아진다.
++ * 사용자가 원하는 것을 직접 적었을 때처럼 정확도가 우선인 경우에 쓴다.
+  */
+ export async function generateJson(
+   prompt: string,
+-  options: { timeoutMs?: number } = {}
++  options: { timeoutMs?: number; temperature?: number } = {}
+ ): Promise<GenerateJsonResult | null> {
+   const timeoutMs = options.timeoutMs ?? 20_000;
+   const order = (process.env.AI_PROVIDER_ORDER?.trim() || "gemini,openai")
+@@ -121,8 +148,8 @@ export async function generateJson(
+   for (const provider of order.length > 0 ? order : ["gemini", "openai"]) {
+     const result =
+       provider === "gemini"
+-        ? await tryGemini(prompt, timeoutMs)
+-        : await tryOpenAi(prompt, timeoutMs);
++        ? await tryGemini(prompt, timeoutMs, options.temperature)
++        : await tryOpenAi(prompt, timeoutMs, options.temperature);
+     if (result) return result;
+   }
+   console.error("[ai] All providers failed; falling back to static candidates.");
+-- 
+2.43.0
+

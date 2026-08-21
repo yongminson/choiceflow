@@ -1,0 +1,519 @@
+From 58d2c453350afde6b2ff6dad02e5da02205c4e39 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 6 Aug 2026 16:46:30 +0000
+Subject: [PATCH] refactor: give the site a brand palette, real landing, and
+ product-first results
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+"AI가 만든 MVP 데모" 인상을 걷어내기 위해 색·레이아웃·정보 위계를 다시 잡는다.
+
+브랜드 컬러
+- 무채색만 쓰던 팔레트에 Choice Blue(#2563EB)를 도입한다. 파란색은 선택 상태,
+  BEST 배지, 주요 CTA 에만 쓴다. 그래야 파란색 자체가 "ChoiceFlow가 골랐다"는
+  신호가 된다.
+- 배경 #F7F8FA, 본문 #171719, 보조 #70737C, 보더 #E5E7EB, 성공 #16A34A 로
+  통일하고 primary-soft / success 를 tailwind 토큰으로 노출한다.
+
+랜딩
+- 컨테이너 폭을 max-w-xl(576px)에서 1120px로 넓힌다. 1920 화면에서 모바일
+  레이아웃을 가운데 얹어둔 것처럼 보이던 문제를 없앤다.
+- "고민은 짧게, 선택은 확실하게." 히어로와 인기 카테고리 칩을 추가한다.
+- 카테고리 타일을 3열로 키우고 아이콘에 primary-soft 배경을 준다.
+- 검정 A/B 카드는 전체 디자인 언어와 겉돌아 제거하되 기능은 유지한다.
+  카테고리 아래 soft-blue 보조 진입으로 옮긴다.
+- "최근 찾은 조건"은 첫 화면에서 뺀다. 신규 방문자에게는 같은 항목이 반복
+  노출될 뿐 도움이 되지 않는다. 2단계부터 보여준다.
+
+결과 화면
+- 후보 카드를 데스크톱 3열 그리드로 바꾸고 이미지를 카드 상단 전체 폭으로
+  키운다.
+- 역할 배지를 사용자 언어로 바꾸고(가장 추천 / 가성비 선택 / 검증 우선 /
+  한 단계 위) 1위에만 primary 를 채워 결과에서 다시 고민하지 않게 한다.
+- 쿠팡 파트너스 고지를 상품 목록 바로 위로 옮긴다. 공정위 추천·보증 심사지침은
+  경제적 이해관계를 추천 내용과 가까운 위치에 표시하도록 한다. 쿠팡 링크가
+  실제로 있는 화면에서만 노출하고, 하단 중복 표기는 제거한다.
+- 푸터에는 상시 안내 문구를 별도로 둔다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/globals.css                           |  57 ++++---
+ .../quick-recommendation-dashboard.tsx        | 148 +++++++++++-------
+ src/components/layout/app-footer.tsx          |   2 +-
+ .../result/quick-recommendation-result.tsx    |  90 ++++++-----
+ tailwind.config.ts                            |   2 +
+ 5 files changed, 175 insertions(+), 124 deletions(-)
+
+diff --git a/src/app/globals.css b/src/app/globals.css
+index af3729e..569822c 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -23,27 +23,32 @@
+     --font-sans: var(--font-sans);
+   }
+   :root {
+-    /* 오프화이트 단색 배경 + 무채색 스케일. 유채색은 --primary 하나만 쓴다. */
+-    --surface: oklch(0.978 0 0);
+-    --background: oklch(0.978 0 0);
+-    --foreground: oklch(0.18 0 0);
+-    --card: oklch(1 0 0);
+-    --card-foreground: oklch(0.18 0 0);
+-    --popover: oklch(1 0 0);
+-    --popover-foreground: oklch(0.18 0 0);
+-    /* 포인트 컬러 1개 — 쿠팡 CTA와 충돌하지 않도록 딥 레드 계열로 통일 */
+-    --primary: oklch(0.44 0.19 27);
+-    --primary-foreground: oklch(0.99 0 0);
+-    --secondary: oklch(0.955 0 0);
+-    --secondary-foreground: oklch(0.28 0 0);
+-    --muted: oklch(0.955 0 0);
+-    --muted-foreground: oklch(0.52 0 0);
+-    --accent: oklch(0.94 0 0);
+-    --accent-foreground: oklch(0.28 0 0);
+-    --destructive: oklch(0.55 0.22 27);
+-    --border: oklch(0.9 0 0);
+-    --input: oklch(0.9 0 0);
+-    --ring: oklch(0.44 0.19 27);
++    /*
++     * ChoiceFlow 브랜드 팔레트.
++     * Choice Blue 는 "우리가 골라줬다"는 신호로만 쓴다.
++     * 선택된 상태, BEST 배지, 주요 CTA 외에는 쓰지 않는다.
++     */
++    --surface: #f7f8fa;
++    --background: #f7f8fa;
++    --foreground: #171719;
++    --card: #ffffff;
++    --card-foreground: #171719;
++    --popover: #ffffff;
++    --popover-foreground: #171719;
++    --primary: #2563eb;
++    --primary-foreground: #ffffff;
++    --primary-soft: #eff5ff;
++    --secondary: #f2f3f5;
++    --secondary-foreground: #171719;
++    --muted: #f2f3f5;
++    --muted-foreground: #70737c;
++    --accent: #eff5ff;
++    --accent-foreground: #2563eb;
++    --success: #16a34a;
++    --destructive: #dc2626;
++    --border: #e5e7eb;
++    --input: #e5e7eb;
++    --ring: #2563eb;
+     --chart-1: oklch(0.87 0 0);
+     --chart-2: oklch(0.556 0 0);
+     --chart-3: oklch(0.439 0 0);
+@@ -62,15 +67,17 @@
+     --glass-surface: oklch(1 0 0);
+   }
+   .dark {
+-    --surface: oklch(0.145 0 0);
+-    --background: oklch(0.145 0 0);
++    --surface: #101114;
++    --background: #101114;
++    --primary-soft: #16233d;
++    --success: #22c55e;
+     --foreground: oklch(0.97 0.02 252);
+     --card: oklch(0.21 0.04 258);
+     --card-foreground: oklch(0.97 0.02 252);
+     --popover: oklch(0.21 0.04 258);
+     --popover-foreground: oklch(0.97 0.02 252);
+-    --primary: oklch(0.62 0.2 27);
+-    --primary-foreground: oklch(0.99 0 0);
++    --primary: #60a5fa;
++    --primary-foreground: #0b1220;
+     --secondary: oklch(0.28 0.04 258);
+     --secondary-foreground: oklch(0.97 0.02 252);
+     --muted: oklch(0.28 0.035 258);
+diff --git a/src/components/dashboard/quick-recommendation-dashboard.tsx b/src/components/dashboard/quick-recommendation-dashboard.tsx
+index fe9d609..60bfc86 100644
+--- a/src/components/dashboard/quick-recommendation-dashboard.tsx
++++ b/src/components/dashboard/quick-recommendation-dashboard.tsx
+@@ -66,6 +66,14 @@ type RecentSelection = QuickSelection & {
+ 
+ const RECENT_STORAGE_KEY = "choiceflow-recent-selections";
+ 
++/** 첫 화면에서 곧바로 진입할 수 있는 대표 카테고리 */
++const POPULAR_PICKS: Array<{ label: string; categoryId: CategoryId }> = [
++  { label: "노트북·가전", categoryId: "appliance" },
++  { label: "선물", categoryId: "gift" },
++  { label: "오늘 뭐 먹지", categoryId: "food" },
++  { label: "옷·신발", categoryId: "fashion" },
++];
++
+ const CATEGORY_ICONS: Record<CategoryId, LucideIcon> = {
+   food: Utensils,
+   gift: Gift,
+@@ -258,7 +266,7 @@ export function QuickRecommendationDashboard() {
+           : "예산을 고르면 바로 추천을 시작해요.";
+ 
+   return (
+-    <main className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-xl flex-col px-5 pb-20 pt-7">
++    <main className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[1120px] flex-col px-5 pb-20 pt-8 sm:px-8">
+       {step > 1 && (
+         <div className="mb-7">
+           <p className="text-[12px] font-bold text-muted-foreground">
+@@ -280,7 +288,7 @@ export function QuickRecommendationDashboard() {
+         </div>
+       )}
+ 
+-      <header className="flex items-start justify-between gap-4">
++      <header className={cn("flex items-start justify-between gap-4", step === 1 && "sr-only")}>
+         <div>
+           <h1 className="text-balance text-[26px] font-black leading-tight tracking-[-0.03em] sm:text-[30px]">
+             {heading}
+@@ -304,73 +312,97 @@ export function QuickRecommendationDashboard() {
+       <section className="mt-8" aria-live="polite">
+         {step === 1 && (
+           <>
++            {/* 히어로 — 첫 화면은 "무엇을 해주는 서비스인지"만 말한다. */}
++            <div className="pb-12 pt-6 text-center sm:pb-16 sm:pt-10">
++              <p className="mx-auto max-w-2xl text-balance text-[32px] font-black leading-[1.15] tracking-[-0.035em] sm:text-[46px]">
++                고민은 짧게,
++                <br className="sm:hidden" /> 선택은 확실하게.
++              </p>
++              <p className="mx-auto mt-4 max-w-lg text-pretty text-[15px] leading-relaxed text-muted-foreground sm:text-[17px]">
++                몇 가지만 알려주시면 수많은 상품 중 살 만한 것만 골라드릴게요.
++              </p>
++
++              <div className="mt-9">
++                <p className="text-[12px] font-bold text-muted-foreground">
++                  지금 가장 많이 고민하는 선택
++                </p>
++                <div className="mt-3 flex flex-wrap justify-center gap-2">
++                  {POPULAR_PICKS.map((pick) => (
++                    <button
++                      key={pick.label}
++                      type="button"
++                      onClick={() => {
++                        setCategoryId(pick.categoryId);
++                        setScenarioId(null);
++                        setPriorityId(null);
++                      }}
++                      className="rounded-full border border-border bg-card px-4 py-2 text-[14px] font-bold transition hover:border-primary hover:text-primary"
++                    >
++                      {pick.label}
++                    </button>
++                  ))}
++                </div>
++              </div>
++            </div>
++
++            <h2 className="mb-4 text-[20px] font-black tracking-tight sm:text-[24px]">
++              어떤 걸 고르고 있나요?
++            </h2>
++
++            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
++              {CATEGORY_ORDER.map((id) => {
++                const Icon = CATEGORY_ICONS[id];
++                return (
++                  <button
++                    key={id}
++                    type="button"
++                    onClick={() => {
++                      setCategoryId(id);
++                      setScenarioId(null);
++                      setPriorityId(null);
++                    }}
++                    className="group flex min-h-[136px] flex-col justify-between rounded-2xl border border-border bg-card p-5 text-left transition hover:border-primary hover:shadow-[0_10px_28px_-14px_rgba(37,99,235,0.4)] sm:min-h-[152px]"
++                  >
++                    <span className="inline-flex size-11 items-center justify-center rounded-xl bg-primary-soft text-primary">
++                      <Icon className="size-5" aria-hidden />
++                    </span>
++                    <span className="mt-4">
++                      <span className="block text-[17px] font-black tracking-tight sm:text-[18px]">
++                        {QUICK_CATEGORY_LABELS[id]}
++                      </span>
++                      <span className="mt-1 block text-[13px] leading-snug text-muted-foreground">
++                        {QUICK_CATEGORY_DESCRIPTION[id]}
++                      </span>
++                    </span>
++                  </button>
++                );
++              })}
++            </div>
++
++            {/* A/B 비교는 없애지 않고, 카테고리 아래 보조 진입으로 둔다. */}
+             <a
+               href="/compare"
+-              className="mb-3 flex items-center justify-between gap-4 rounded-2xl bg-foreground p-5 text-background transition hover:opacity-90"
++              className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-primary-soft p-5 transition hover:border-primary"
+             >
+               <span className="min-w-0">
+-                <span className="flex items-center gap-1.5 text-[11px] font-bold opacity-70">
++                <span className="flex items-center gap-1.5 text-[12px] font-bold text-primary">
+                   <Scale className="size-3.5" />
+-                  이미 후보가 정해졌다면
++                  후보가 이미 정해졌다면
+                 </span>
+-                <span className="mt-1.5 block text-[17px] font-black leading-snug">
+-                  A랑 B 중에 못 고르겠어요
++                <span className="mt-1.5 block text-[16px] font-black tracking-tight">
++                  A와 B 중에 하나만 골라드려요
+                 </span>
+-                <span className="mt-1 block text-[12px] opacity-70">
+-                  두 개만 적으면 왜 그걸 골라야 하는지까지 알려드려요
++                <span className="mt-1 block text-[13px] text-muted-foreground">
++                  두 개만 적으면 왜 그걸 골라야 하는지까지 알려드립니다
+                 </span>
+               </span>
+-              <ArrowUpRight className="size-5 shrink-0" />
++              <ArrowUpRight className="size-5 shrink-0 text-primary" />
+             </a>
+-
+-            <p className="mb-3 text-[13px] font-bold text-muted-foreground">
+-              아직 뭘 살지 모르겠다면
+-            </p>
+           </>
+         )}
+ 
+-        {step === 1 && (
+-          /* Bento: 첫 두 칸은 넓게, 나머지는 2열. 균일 반복을 깨서
+-             템플릿 인상을 줄이고 사용 빈도가 높은 항목을 앞세운다. */
+-          <div className="grid grid-cols-2 gap-2">
+-            {CATEGORY_ORDER.map((id, index) => {
+-              const Icon = CATEGORY_ICONS[id];
+-              const wide = index < 2;
+-              return (
+-                <button
+-                  key={id}
+-                  type="button"
+-                  onClick={() => {
+-                    setCategoryId(id);
+-                    setScenarioId(null);
+-                    setPriorityId(null);
+-                  }}
+-                  className={cn(
+-                    "group flex flex-col justify-between rounded-2xl border border-border bg-card p-4 text-left transition",
+-                    "hover:border-foreground/40",
+-                    wide ? "col-span-2 min-h-[92px] sm:col-span-1" : "min-h-[112px]"
+-                  )}
+-                >
+-                  <Icon
+-                    className="size-5 text-muted-foreground transition-colors group-hover:text-foreground"
+-                    aria-hidden
+-                  />
+-                  <span className="mt-3 min-w-0">
+-                    <span className="block text-[15px] font-bold tracking-tight">
+-                      {QUICK_CATEGORY_LABELS[id]}
+-                    </span>
+-                    <span className="mt-0.5 block text-[12px] leading-snug text-muted-foreground">
+-                      {QUICK_CATEGORY_DESCRIPTION[id]}
+-                    </span>
+-                  </span>
+-                </button>
+-              );
+-            })}
+-          </div>
+-        )}
+-
+         {step === 2 && categoryId && (
+-          <div className="grid gap-2">
++          <div className="grid gap-2 sm:grid-cols-2">
+             {QUICK_SCENARIOS[categoryId].map((scenario) => (
+               <ChoiceButton
+                 key={scenario.id}
+@@ -383,7 +415,7 @@ export function QuickRecommendationDashboard() {
+         )}
+ 
+         {step === 3 && categoryId && (
+-          <div className="grid gap-2">
++          <div className="grid gap-2 sm:grid-cols-2">
+             {QUICK_PRIORITIES[categoryId].map((priority) => (
+               <ChoiceButton
+                 key={priority.id}
+@@ -420,7 +452,7 @@ export function QuickRecommendationDashboard() {
+               />
+             </div>
+ 
+-            <div className="grid gap-2">
++            <div className="grid gap-2 sm:grid-cols-2">
+               {budgets.map((budget) => (
+                 <ChoiceButton
+                   key={budget.id}
+@@ -478,7 +510,7 @@ export function QuickRecommendationDashboard() {
+         </div>
+       )}
+ 
+-      {step === 1 && recentSelections.length > 0 && (
++      {step === 2 && recentSelections.length > 0 && (
+         <section className="mt-10 border-t border-foreground/10 pt-7">
+           <div className="flex items-end justify-between">
+             <div>
+diff --git a/src/components/layout/app-footer.tsx b/src/components/layout/app-footer.tsx
+index a68b9e9..3625156 100644
+--- a/src/components/layout/app-footer.tsx
++++ b/src/components/layout/app-footer.tsx
+@@ -61,7 +61,7 @@ export function AppFooter() {
+             </p>
+             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+               ChoiceFlow는 AI 기반 분석 정보를 제공할 뿐, 최종 선택과 결제에 대한 책임은 사용자 본인에게 있습니다.<br /><br />
+-              일부 링크는 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
++              ChoiceFlow는 쿠팡 파트너스 활동을 통해 일정액의 수수료를 제공받을 수 있습니다.
+             </p>
+           </div>
+         </div>
+diff --git a/src/components/result/quick-recommendation-result.tsx b/src/components/result/quick-recommendation-result.tsx
+index a7357ee..31ec2ba 100644
+--- a/src/components/result/quick-recommendation-result.tsx
++++ b/src/components/result/quick-recommendation-result.tsx
+@@ -40,23 +40,29 @@ type LocationPayload = {
+   accuracy?: number;
+ };
+ 
+-const ROLE_STYLES: Record<
++/** 결과에서 또 고민하지 않도록 1등을 확실히 구분한다. */
++const ROLE_BADGE: Record<
+   NonNullable<QuickRecommendation["selectionType"]>,
+-  string
++  { label: string; className: string }
+ > = {
+-  best: "border-[#ae0000]/25 bg-[#ae0000]/[0.06] text-[#ae0000] dark:text-red-400",
+-  value: "border-emerald-600/25 bg-emerald-600/[0.06] text-emerald-700 dark:text-emerald-400",
+-  reliable: "border-sky-600/25 bg-sky-600/[0.06] text-sky-700 dark:text-sky-400",
+-  premium: "border-neutral-500/25 bg-neutral-500/[0.06] text-neutral-700 dark:text-neutral-300",
++  best: {
++    label: "가장 추천",
++    className: "bg-primary text-primary-foreground",
++  },
++  value: {
++    label: "가성비 선택",
++    className: "bg-success/10 text-success",
++  },
++  reliable: {
++    label: "검증 우선",
++    className: "bg-muted text-muted-foreground",
++  },
++  premium: {
++    label: "한 단계 위",
++    className: "bg-muted text-muted-foreground",
++  },
+ };
+ 
+-const FALLBACK_ROLE_LABELS = [
+-  "최종 선택",
+-  "최저가·가성비",
+-  "검증 우선",
+-  "프리미엄",
+-];
+-
+ /** 음식 상황별로 쿠팡에서 실제로 잘 잡히는 상품 검색어 */
+ const FOOD_RELATED_KEYWORDS: Record<string, string> = {
+   solo: "혼밥 간편식 도시락",
+@@ -349,7 +355,7 @@ export function QuickRecommendationResult({
+   };
+ 
+   return (
+-    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-2xl px-4 pb-16 pt-6 sm:px-6">
++    <main className="mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[1120px] px-5 pb-16 pt-8 sm:px-8 sm:px-6">
+       <header>
+         <p className="text-xs font-bold text-muted-foreground">
+           {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
+@@ -440,35 +446,47 @@ export function QuickRecommendationResult({
+         }
+       />
+ 
+-      <h2 className="mb-3 mt-7 text-lg font-black">
++      <h2 className="mb-3 mt-8 text-[20px] font-black tracking-tight">
+         추천 후보 {recommendations.length}개
+       </h2>
+ 
+-      <div className="space-y-3">
++      {/*
++        공정위 추천·보증 심사지침은 경제적 이해관계를 추천 내용과 가까운
++        위치에 표시하도록 한다. 푸터에만 두지 않고 상품 바로 위에 둔다.
++        쿠팡 링크가 실제로 있는 화면에서만 노출한다.
++      */}
++      {(isCoupang || (isFood && relatedKeyword)) && (
++        <p className="mb-3 rounded-lg bg-muted px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
++          이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를
++          제공받습니다.
++        </p>
++      )}
++
++      <div className="grid gap-3 lg:grid-cols-3">
+         {recommendations.map((item, index) => {
+           const priceLevel = formatPriceLevel(item.priceLevel);
+-          const roleLabel =
+-            item.selectionLabel || FALLBACK_ROLE_LABELS[index] || "추천";
+-          const roleStyle = item.selectionType
+-            ? ROLE_STYLES[item.selectionType]
+-            : ROLE_STYLES.best;
++          const badge = item.selectionType
++            ? ROLE_BADGE[item.selectionType]
++            : ROLE_BADGE.best;
+           return (
+             <article
+               key={`${item.selectionType || index}-${item.name}`} className={cn(
+-                "rounded-xl border bg-white p-4 sm:p-5",
++                "flex flex-col rounded-2xl border bg-card p-4 sm:p-5",
+                 index === 0
+-                  ? "border-[#ae0000]/30"
+-                  : "border-foreground/10"
++                  ? "border-primary ring-1 ring-primary/20"
++                  : "border-border"
+               )}
+             >
+-              <span className={cn(
+-                  "inline-flex rounded border px-2 py-0.5 text-[11px] font-bold",
+-                  roleStyle
++              <span
++                className={cn(
++                  "inline-flex w-fit rounded-md px-2.5 py-1 text-[11px] font-black",
++                  badge.className
+                 )}
+               >
+-                {roleLabel}
++                {index === 0 ? "🏆 " : ""}
++                {badge.label}
+               </span>
+-              <div className="mt-2 flex gap-3">
++              <div className="mt-3 flex gap-3 lg:flex-col">
+                 {item.imageUrl && (
+                   /* 쿠팡 상품 썸네일. 이미지 최적화가 꺼져 있어 img 를 쓴다. */
+                   /* eslint-disable-next-line @next/next/no-img-element */
+@@ -479,7 +497,7 @@ export function QuickRecommendationResult({
+                     height={84}
+                     loading="lazy"
+                     decoding="async"
+-                    className="size-[84px] shrink-0 rounded-lg border border-border object-cover"
++                    className="size-[84px] shrink-0 rounded-xl border border-border object-cover lg:h-[168px] lg:w-full"
+                   />
+                 )}
+                 <div className="min-w-0 flex-1">
+@@ -698,16 +716,8 @@ export function QuickRecommendationResult({
+         </section>
+       )}
+ 
+-      {isCoupang && (
+-        <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
+-          쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+-        </p>
+-      )}
+-      {isFood && relatedKeyword && (
+-        <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
+-          쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+-        </p>
+-      )}
++
++
+ 
+       <section className="mt-8 overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.08] to-sky-500/[0.06] p-5 sm:p-6">
+         {!showAdvanced ? (
+diff --git a/tailwind.config.ts b/tailwind.config.ts
+index 56d9fb6..40df332 100644
+--- a/tailwind.config.ts
++++ b/tailwind.config.ts
+@@ -32,6 +32,8 @@ const config: Config = {
+         popover: "var(--popover)",
+         "popover-foreground": "var(--popover-foreground)",
+         primary: "var(--primary)",
++        "primary-soft": "var(--primary-soft)",
++        success: "var(--success)",
+         "primary-foreground": "var(--primary-foreground)",
+         secondary: "var(--secondary)",
+         "secondary-foreground": "var(--secondary-foreground)",
+-- 
+2.43.0
+

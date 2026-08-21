@@ -1,0 +1,167 @@
+From 357e5d67e9f30e1781bd6413b4d8e57b817732f6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 13 Aug 2026 17:24:52 +0000
+Subject: [PATCH] fix: take real consent for the consultation form and disclose
+ shared links
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+상담 폼은 성함과 연락처를 받으면서 "신청 시 개인정보 수집 및 제공에
+동의하는 것으로 간주됩니다"라고만 적혀 있었다. 개인정보보호법이 요구하는
+동의로 보기 어렵다. 유입이 늘수록 이 방식으로 받은 기록이 쌓인다.
+
+- 기본값이 해제된 체크박스를 넣고, 체크해야 신청이 진행된다.
+- 수집 항목·이용 목적·보유 기간(3년)과 거부할 권리, 거부해도 다른 기능은
+  그대로 쓸 수 있다는 점을 체크박스 옆에 함께 적었다.
+- 화면에서만 막으면 우회할 수 있어 서버에서도 동의 없이는 저장하지 않는다.
+  검증 순서도 바꿨다. DB 클라이언트를 먼저 만들면 연결 설정이 잘못됐을 때
+  동의 확인에 닿기도 전에 다른 오류로 끝나 버린다.
+
+계정 삭제 페이지의 보관 항목에 공유 링크를 추가했다. shared_results 는
+created_by 가 SET NULL 이라 계정을 지워도 공유 페이지는 계속 열린다.
+개인정보처리방침에는 적어 두었지만 삭제 페이지 목록에는 빠져 있어서,
+"보관 항목을 제외한 모든 계정 데이터가 삭제되었습니다"가 과한 표현이었다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/account/delete/page.tsx             |  4 ++
+ src/app/api/consultation/route.ts           | 16 ++++++-
+ src/components/result/consultation-form.tsx | 48 ++++++++++++++++++---
+ 3 files changed, 61 insertions(+), 7 deletions(-)
+
+diff --git a/src/app/account/delete/page.tsx b/src/app/account/delete/page.tsx
+index 7a9dce1..fe67f19 100644
+--- a/src/app/account/delete/page.tsx
++++ b/src/app/account/delete/page.tsx
+@@ -110,6 +110,10 @@ export default function DeleteAccountPage() {
+               "상담 신청 내역",
+               "상담을 신청하신 경우에 한해 성함·연락처를 보관합니다. 전자상거래법에 따른 소비자 불만 및 분쟁 처리 기록으로 3년간 보관 후 파기합니다.",
+             ],
++            [
++              "공유한 결과 링크",
++              "직접 만들어 공유한 결과 페이지는 받은 분들이 계속 열어볼 수 있도록 남습니다. 계정 정보와의 연결은 끊기며, 삭제를 원하시면 아래 이메일로 해당 주소와 함께 요청해 주세요.",
++            ],
+             [
+               "식별자가 제거된 통계",
+               "어떤 메뉴가 많이 쓰였는지에 대한 집계 수치만 남으며, 개인을 식별할 수 있는 정보는 포함되지 않습니다.",
+diff --git a/src/app/api/consultation/route.ts b/src/app/api/consultation/route.ts
+index 5950321..9a74579 100644
+--- a/src/app/api/consultation/route.ts
++++ b/src/app/api/consultation/route.ts
+@@ -13,14 +13,26 @@ function createAdminClient() {
+ 
+ export async function POST(req: Request) {
+   try {
+-    const supabase = createAdminClient();
+     const body = await req.json();
+-    const { category, name, phone, details } = body;
++    const { category, name, phone, details, privacyAgreed } = body;
+ 
++    // 검증을 먼저 한다. DB 클라이언트를 만든 뒤에 검사하면, 연결 설정이
++    // 잘못됐을 때 동의 확인에 닿기도 전에 다른 오류로 끝나 버린다.
+     if (!name || !phone) {
+       return NextResponse.json({ error: "이름과 연락처는 필수입니다." }, { status: 400 });
+     }
+ 
++    // 동의 확인은 화면에서만 막으면 우회할 수 있다. 연락처를 받는 요청이므로
++    // 서버에서도 동의 없이는 저장하지 않는다.
++    if (privacyAgreed !== true) {
++      return NextResponse.json(
++        { error: "개인정보 수집·이용 동의가 필요합니다." },
++        { status: 400 }
++      );
++    }
++
++    const supabase = createAdminClient();
++
+     // 1. Supabase 장부에 기록
+     const { error } = await supabase.from('consultation_leads').insert({
+       category: category || '고가자산/렌탈',
+diff --git a/src/components/result/consultation-form.tsx b/src/components/result/consultation-form.tsx
+index 425a9d9..c9134d8 100644
+--- a/src/components/result/consultation-form.tsx
++++ b/src/components/result/consultation-form.tsx
+@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
+ export function ConsultationForm({ categoryName = "고가자산/렌탈" }: { categoryName?: string }) {
+   const [isSubmitting, setIsSubmitting] = useState(false);
+   const [isSuccess, setIsSuccess] = useState(false);
++  const [agreed, setAgreed] = useState(false);
+   const [formData, setFormData] = useState({ name: "", phone: "", details: "" });
+ 
+   const handleSubmit = async (e: React.FormEvent) => {
+@@ -16,13 +17,17 @@ export function ConsultationForm({ categoryName = "고가자산/렌탈" }: { cat
+       toast.error("이름과 연락처를 입력해주세요.");
+       return;
+     }
++    if (!agreed) {
++      toast.error("개인정보 수집·이용 동의가 필요합니다.");
++      return;
++    }
+ 
+     setIsSubmitting(true);
+     try {
+       const res = await fetch("/api/consultation", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+-        body: JSON.stringify({ category: categoryName, ...formData }),
++        body: JSON.stringify({ category: categoryName, ...formData, privacyAgreed: true }),
+       });
+ 
+       if (!res.ok) throw new Error("서버 에러");
+@@ -83,14 +88,47 @@ export function ConsultationForm({ categoryName = "고가자산/렌탈" }: { cat
+           </div>
+           <textarea placeholder="관심 있는 상품이나 궁금하신 점을 간단히 적어주세요. (선택)" value={formData.details} onChange={(e) => setFormData({ ...formData, details: e.target.value })} className="min-h-[100px] w-full resize-none rounded-xl border-0 bg-white/10 pl-12 pr-4 pt-3 text-white placeholder:text-slate-400 focus:bg-white/20 focus:ring-2 focus:ring-blue-500 transition-colors" />
+         </div>
+-        <Button type="submit" disabled={isSubmitting} className="h-14 w-full rounded-xl bg-blue-600 text-lg font-bold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/25">
++        {/*
++          "신청 시 동의한 것으로 간주" 방식은 개인정보보호법이 요구하는 동의로
++          보기 어렵다. 수집 항목·목적·보유 기간과 거부할 권리를 먼저 알리고,
++          이용자가 직접 체크해야 신청이 진행되도록 한다.
++        */}
++        <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-white/5 p-4 transition-colors hover:bg-white/10">
++          <input
++            type="checkbox"
++            checked={agreed}
++            onChange={(e) => setAgreed(e.target.checked)}
++            className="mt-0.5 size-5 shrink-0 cursor-pointer rounded border-slate-500 bg-white/10 text-blue-600 focus:ring-2 focus:ring-blue-500"
++          />
++          <span className="text-[12px] leading-relaxed text-slate-300">
++            <strong className="text-white">(필수) 개인정보 수집·이용에 동의합니다.</strong>
++            <span className="mt-1.5 block text-slate-400">
++              수집 항목: 성함, 연락처, 문의 내용<br />
++              이용 목적: 상담 신청 접수 및 회신<br />
++              보유 기간: 상담 종료 후 3년 (전자상거래법에 따른 분쟁 처리 기록)
++            </span>
++            <span className="mt-1.5 block text-slate-400">
++              동의를 거부하실 수 있으며, 이 경우 상담 신청만 이용할 수 없습니다.
++              다른 기능은 그대로 이용하실 수 있습니다. 자세한 내용은{" "}
++              <a
++                href="/privacy"
++                target="_blank"
++                rel="noopener noreferrer"
++                onClick={(e) => e.stopPropagation()}
++                className="font-semibold text-blue-300 underline underline-offset-2"
++              >
++                개인정보처리방침
++              </a>
++              을 확인해 주세요.
++            </span>
++          </span>
++        </label>
++
++        <Button type="submit" disabled={isSubmitting || !agreed} className="h-14 w-full rounded-xl bg-blue-600 text-lg font-bold text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/25 disabled:opacity-50">
+           {isSubmitting ? "신청 중..." : (
+             <>무료 상담 신청하기 <Send className="ml-2 size-5" /></>
+           )}
+         </Button>
+-        <p className="text-center text-[11px] text-slate-400">
+-          신청 시 개인정보 수집 및 제공에 동의하는 것으로 간주됩니다.
+-        </p>
+       </form>
+     </div>
+   );
+-- 
+2.43.0
+

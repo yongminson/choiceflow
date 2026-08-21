@@ -1,0 +1,2432 @@
+From de05f7cbc01c54c27ceed4d404d194bc8971d6e8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 10:47:27 +0000
+Subject: [PATCH 1/8] fix: bring back the drawback line on every candidate card
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+카드 넷이 모두 좋은 점만 달고 나갔다. 감수할 점을 함께 보여주는 것이
+다른 추천 사이트와 갈리는 지점인데, 그게 사라지면 그냥 홍보글이 된다.
+
+원인이 둘이었다.
+
+확인된 사실과 AI 판단을 나눠 그릴 때 AI 항목 쪽에 ok 분기를 넣지 않아,
+감수할 점이 좋은 점과 똑같은 모양으로 그려졌다. 눈으로는 구별되지 않았다.
+
+그리고 감수 항목은 목록 끝에 오는데 네 칸에서 그대로 잘라내다 보니,
+확인된 항목 둘에 좋은 점 둘이 채워지면 감수 항목부터 밀려 나갔다.
+자리를 먼저 비워 두고 채운다.
+
+확인된 항목도 후보마다 달라지게 했다. 넷이 모두 "예산 안에 들어옴 /
+로켓배송으로 바로 받음"이면 후보를 가르는 데 아무 도움이 안 된다.
+예산 대비 비율, 후보 중 최저가처럼 값이 갈리는 것을 쓴다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ .../result/quick-recommendation-result.tsx    | 30 ++++++--
+ src/lib/recommendation/fit-checks.ts          | 61 +++++++++++++---
+ tests/fit-checks.test.mts                     | 72 ++++++++++++++++++-
+ 3 files changed, 146 insertions(+), 17 deletions(-)
+
+diff --git a/src/components/result/quick-recommendation-result.tsx b/src/components/result/quick-recommendation-result.tsx
+index ce69ca4..66b2bc5 100644
+--- a/src/components/result/quick-recommendation-result.tsx
++++ b/src/components/result/quick-recommendation-result.tsx
+@@ -206,13 +206,33 @@ function FitChecklist({
+             {guides.map((check) => (
+               <li
+                 key={check.text}
+-                className="flex items-start gap-2 text-[13px] leading-snug text-muted-foreground"
++                className="flex items-start gap-2 text-[13px] leading-snug"
+               >
++                {/*
++                  감수해야 하는 점은 반드시 눈에 띄어야 한다. 이 서비스가 다른
++                  추천과 갈리는 지점이 "단점을 먼저 보여준다"이기 때문이다.
++                  좋은 점과 같은 표시로 나열하면 그 차이가 사라진다.
++                */}
++                {check.ok ? (
++                  <span
++                    className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60"
++                    aria-hidden
++                  />
++                ) : (
++                  <Minus
++                    className="mt-[2px] size-3.5 shrink-0 text-amber-600"
++                    aria-hidden
++                  />
++                )}
+                 <span
+-                  className="mt-[7px] size-1 shrink-0 rounded-full bg-muted-foreground/60"
+-                  aria-hidden
+-                />
+-                <span>{check.text}</span>
++                  className={cn(
++                    check.ok
++                      ? "text-muted-foreground"
++                      : "font-medium text-amber-700 dark:text-amber-500"
++                  )}
++                >
++                  {check.text}
++                </span>
+               </li>
+             ))}
+           </ul>
+diff --git a/src/lib/recommendation/fit-checks.ts b/src/lib/recommendation/fit-checks.ts
+index c334450..96e615a 100644
+--- a/src/lib/recommendation/fit-checks.ts
++++ b/src/lib/recommendation/fit-checks.ts
+@@ -53,28 +53,69 @@ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefi
+  */
+ export function derivedFitChecks(
+   item: QuickRecommendation,
+-  maxBudgetWon?: number
++  maxBudgetWon?: number,
++  context: { cheapestPrice?: number } = {}
+ ): RecommendationFitCheck[] | undefined {
+-  const verified = verifiedChecksFor(item, maxBudgetWon);
++  const verified = verifiedChecksFor(item, maxBudgetWon, context);
+   const guides = item.fitChecks?.filter((check) => check.source !== "verified") ?? [];
+ 
+-  const combined = [...verified, ...guides].slice(0, MAX_CHECKS);
++  /*
++    감수해야 하는 항목은 목록 끝에 오는데, 그대로 자르면 그것부터 잘려 나간다.
++    실제로 확인된 항목 2개에 좋은 점 2개가 채워지면서 단점이 사라진 화면이
++    나갔다. 단점을 먼저 보여주는 것이 이 서비스의 차별점이므로 자리를 먼저
++    비워 둔다.
++  */
++  const positives = guides.filter((check) => check.ok);
++  const drawbacks = guides.filter((check) => !check.ok);
++  const reserved = drawbacks.length > 0 ? 1 : 0;
++
++  const combined = [
++    ...[...verified, ...positives].slice(0, MAX_CHECKS - reserved),
++    ...drawbacks.slice(0, reserved),
++  ];
+   return combined.length >= 2 ? combined : undefined;
+ }
+ 
+-/** 조회 결과에서 바로 확인되는 항목만 모은다. */
++/**
++ * 조회 결과에서 바로 확인되는 항목만 모은다.
++ *
++ * 후보 넷이 모두 "예산 안에 들어옴 / 로켓배송으로 바로 받음"만 달고 있으면
++ * 확인된 항목이 후보를 가르는 데 아무 도움이 되지 않는다. 예산 대비 어느
++ * 정도인지, 후보 중 가장 싼지처럼 서로 달라지는 값을 쓴다.
++ */
+ function verifiedChecksFor(
+   item: QuickRecommendation,
+-  maxBudgetWon?: number
++  maxBudgetWon?: number,
++  context: { cheapestPrice?: number } = {}
+ ): RecommendationFitCheck[] {
+   const checks: RecommendationFitCheck[] = [];
+ 
+   if (typeof item.price === "number" && maxBudgetWon) {
+-    checks.push(
+-      item.price <= maxBudgetWon
+-        ? { ok: true, text: "예산 안에 들어옴", source: "verified" as const }
+-        : { ok: false, text: "예산을 조금 넘음", source: "verified" as const }
+-    );
++    if (item.price <= maxBudgetWon) {
++      const ratio = Math.round((item.price / maxBudgetWon) * 100);
++      checks.push({
++        ok: true,
++        text:
++          ratio <= 90
++            ? `예산의 ${ratio}% 수준`
++            : "예산 상한에 거의 맞음",
++        source: "verified",
++      });
++    } else {
++      const over = item.price - maxBudgetWon;
++      checks.push({
++        ok: false,
++        text: `예산을 ${over.toLocaleString("ko-KR")}원 넘음`,
++        source: "verified",
++      });
++    }
++  }
++  if (
++    typeof item.price === "number" &&
++    typeof context.cheapestPrice === "number" &&
++    item.price === context.cheapestPrice
++  ) {
++    checks.push({ ok: true, text: "후보 중 가장 저렴함", source: "verified" });
+   }
+   if (item.isRocket) {
+     checks.push({ ok: true, text: "로켓배송으로 바로 받음", source: "verified" });
+diff --git a/tests/fit-checks.test.mts b/tests/fit-checks.test.mts
+index 0d013be..ca41ed3 100644
+--- a/tests/fit-checks.test.mts
++++ b/tests/fit-checks.test.mts
+@@ -76,12 +76,51 @@ test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
+       200000
+     ),
+     [
+-      { ok: true, text: "예산 안에 들어옴", source: "verified" },
++      // 후보끼리 갈리도록 예산 대비 비율을 쓴다. 넷이 모두 "예산 안에 들어옴"이면
++      // 확인된 항목이 후보를 고르는 데 도움이 되지 않는다.
++      { ok: true, text: "예산의 85% 수준", source: "verified" },
+       { ok: true, text: "로켓배송으로 바로 받음", source: "verified" },
+     ]
+   );
+ });
+ 
++test("예산을 넘으면 얼마나 넘는지 밝힌다", () => {
++  const checks = derivedFitChecks(
++    {
++      rank: 1,
++      name: "무선청소기",
++      reason: "",
++      searchKeyword: "",
++      qualitySummary: "",
++      price: 249000,
++      isRocket: true,
++    },
++    200000
++  );
++  assert.equal(checks?.[0].ok, false);
++  assert.equal(checks?.[0].text, "예산을 49,000원 넘음");
++});
++
++test("후보 중 가장 싼 것에만 표시한다", () => {
++  const base = {
++    rank: 1,
++    name: "무선청소기",
++    reason: "",
++    searchKeyword: "",
++    qualitySummary: "",
++    isRocket: true,
++  };
++  const cheap = derivedFitChecks({ ...base, price: 59000 }, 200000, {
++    cheapestPrice: 59000,
++  });
++  const other = derivedFitChecks({ ...base, price: 169000 }, 200000, {
++    cheapestPrice: 59000,
++  });
++
++  assert.ok(cheap?.some((item) => item.text === "후보 중 가장 저렴함"));
++  assert.ok(!other?.some((item) => item.text === "후보 중 가장 저렴함"));
++});
++
+ test("확인된 사실이 부족하면 지어내지 않는다", () => {
+   // 가격만 있고 다른 근거가 없으면 한 줄짜리 체크리스트가 된다. 그건 안 만든다.
+   assert.equal(
+@@ -136,7 +175,36 @@ test("확인된 사실을 앞에 두고 AI 판단을 뒤에 붙인다", () => {
+     "guide",
+     "guide",
+   ]);
+-  assert.equal(merged?.[0].text, "예산 안에 들어옴");
++  assert.equal(merged?.[0].text, "예산의 85% 수준");
++});
++
++test("항목이 넘쳐도 감수해야 하는 점은 남긴다", () => {
++  // 확인된 항목 2개에 좋은 점이 채워지면서 단점이 잘려 나가, 네 카드 모두
++  // 장점만 남은 화면이 나갔다. 단점을 먼저 보여주는 것이 이 서비스의
++  // 차별점이므로 자리를 먼저 비워 둔다.
++  const checks = derivedFitChecks(
++    {
++      rank: 1,
++      name: "무선청소기",
++      reason: "",
++      searchKeyword: "",
++      qualitySummary: "",
++      price: 169000,
++      isRocket: true,
++      fitChecks: [
++        { ok: true, text: "30평대 주행 경로에 유리", source: "guide" },
++        { ok: true, text: "관리 부담이 적은 구성", source: "guide" },
++        { ok: true, text: "설치가 간단한 편", source: "guide" },
++        { ok: false, text: "이 가격대는 흡입력이 아쉬움", source: "guide" },
++      ],
++    },
++    200000,
++    { cheapestPrice: 59000 }
++  );
++
++  const drawbacks = checks?.filter((item) => !item.ok) ?? [];
++  assert.equal(drawbacks.length, 1);
++  assert.equal(drawbacks[0].text, "이 가격대는 흡입력이 아쉬움");
+ });
+ 
+ test("지도 결과는 미달 조건도 그대로 표시한다", () => {
+-- 
+2.43.0
+
+
+From 51db181fd4320ab4628fafae3d67c98f2808ef2e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 10:47:38 +0000
+Subject: [PATCH 2/8] fix: title the card with the product we actually link to
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+AI 가 지은 이름을 카드 제목으로 쓰면서 링크는 검색으로 찾은 다른 상품으로
+나갔다. 브랜드를 지워 봐도 "자동 먼지비움 로봇청소기" 같은 분류 설명이 남아,
+읽는 사람이 무엇을 사라는 것인지 알 수 없었다.
+
+상품을 찾았으면 그 상품의 이름을 쓴다. 제목과 링크가 같은 물건이 되므로
+오표기가 생길 자리가 없고, 브랜드도 실제 판매 브랜드가 그대로 보인다.
+대조할 상품이 없을 때만 AI 이름을 쓰고, 그때는 브랜드를 걷어낸다.
+
+이름을 대조할 일이 없어져 checkNameAgainstProduct 는 걷어냈다.
+
+일상어와 겹치는 한글 브랜드 표기도 뺐다. "브라운 색상", "기내용 캐리어",
+"레이저 프린터", "샤프심"에서 앞 낱말이 브랜드로 잡혀 멀쩡한 이름이
+잘려 나갔다. 이런 브랜드는 영문 표기만 남긴다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/lib/monetization/brand-verify.ts | 93 +++++++++++++++-------------
+ tests/brand-verify.test.mts          | 85 +++++++++----------------
+ 2 files changed, 81 insertions(+), 97 deletions(-)
+
+diff --git a/src/lib/monetization/brand-verify.ts b/src/lib/monetization/brand-verify.ts
+index 39d5cc6..01baef7 100644
+--- a/src/lib/monetization/brand-verify.ts
++++ b/src/lib/monetization/brand-verify.ts
+@@ -6,12 +6,18 @@
+  * 스테이션"이라고 띄우고 전혀 다른 무명 스틱청소기로 링크가 나간 적이 있다.
+  *
+  * 브랜드를 지우는 것이 답은 아니다. 브랜드가 보여야 신뢰가 생긴다.
+- * 그래서 지우는 대신 검증한다. AI 가 붙인 브랜드가 실제 상품명에도 있으면
+- * 그대로 쓰고, 없으면 그 이름을 버리고 실제 상품명에서 만들어 쓴다.
+- * 결과적으로 화면에 뜨는 브랜드는 항상 실제 판매 상품의 브랜드가 된다.
++ * 그래서 지우는 대신, 상품을 찾았으면 그 상품의 이름을 그대로 쓴다.
++ * 화면에 뜨는 브랜드가 곧 링크되는 상품의 브랜드가 되므로 오표기가 생길 자리가 없다.
++ * 상품을 못 찾았을 때만 AI 이름을 쓰고, 이때는 대조할 것이 없어 브랜드를 걷어낸다.
+  */
+ 
+-/** 표기가 갈리는 브랜드는 별칭을 함께 둔다. 하나라도 걸리면 같은 브랜드로 본다. */
++/**
++ * 표기가 갈리는 브랜드는 별칭을 함께 둔다. 하나라도 걸리면 같은 브랜드로 본다.
++ *
++ * 일상어와 겹치는 한글 표기는 넣지 않는다. "브라운 색상", "캐리어 가방",
++ * "레이저 프린터", "샤프심"처럼 브랜드가 아닌 쓰임이 더 흔하면, 그 낱말을
++ * 브랜드로 보다가 멀쩡한 이름을 잘라먹는다. 이런 브랜드는 영문 표기만 둔다.
++ */
+ const BRAND_ALIASES: string[][] = [
+   ["삼성", "삼성전자", "samsung", "비스포크", "bespoke"],
+   ["lg", "엘지", "엘G", "코드제로", "codezero", "오브제", "objet"],
+@@ -35,11 +41,11 @@ const BRAND_ALIASES: string[][] = [
+   ["신일", "shinil"],
+   ["한일", "hanil"],
+   ["보국", "bokuk"],
+-  ["캐리어", "carrier"],
++  ["carrier"],
+   ["위니아", "winia", "딤채", "dimchae"],
+-  ["대우", "daewoo"],
++  ["daewoo"],
+   ["필립스", "philips"],
+-  ["브라운", "braun"],
++  ["braun"],
+   ["테팔", "tefal"],
+   ["일렉트로룩스", "electrolux"],
+   ["밀레", "miele"],
+@@ -50,13 +56,13 @@ const BRAND_ALIASES: string[][] = [
+   ["에이수스", "asus", "젠북", "zenbook", "비보북", "vivobook"],
+   ["에이서", "acer"],
+   ["hp", "휴렛팩커드"],
+-  ["델", "dell"],
++  ["dell"],
+   ["msi", "엠에스아이"],
+   ["기가바이트", "gigabyte"],
+-  ["레이저", "razer"],
++  ["razer"],
+   ["소니", "sony"],
+   ["파나소닉", "panasonic"],
+-  ["샤프", "sharp"],
++  ["sharp"],
+   ["도시바", "toshiba"],
+   ["나이키", "nike"],
+   ["아디다스", "adidas"],
+@@ -69,11 +75,10 @@ const BRAND_ALIASES: string[][] = [
+   ["크록스", "crocs"],
+   ["노스페이스", "northface", "north face"],
+   ["파타고니아", "patagonia"],
+-  ["콜롬비아", "columbia"],
++  ["컬럼비아", "columbia"],
+   ["유니클로", "uniqlo"],
+-  ["자라", "zara"],
++  ["zara"],
+   ["무신사", "musinsa"],
+-  ["샤오미미지아"],
+ ];
+ 
+ function normalize(value: string): string {
+@@ -120,43 +125,47 @@ export function cleanProductName(productName: string, maxLength = 34): string {
+   return cleaned || productName.slice(0, maxLength);
+ }
+ 
+-export type NameCheck =
+-  | { ok: true }
+-  | { ok: false; reason: "multiple-brands" | "brand-not-in-product" };
+-
+ /**
+- * AI 가 지은 이름을 그대로 써도 되는지 본다.
++ * 화면에 띄울 이름을 정한다.
+  *
+- * 막는 것은 두 가지다.
+- * - 한 이름에 서로 다른 브랜드가 둘 이상 (예: "샤오미 로보락"). 그런 제품은 없다.
+- * - 실제 상품에 없는 브랜드 (예: 무명 스틱청소기를 "삼성전자"로 표기).
++ * 상품을 찾았으면 그 상품의 이름을 쓴다. AI 가 지은 이름은 브랜드를 빼고 나면
++ * "자동 먼지비움 로봇청소기"처럼 분류 설명이 되어, 읽는 사람이 무엇을 사라는
++ * 것인지 알 수 없다. 실제 상품명을 쓰면 그 문제와 브랜드 오표기가 함께 사라진다.
++ * 표시되는 이름이 곧 링크되는 상품이 되기 때문이다.
++ *
++ * 검색이 실패해 붙일 상품이 없을 때만 AI 이름을 쓴다. 이때는 대조할 상품이
++ * 없으므로 브랜드를 믿을 수 없어 브랜드가 섞여 있으면 통째로 버린다.
+  */
+-export function checkNameAgainstProduct(
++export function resolveDisplayName(
+   aiName: string,
+-  productName: string
+-): NameCheck {
+-  const nameBrands = extractBrands(aiName);
+-  if (nameBrands.length === 0) return { ok: true };
+-  if (nameBrands.length > 1) return { ok: false, reason: "multiple-brands" };
++  productName: string | undefined
++): string {
++  const trimmedAi = aiName.trim();
++  if (productName?.trim()) return cleanProductName(productName);
+ 
+-  const productBrands = extractBrands(productName);
+-  return productBrands.includes(nameBrands[0])
+-    ? { ok: true }
+-    : { ok: false, reason: "brand-not-in-product" };
++  return extractBrands(trimmedAi).length > 0
++    ? stripBrands(trimmedAi)
++    : trimmedAi;
+ }
+ 
+ /**
+- * 화면에 띄울 이름을 정한다.
+- * 검증을 통과하면 AI 이름을, 아니면 실제 상품명을 정리해 쓴다.
++ * 대조할 상품이 없을 때 이름에서 브랜드로 보이는 낱말을 걷어낸다.
++ *
++ * 낱말 단위로만 지운다. 부분 문자열로 지우면 "샤프심"의 "샤프"처럼 브랜드가
++ * 아닌 쓰임까지 걸려 멀쩡한 단어가 잘려 나간다.
++ * 긴 표기부터 지워야 "삼성전자"가 "삼성"만 지워지고 "전자"가 남는 일이 없다.
+  */
+-export function resolveDisplayName(
+-  aiName: string,
+-  productName: string | undefined
+-): string {
+-  const trimmedAi = aiName.trim();
+-  if (!productName?.trim()) return trimmedAi;
++const BRAND_TOKENS = BRAND_ALIASES.flat().sort((a, b) => b.length - a.length);
++
++function stripBrands(name: string): string {
++  const kept = name
++    .split(/\s+/)
++    .filter((token) => {
++      const normalized = normalize(token);
++      return !BRAND_TOKENS.some((brand) => normalized === normalize(brand));
++    })
++    .join(" ")
++    .trim();
+ 
+-  return checkNameAgainstProduct(trimmedAi, productName).ok
+-    ? trimmedAi
+-    : cleanProductName(productName);
++  return kept || name;
+ }
+diff --git a/tests/brand-verify.test.mts b/tests/brand-verify.test.mts
+index 583d6a7..41c398c 100644
+--- a/tests/brand-verify.test.mts
++++ b/tests/brand-verify.test.mts
+@@ -2,58 +2,11 @@ import { strict as assert } from "node:assert";
+ import test from "node:test";
+ 
+ import {
+-  checkNameAgainstProduct,
+   cleanProductName,
+   extractBrands,
+   resolveDisplayName,
+ } from "../src/lib/monetization/brand-verify.ts";
+ 
+-test("실제로 나갔던 오표기를 잡는다", () => {
+-  // 카드에는 "삼성전자 비스포크 제트 스테이션"이라고 띄우고
+-  // 무명 스틱청소기로 링크가 나갔던 사례다.
+-  const check = checkNameAgainstProduct(
+-    "삼성전자 비스포크 제트 스테이션",
+-    "최신형 비브로 무선 스틱 청소기 BLDC 흡입력"
+-  );
+-  assert.equal(check.ok, false);
+-  if (!check.ok) assert.equal(check.reason, "brand-not-in-product");
+-});
+-
+-test("존재하지 않는 브랜드 조합을 막는다", () => {
+-  // 샤오미와 로보락은 다른 회사다. 둘을 붙인 제품은 없다.
+-  const check = checkNameAgainstProduct(
+-    "샤오미 로보락 자동 먼지비움 청소기",
+-    "JONR 로봇청소기 T5 PRO GEN 2"
+-  );
+-  assert.equal(check.ok, false);
+-  if (!check.ok) assert.equal(check.reason, "multiple-brands");
+-});
+-
+-test("브랜드가 실제 상품과 맞으면 통과시킨다", () => {
+-  // 브랜드를 무조건 지우면 신뢰가 떨어진다. 맞으면 그대로 쓴다.
+-  assert.equal(
+-    checkNameAgainstProduct("삼성전자 비스포크 제트", "삼성전자 비스포크 제트 청소기").ok,
+-    true
+-  );
+-  assert.equal(
+-    checkNameAgainstProduct("다이슨 무선청소기", "Dyson V15 무선청소기").ok,
+-    true
+-  );
+-});
+-
+-test("표기가 달라도 같은 브랜드로 본다", () => {
+-  assert.equal(checkNameAgainstProduct("샤오미 로봇청소기", "Xiaomi 로봇청소기").ok, true);
+-  assert.equal(checkNameAgainstProduct("르팡 물걸레 청소기", "Lefant M3 max").ok, true);
+-  assert.equal(checkNameAgainstProduct("LG 코드제로", "엘지 코드제로 A9").ok, true);
+-});
+-
+-test("브랜드가 없는 이름은 그대로 통과한다", () => {
+-  assert.equal(
+-    checkNameAgainstProduct("자동 먼지비움 로봇청소기", "JONR 로봇청소기 T5 PRO").ok,
+-    true
+-  );
+-});
+-
+ test("브랜드를 찾아낸다", () => {
+   assert.deepEqual(extractBrands("삼성전자 비스포크"), ["삼성"]);
+   assert.deepEqual(extractBrands("Dyson V15"), ["다이슨"]);
+@@ -88,22 +41,44 @@ test("긴 상품명은 단어 중간에서 끊지 않는다", () => {
+   assert.ok(/[가-힣a-zA-Z0-9]$/.test(cleaned));
+ });
+ 
+-test("검증에 걸리면 실제 상품명을 쓴다", () => {
++test("상품을 찾았으면 그 상품의 이름을 쓴다", () => {
++  // 표시되는 이름이 곧 링크되는 상품이 되어야 오표기가 생기지 않는다.
+   assert.equal(
+     resolveDisplayName("삼성전자 비스포크 제트 스테이션", "최신형 비브로 무선 스틱 청소기"),
+     "비브로 무선 스틱 청소기"
+   );
++  // AI 가 붙인 분류 설명 대신 실제 제품명이 나와야 무엇을 사라는 것인지 안다.
++  assert.equal(
++    resolveDisplayName("자동 먼지비움 로봇청소기", "톰라야 로봇청소기 스마트 물걸레"),
++    "톰라야 로봇청소기 스마트 물걸레"
++  );
+ });
+ 
+-test("검증을 통과하면 AI 이름을 그대로 쓴다", () => {
++test("상품을 못 찾으면 AI 이름을 쓰되 브랜드는 뺀다", () => {
++  // 대조할 상품이 없으면 브랜드가 맞는지 확인할 방법이 없다.
++  assert.equal(
++    resolveDisplayName("자동 먼지비움 로봇청소기", undefined),
++    "자동 먼지비움 로봇청소기"
++  );
+   assert.equal(
+-    resolveDisplayName("다이슨 무선청소기", "Dyson V15 Detect 무선청소기 정품"),
+-    "다이슨 무선청소기"
++    resolveDisplayName("삼성전자 자동 먼지비움 로봇청소기", ""),
++    "자동 먼지비움 로봇청소기"
+   );
+ });
+ 
+-test("쿠팡 상품이 없으면 AI 이름을 그대로 둔다", () => {
+-  // 검색 실패로 상품을 못 붙인 경우다. 비교할 대상이 없으므로 검증하지 않는다.
+-  assert.equal(resolveDisplayName("자동 먼지비움 로봇청소기", undefined), "자동 먼지비움 로봇청소기");
+-  assert.equal(resolveDisplayName("자동 먼지비움 로봇청소기", ""), "자동 먼지비움 로봇청소기");
++test("브랜드와 겹치는 일반 낱말은 지우지 않는다", () => {
++  // 일상어와 겹치는 한글 표기는 브랜드 목록에 없다. 색상·부속품 이름이
++  // 브랜드로 오인돼 잘려 나가면 무엇을 사라는 것인지 알 수 없게 된다.
++  assert.equal(
++    resolveDisplayName("최신 모델 무선청소기", undefined),
++    "최신 모델 무선청소기"
++  );
++  assert.equal(
++    resolveDisplayName("브라운 색상 가죽 지갑", undefined),
++    "브라운 색상 가죽 지갑"
++  );
++  assert.equal(
++    resolveDisplayName("기내용 캐리어 20인치", undefined),
++    "기내용 캐리어 20인치"
++  );
+ });
+-- 
+2.43.0
+
+
+From b99e2c0c7ec6ad18cd8edde9bc69f5e9c813a7cd Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 10:47:48 +0000
+Subject: [PATCH 3/8] fix: stop the same product filling two candidate slots
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+"가성비"와 "한 단계 위" 자리에 같은 상품이 같은 가격, 같은 사진으로
+나란히 떴다. 후보가 넷이 아니라 셋이 된 셈이고, 고르라고 내놓은 화면에서
+같은 것을 두 번 보여주면 고를 것이 없다.
+
+후보마다 따로 검색을 던지면서 앞에서 고른 상품을 몰랐던 탓이다.
+순서대로 돌면서 이미 쓴 상품 링크를 넘겨 제외한다. 제외 목록이 있으면
+캐시는 건너뛴다. 캐시된 답은 제외 조건을 모르기 때문이다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/api/recommend/route.ts         | 134 ++++++++++++++-----------
+ src/lib/monetization/coupang-server.ts |  44 ++++----
+ 2 files changed, 103 insertions(+), 75 deletions(-)
+
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 41e42db..3df2163 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -793,67 +793,85 @@ async function enrichProductPrices(
+   candidates: Candidate[],
+   maxBudgetWon?: number
+ ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
+-  const items: QuickRecommendation[] = await Promise.all(
+-    candidates.map(async (candidate, index): Promise<QuickRecommendation> => {
+-      const searchKeyword = normalizeProductSearchKeyword(
+-        candidate.searchKeyword,
+-        candidate.name
+-      );
+-      try {
+-        // 쿠팡 상품 검색은 썸네일·실가격과 함께 제휴 추적이 포함된 상품 상세
+-        // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
+-        const product = await searchCoupangProduct(searchKeyword, maxBudgetWon);
+-        if (product) {
+-          return {
+-            rank: index + 1,
+-            ...candidate,
+-            searchKeyword,
+-            price: product.productPrice,
+-            priceLabel: product.isRocket ? "쿠팡 · 로켓배송" : "쿠팡 판매가",
+-            imageUrl: product.productImage || undefined,
+-            productName: product.productName,
+-            isRocket: product.isRocket,
+-            sourceUrl: product.productUrl,
+-            sourceLabel: "쿠팡에서 이 상품 보기",
+-            // AI 가 지은 이름과 실제로 링크되는 상품이 다를 수 있다.
+-            // 브랜드가 실제 상품과 맞을 때만 그 이름을 쓰고,
+-            // 아니면 실제 상품명에서 만들어 쓴다.
+-            name: resolveDisplayName(candidate.name, product.productName),
+-          } satisfies QuickRecommendation;
+-        }
+-        return {
+-          rank: index + 1,
+-          ...candidate,
+-          searchKeyword,
+-          sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
+-          sourceLabel: "쿠팡에서 이 상품 검색",
+-          name: candidate.name,
+-        } satisfies QuickRecommendation;
+-      } catch {
+-        return {
+-          rank: index + 1,
+-          ...candidate,
+-          searchKeyword,
+-          sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
+-          sourceLabel: "쿠팡에서 이 상품 검색",
+-        } satisfies QuickRecommendation;
+-      }
+-    })
++  /*
++    후보마다 따로 검색하면 서로 다른 검색어가 같은 상품을 물어 오는 일이 생긴다.
++    실제로 "가성비 선택"과 "한 단계 위"에 같은 상품이 같은 가격으로 걸린 화면이
++    나갔다. 한 단계 위인데 값이 같으면 한 단계 위가 아니다.
++
++    그래서 순차로 돌면서 이미 쓴 상품은 건너뛴다. 병렬보다 느리지만 후보가
++    넷뿐이라 감당할 수 있고, 슬롯이 중복되는 것보다 낫다.
++  */
++  const usedProductKeys = new Set<string>();
++  const items: QuickRecommendation[] = [];
++
++  for (let index = 0; index < candidates.length; index += 1) {
++    const candidate = candidates[index];
++    const searchKeyword = normalizeProductSearchKeyword(
++      candidate.searchKeyword,
++      candidate.name
++    );
++
++    let product: Awaited<ReturnType<typeof searchCoupangProduct>> = null;
++    try {
++      // 쿠팡 상품 검색은 썸네일·실가격과 함께 제휴 추적이 포함된 상품 상세
++      // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
++      product = await searchCoupangProduct(searchKeyword, maxBudgetWon, {
++        excludeProductUrls: usedProductKeys,
++      });
++    } catch {
++      product = null;
++    }
++
++    if (product) {
++      usedProductKeys.add(product.productUrl);
++      items.push({
++        rank: index + 1,
++        ...candidate,
++        searchKeyword,
++        price: product.productPrice,
++        priceLabel: product.isRocket ? "쿠팡 · 로켓배송" : "쿠팡 판매가",
++        imageUrl: product.productImage || undefined,
++        productName: product.productName,
++        isRocket: product.isRocket,
++        sourceUrl: product.productUrl,
++        sourceLabel: "쿠팡에서 이 상품 보기",
++        // 카드 제목은 실제로 링크되는 상품의 이름을 쓴다. AI 가 지은 이름은
++        // "자동 먼지비움 로봇청소기"처럼 제품명이 아니라 분류 설명이라
++        // 무엇을 사라는 것인지 알 수 없다.
++        name: resolveDisplayName(candidate.name, product.productName),
++      });
++      continue;
++    }
++
++    items.push({
++      rank: index + 1,
++      ...candidate,
++      searchKeyword,
++      sourceUrl: buildDirectCoupangNpSearchUrl(searchKeyword),
++      sourceLabel: "쿠팡에서 이 상품 검색",
++      name: resolveDisplayName(candidate.name, undefined),
++    });
++  }
++
++  const sorted = [...items].sort(
++    (a, b) =>
++      SELECTION_ORDER.indexOf(a.selectionType || "best") -
++      SELECTION_ORDER.indexOf(b.selectionType || "best")
+   );
+-  const sorted = [...items]
+-    .sort(
+-      (a, b) =>
+-        SELECTION_ORDER.indexOf(a.selectionType || "best") -
+-        SELECTION_ORDER.indexOf(b.selectionType || "best")
+-    )
+-    // 체크리스트는 실제 가격·배송이 확정된 뒤에 채워야 "예산 안에 들어옴"이 사실이 된다.
+-    .map((item, index) => ({
++
++  // 체크리스트는 실제 가격·배송이 확정된 뒤에 채워야 "예산 안에 들어옴"이 사실이 된다.
++  // 후보끼리 비교해야 나오는 항목이 있어 전체를 함께 넘긴다.
++  const prices = sorted
++    .map((item) => item.price)
++    .filter((price): price is number => typeof price === "number");
++  const cheapest = prices.length > 1 ? Math.min(...prices) : undefined;
++
++  return {
++    recommendations: sorted.map((item, index) => ({
+       ...item,
+       rank: index + 1,
+-      fitChecks: derivedFitChecks(item, maxBudgetWon),
+-    }));
+-  return {
+-    recommendations: sorted,
++      fitChecks: derivedFitChecks(item, maxBudgetWon, { cheapestPrice: cheapest }),
++    })),
+     live: items.some((item) => typeof item.price === "number"),
+   };
+ }
+diff --git a/src/lib/monetization/coupang-server.ts b/src/lib/monetization/coupang-server.ts
+index 8f2c27d..94673e2 100644
+--- a/src/lib/monetization/coupang-server.ts
++++ b/src/lib/monetization/coupang-server.ts
+@@ -334,13 +334,23 @@ const PRODUCT_CACHE_MAX = 500;
+  */
+ export async function searchCoupangProduct(
+   keyword: string,
+-  maxPriceWon?: number
++  maxPriceWon?: number,
++  options: {
++    /**
++     * 이미 다른 후보에 쓴 상품 주소.
++     * 검색어가 달라도 같은 상품이 걸리는 일이 있어, 슬롯이 겹치지 않도록 뺀다.
++     */
++    excludeProductUrls?: ReadonlySet<string>;
++  } = {}
+ ): Promise<CoupangProduct | null> {
+   const normalizedKeyword = normalizeCoupangKeyword(keyword);
+   if (!normalizedKeyword) return null;
+ 
++  const excluded = options.excludeProductUrls;
++  // 제외 목록이 있으면 결과가 달라질 수 있으므로 캐시를 쓰지 않는다.
++  const useCache = !excluded || excluded.size === 0;
+   const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}`;
+-  const cached = productCache.get(cacheKey);
++  const cached = useCache ? productCache.get(cacheKey) : undefined;
+   if (cached && cached.expiresAt > Date.now()) return cached.product;
+   if (productCache.size > PRODUCT_CACHE_MAX) {
+     const now = Date.now();
+@@ -395,24 +405,22 @@ export async function searchCoupangProduct(
+     }
+ 
+     const items = payload.data?.productData ?? [];
++    const isUsable = (item: (typeof items)[number]) =>
++      Boolean(item.productUrl) &&
++      Boolean(item.productName) &&
++      isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
++      !excluded?.has(String(item.productUrl));
++
+     const picked = items.find((item) => {
+-      if (!item.productUrl || !item.productName) return false;
+-      if (!isAllowedCoupangRedirectUrl(item.productUrl)) return false;
++      if (!isUsable(item)) return false;
+       const price = Number(item.productPrice);
+       if (!Number.isFinite(price) || price <= 0) return false;
+       return !maxPriceWon || price <= maxPriceWon;
+     });
+     // 예산을 넘더라도 아예 없는 것보다는 대표 상품 하나를 보여준다.
+-    const chosen =
+-      picked ??
+-      items.find(
+-        (item) =>
+-          item.productUrl &&
+-          item.productName &&
+-          isAllowedCoupangRedirectUrl(item.productUrl)
+-      );
++    const chosen = picked ?? items.find(isUsable);
+     if (!chosen) {
+-      productCache.set(cacheKey, { product: null, expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS });
++      if (useCache) productCache.set(cacheKey, { product: null, expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS });
+       return null;
+     }
+ 
+@@ -424,10 +432,12 @@ export async function searchCoupangProduct(
+       isRocket: Boolean(chosen.isRocket),
+       isFreeShipping: Boolean(chosen.isFreeShipping),
+     };
+-    productCache.set(cacheKey, {
+-      product,
+-      expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS,
+-    });
++    if (useCache) {
++      productCache.set(cacheKey, {
++        product,
++        expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS,
++      });
++    }
+     return product;
+   } catch (error) {
+     console.error("[coupang] Product search failed", error);
+-- 
+2.43.0
+
+
+From ab7539395a14b4f3a9f412b0ffa76822f5482d47 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 12:51:22 +0000
+Subject: [PATCH 4/8] fix: never let a candidate card show only good news
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+AI 에게 감수할 점을 하나 넣으라고 시켜 두었지만 매번 지키지 않는다.
+빠뜨린 요청에서는 확인된 사실만 남는데 그것이 전부 좋은 점이라,
+좋은 점만 넉 줄 늘어선 카드가 그대로 나갔다. 광고와 구별되지 않는다.
+
+두 가지로 막는다.
+
+확인된 사실 쪽에서도 불리한 것을 꺼낸다. 후보 중 가장 비싼 것,
+로켓배송이 아니라 기다려야 하는 것은 조회 결과라 지어낸 말이 아니다.
+
+그래도 감수할 점이 하나도 없으면 체크리스트를 만들지 않고 줄글 이유로
+돌아간다. 없는 단점을 지어내느니 접는 편이 낫다.
+
+프롬프트도 조였다. 빠뜨리면 잘못된 응답이라고 못박고, 무엇을 쓰면 되는지
+예를 들었으며, 넷이 같은 문장을 돌려쓰지 않게 했다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/api/recommend/route.ts       | 16 ++++-
+ src/lib/recommendation/fit-checks.ts | 53 +++++++++++++---
+ tests/fit-checks.test.mts            | 94 +++++++++++++++++++++++-----
+ 3 files changed, 138 insertions(+), 25 deletions(-)
+
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 3df2163..9a4536f 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -678,8 +678,14 @@ fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로
+   확인할 조건: ${[scenarioLabel, `${priorityLabel} 우선`, budgetLabel, userWish]
+     .filter(Boolean)
+     .join(" / ")}
+-- ok=true 2~3개(조건에 맞는 부분), ok=false 정확히 1개(감수해야 하는 부분).
+-- ok=false 는 반드시 넣는다. 단점이 없는 후보는 없고, 없다고 하면 이 화면 전체를 못 믿는다.
++- 구성은 항상 ok=true 1~2개 + ok=false 정확히 1개다. 4개 후보 모두 예외 없다.
++- ok=false 가 빠진 후보는 잘못된 응답으로 간주한다. 넣을 것이 없다고 판단되면
++  다시 생각하라. 어떤 제품에도 감수할 점은 있다. 값이 싸면 빠지는 기능이 있고,
++  기능이 많으면 관리할 것이 늘고, 관리가 편하면 소모품 값이 든다.
++- ok=false 예시: "물걸레 패드를 주기적으로 세탁해야 함",
++  "소음이 상위 모델보다 큼", "이 가격대는 자동비움이 빠지는 경우가 많음",
++  "편리함을 우선하면 관리 주기를 감수해야 함"
++- 4개 후보의 ok=false 가 서로 달라야 한다. 같은 문장을 돌려쓰지 않는다.
+ - 각 항목은 20자 내외의 짧은 서술.
+ 
+ [fitChecks 에 쓰면 안 되는 것 — 중요]
+@@ -865,12 +871,16 @@ async function enrichProductPrices(
+     .map((item) => item.price)
+     .filter((price): price is number => typeof price === "number");
+   const cheapest = prices.length > 1 ? Math.min(...prices) : undefined;
++  const priciest = prices.length > 1 ? Math.max(...prices) : undefined;
+ 
+   return {
+     recommendations: sorted.map((item, index) => ({
+       ...item,
+       rank: index + 1,
+-      fitChecks: derivedFitChecks(item, maxBudgetWon, { cheapestPrice: cheapest }),
++      fitChecks: derivedFitChecks(item, maxBudgetWon, {
++        cheapestPrice: cheapest,
++        priciestPrice: priciest,
++      }),
+     })),
+     live: items.some((item) => typeof item.price === "number"),
+   };
+diff --git a/src/lib/recommendation/fit-checks.ts b/src/lib/recommendation/fit-checks.ts
+index 96e615a..972ad74 100644
+--- a/src/lib/recommendation/fit-checks.ts
++++ b/src/lib/recommendation/fit-checks.ts
+@@ -54,7 +54,7 @@ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefi
+ export function derivedFitChecks(
+   item: QuickRecommendation,
+   maxBudgetWon?: number,
+-  context: { cheapestPrice?: number } = {}
++  context: FitCheckContext = {}
+ ): RecommendationFitCheck[] | undefined {
+   const verified = verifiedChecksFor(item, maxBudgetWon, context);
+   const guides = item.fitChecks?.filter((check) => check.source !== "verified") ?? [];
+@@ -65,17 +65,32 @@ export function derivedFitChecks(
+     나갔다. 단점을 먼저 보여주는 것이 이 서비스의 차별점이므로 자리를 먼저
+     비워 둔다.
+   */
+-  const positives = guides.filter((check) => check.ok);
+-  const drawbacks = guides.filter((check) => !check.ok);
+-  const reserved = drawbacks.length > 0 ? 1 : 0;
++  const positives = [...verified, ...guides].filter((check) => check.ok);
++  const drawbacks = [...verified, ...guides].filter((check) => !check.ok);
++
++  /*
++    단점이 하나도 없으면 체크리스트를 만들지 않는다.
++
++    AI 에게 ok=false 를 하나 넣으라고 시켜 두었지만 매번 지키지는 않는다.
++    지키지 않은 요청에서 확인된 사실만 남으면 그것은 전부 좋은 점이라,
++    좋은 점만 넉 줄 늘어선 카드가 나간다. 그런 화면은 광고와 구별되지 않고,
++    이 서비스가 다른 추천 사이트와 갈리는 지점이 바로 거기다.
++    없는 단점을 지어내지는 않으므로, 대신 체크리스트를 접고 줄글 이유로 돌아간다.
++  */
++  if (drawbacks.length === 0) return undefined;
+ 
+   const combined = [
+-    ...[...verified, ...positives].slice(0, MAX_CHECKS - reserved),
+-    ...drawbacks.slice(0, reserved),
++    ...positives.slice(0, MAX_CHECKS - 1),
++    ...drawbacks.slice(0, 1),
+   ];
+   return combined.length >= 2 ? combined : undefined;
+ }
+ 
++export type FitCheckContext = {
++  cheapestPrice?: number;
++  priciestPrice?: number;
++};
++
+ /**
+  * 조회 결과에서 바로 확인되는 항목만 모은다.
+  *
+@@ -86,7 +101,7 @@ export function derivedFitChecks(
+ function verifiedChecksFor(
+   item: QuickRecommendation,
+   maxBudgetWon?: number,
+-  context: { cheapestPrice?: number } = {}
++  context: FitCheckContext = {}
+ ): RecommendationFitCheck[] {
+   const checks: RecommendationFitCheck[] = [];
+ 
+@@ -117,8 +132,32 @@ function verifiedChecksFor(
+   ) {
+     checks.push({ ok: true, text: "후보 중 가장 저렴함", source: "verified" });
+   }
++  /*
++    감수할 점도 조회 결과에서 나온다.
++
++    AI 가 단점을 빼먹은 요청에서도 카드가 좋은 점만 늘어놓지 않으려면,
++    확인된 사실 쪽에서도 불리한 것을 꺼낼 수 있어야 한다.
++    지어낸 것이 아니라 실제 값이므로 그대로 쓸 수 있다.
++  */
++  if (
++    typeof item.price === "number" &&
++    typeof context.priciestPrice === "number" &&
++    typeof context.cheapestPrice === "number" &&
++    context.priciestPrice > context.cheapestPrice &&
++    item.price === context.priciestPrice
++  ) {
++    checks.push({ ok: false, text: "후보 중 가장 비쌈", source: "verified" });
++  }
+   if (item.isRocket) {
+     checks.push({ ok: true, text: "로켓배송으로 바로 받음", source: "verified" });
++  } else if (typeof item.price === "number") {
++    // 상품을 찾았는데 로켓배송이 아니면 배송을 기다려야 한다.
++    // 상품을 못 찾았을 때는 배송 조건 자체를 모르므로 아무 말도 하지 않는다.
++    checks.push({
++      ok: false,
++      text: "로켓배송이 아니라 배송이 걸림",
++      source: "verified",
++    });
+   }
+   if (typeof item.rating === "number" && item.rating >= 4) {
+     checks.push({
+diff --git a/tests/fit-checks.test.mts b/tests/fit-checks.test.mts
+index ca41ed3..9930e97 100644
+--- a/tests/fit-checks.test.mts
++++ b/tests/fit-checks.test.mts
+@@ -61,7 +61,7 @@ test("ok 가 없으면 충족으로 본다", () => {
+   assert.deepEqual(parsed?.map((item) => item.ok), [true, true, false]);
+ });
+ 
+-test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
++test("확인된 가격·배송으로 체크리스트를 만든다", () => {
+   assert.deepEqual(
+     derivedFitChecks(
+       {
+@@ -72,6 +72,9 @@ test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
+         qualitySummary: "",
+         price: 169000,
+         isRocket: true,
++        fitChecks: [
++          { ok: false, text: "물걸레 패드를 자주 빨아야 함", source: "guide" },
++        ],
+       },
+       200000
+     ),
+@@ -80,10 +83,67 @@ test("확인된 가격·배송만으로 체크리스트를 만든다", () => {
+       // 확인된 항목이 후보를 고르는 데 도움이 되지 않는다.
+       { ok: true, text: "예산의 85% 수준", source: "verified" },
+       { ok: true, text: "로켓배송으로 바로 받음", source: "verified" },
++      { ok: false, text: "물걸레 패드를 자주 빨아야 함", source: "guide" },
+     ]
+   );
+ });
+ 
++test("좋은 점만 남으면 체크리스트를 접는다", () => {
++  /*
++    AI 에게 단점을 하나 넣으라고 시켜 두었지만 매번 지키지는 않는다.
++    지키지 않은 요청에서 확인된 사실만 남으면 전부 좋은 점이라, 좋은 점만
++    늘어선 카드가 나간다. 없는 단점을 지어낼 수는 없으니 줄글로 되돌린다.
++  */
++  assert.equal(
++    derivedFitChecks(
++      {
++        rank: 1,
++        name: "무선청소기",
++        reason: "",
++        searchKeyword: "",
++        qualitySummary: "",
++        price: 169000,
++        isRocket: true,
++      },
++      200000
++    ),
++    undefined
++  );
++});
++
++test("확인된 사실에서도 감수할 점을 꺼낸다", () => {
++  // 로켓배송이 아니면 기다려야 한다. 조회 결과라 지어낸 것이 아니다.
++  const checks = derivedFitChecks(
++    {
++      rank: 1,
++      name: "무선청소기",
++      reason: "",
++      searchKeyword: "",
++      qualitySummary: "",
++      price: 169000,
++      isRocket: false,
++    },
++    200000
++  );
++  assert.ok(checks?.some((item) => !item.ok && item.source === "verified"));
++
++  // 후보 중 가장 비싼 것도 그대로 밝힌다.
++  const priciest = derivedFitChecks(
++    {
++      rank: 1,
++      name: "무선청소기",
++      reason: "",
++      searchKeyword: "",
++      qualitySummary: "",
++      price: 190000,
++      isRocket: true,
++    },
++    200000,
++    { cheapestPrice: 120000, priciestPrice: 190000 }
++  );
++  assert.ok(priciest?.some((item) => item.text === "후보 중 가장 비쌈"));
++});
++
+ test("예산을 넘으면 얼마나 넘는지 밝힌다", () => {
+   const checks = derivedFitChecks(
+     {
+@@ -97,8 +157,11 @@ test("예산을 넘으면 얼마나 넘는지 밝힌다", () => {
+     },
+     200000
+   );
+-  assert.equal(checks?.[0].ok, false);
+-  assert.equal(checks?.[0].text, "예산을 49,000원 넘음");
++  // 감수할 점은 목록 끝에 둔다. 마지막 줄로 읽히게 하려는 것이다.
++  const drawback = checks?.filter((item) => !item.ok);
++  assert.equal(drawback?.length, 1);
++  assert.equal(drawback?.[0].text, "예산을 49,000원 넘음");
++  assert.equal(checks?.at(-1)?.ok, false);
+ });
+ 
+ test("후보 중 가장 싼 것에만 표시한다", () => {
+@@ -109,6 +172,8 @@ test("후보 중 가장 싼 것에만 표시한다", () => {
+     searchKeyword: "",
+     qualitySummary: "",
+     isRocket: true,
++    // 단점이 없으면 체크리스트 자체가 만들어지지 않으므로 하나 붙여 둔다.
++    fitChecks: [{ ok: false, text: "소음이 있는 편", source: "guide" as const }],
+   };
+   const cheap = derivedFitChecks({ ...base, price: 59000 }, 200000, {
+     cheapestPrice: 59000,
+@@ -122,19 +187,18 @@ test("후보 중 가장 싼 것에만 표시한다", () => {
+ });
+ 
+ test("확인된 사실이 부족하면 지어내지 않는다", () => {
+-  // 가격만 있고 다른 근거가 없으면 한 줄짜리 체크리스트가 된다. 그건 안 만든다.
++  // 배송 조건 하나만 남으면 한 줄짜리 체크리스트가 된다. 그건 안 만든다.
++  // 예산을 받지 못해 예산 대비 비율을 낼 수 없는 경우다.
+   assert.equal(
+-    derivedFitChecks(
+-      {
+-        rank: 1,
+-        name: "무선청소기",
+-        reason: "",
+-        searchKeyword: "",
+-        qualitySummary: "",
+-        price: 169000,
+-      },
+-      200000
+-    ),
++    derivedFitChecks({
++      rank: 1,
++      name: "무선청소기",
++      reason: "",
++      searchKeyword: "",
++      qualitySummary: "",
++      price: 169000,
++      isRocket: true,
++    }),
+     undefined
+   );
+   assert.equal(
+-- 
+2.43.0
+
+
+From c60e88bc7e7d3d8483b59f193e62f250ff3fda5b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 12:51:41 +0000
+Subject: [PATCH 5/8] fix: put the value label on the candidate that is
+ actually cheapest
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+라벨은 후보를 지을 때 정해지고, 실제 가격은 그 뒤 쿠팡 검색에서 정해진다.
+그래서 "가성비 선택"이 241,400원인데 바로 아래 후보가 190,000원인 화면이
+나갔다. 값을 보고 고르라는 화면에서 이건 그냥 틀린 말이다.
+
+가격을 바꿀 수는 없으니 라벨을 사실에 맞춘다. 가성비 라벨을 최저가 후보와
+맞바꾼다. 화면 문구가 후보에 미리 붙어 있어 순서를 정하는 값만 바꾸면
+문구가 그대로 남으므로 둘을 함께 옮긴다.
+
+근소한 차이로 라벨이 계속 뒤집히면 같은 조건에서 화면이 달라 보인다.
+5% 여유를 두고, 그보다 적게 벌어진 차이는 건드리지 않는다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ package.json                               |  3 +-
+ src/app/api/recommend/route.ts             |  5 +-
+ src/lib/recommendation/selection-labels.ts | 55 +++++++++++++++++
+ tests/selection-labels.test.mts            | 71 ++++++++++++++++++++++
+ 4 files changed, 132 insertions(+), 2 deletions(-)
+ create mode 100644 src/lib/recommendation/selection-labels.ts
+ create mode 100644 tests/selection-labels.test.mts
+
+diff --git a/package.json b/package.json
+index 7146a44..66c9276 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,7 @@
+     "build": "next build",
+     "start": "next start",
+     "lint": "next lint",
+-    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map && npm run test:fit && npm run test:share && npm run test:blog && npm run test:brand",
++    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map && npm run test:fit && npm run test:share && npm run test:blog && npm run test:brand && npm run test:labels",
+     "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts",
+     "test:quick": "node --experimental-strip-types --test tests/quick-options.test.mts",
+     "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts",
+@@ -16,6 +16,7 @@
+     "test:share": "node --experimental-strip-types --test tests/share-payload.test.mts",
+     "test:blog": "node --experimental-strip-types --test tests/blog-post.test.mts",
+     "test:brand": "node --experimental-strip-types --test tests/brand-verify.test.mts",
++    "test:labels": "node --experimental-strip-types --test tests/selection-labels.test.mts",
+     "blog:generate": "node --experimental-strip-types scripts/generate-blog-posts.mts",
+     "android:sync": "npm --prefix platforms/android run sync",
+     "android:assets": "npm --prefix platforms/android run assets",
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 9a4536f..f8df24c 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -20,6 +20,7 @@ import {
+   placeFitChecks,
+   readFitChecks,
+ } from "@/lib/recommendation/fit-checks";
++import { alignValueLabelWithPrice } from "@/lib/recommendation/selection-labels";
+ import { toMapKeyword } from "@/lib/recommendation/map-keyword";
+ import { resolveDisplayName } from "@/lib/monetization/brand-verify";
+ import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
+@@ -859,7 +860,9 @@ async function enrichProductPrices(
+     });
+   }
+ 
+-  const sorted = [...items].sort(
++  const labelled = alignValueLabelWithPrice(items);
++
++  const sorted = [...labelled].sort(
+     (a, b) =>
+       SELECTION_ORDER.indexOf(a.selectionType || "best") -
+       SELECTION_ORDER.indexOf(b.selectionType || "best")
+diff --git a/src/lib/recommendation/selection-labels.ts b/src/lib/recommendation/selection-labels.ts
+new file mode 100644
+index 0000000..93dc400
+--- /dev/null
++++ b/src/lib/recommendation/selection-labels.ts
+@@ -0,0 +1,55 @@
++import type { QuickRecommendation } from "@/lib/types/analyze";
++
++/** 이보다 적게 벌어진 차이는 라벨을 흔들 만한 차이로 보지 않는다. */
++const VALUE_LABEL_TOLERANCE = 0.05;
++
++/**
++ * "가성비 선택"이 후보 중 가장 싼 것에 붙도록 맞춘다.
++ *
++ * 라벨은 AI 가 후보를 지을 때 정하는데, 실제 가격은 그 뒤 쿠팡 검색에서
++ * 정해진다. 그래서 "가성비 선택"이 241,400원인데 아래 후보가 190,000원인
++ * 화면이 나갔다. 값을 보고 고르라는 화면에서 이건 그냥 틀린 말이다.
++ *
++ * 가격을 바꿀 수는 없으니 라벨을 사실에 맞춘다. 가성비 라벨과 최저가 후보의
++ * 라벨을 맞바꾼다. 근소한 차이로 라벨이 계속 뒤집히지 않게 여유를 둔다.
++ */
++export function alignValueLabelWithPrice(
++  items: QuickRecommendation[]
++): QuickRecommendation[] {
++  const priced = items.filter(
++    (item): item is QuickRecommendation & { price: number } =>
++      typeof item.price === "number"
++  );
++  if (priced.length < 2) return items;
++
++  const valueItem = priced.find((item) => item.selectionType === "value");
++  if (!valueItem) return items;
++
++  const cheapestItem = priced.reduce((min, item) =>
++    item.price < min.price ? item : min
++  );
++  if (cheapestItem === valueItem) return items;
++  if (cheapestItem.price > valueItem.price * (1 - VALUE_LABEL_TOLERANCE)) {
++    return items;
++  }
++
++  /*
++    화면에 뜨는 문구(selectionLabel)는 후보를 만들 때 이미 정해져 붙어 있다.
++    selectionType 만 바꾸면 순서만 바뀌고 문구는 그대로 남아 어긋난다.
++    둘은 같은 카테고리의 후보라 문구를 그대로 맞바꾸면 된다.
++  */
++  const fromValue = {
++    selectionType: valueItem.selectionType,
++    selectionLabel: valueItem.selectionLabel,
++  };
++  const fromCheapest = {
++    selectionType: cheapestItem.selectionType,
++    selectionLabel: cheapestItem.selectionLabel,
++  };
++
++  return items.map((item) => {
++    if (item === valueItem) return { ...item, ...fromCheapest };
++    if (item === cheapestItem) return { ...item, ...fromValue };
++    return item;
++  });
++}
+diff --git a/tests/selection-labels.test.mts b/tests/selection-labels.test.mts
+new file mode 100644
+index 0000000..c1b57fb
+--- /dev/null
++++ b/tests/selection-labels.test.mts
+@@ -0,0 +1,71 @@
++import { strict as assert } from "node:assert";
++import test from "node:test";
++
++import { alignValueLabelWithPrice } from "../src/lib/recommendation/selection-labels.ts";
++import type { QuickRecommendation } from "../src/lib/types/analyze.ts";
++
++function candidate(
++  selectionType: "best" | "value" | "reliable" | "premium",
++  selectionLabel: string,
++  price?: number
++): QuickRecommendation {
++  return {
++    rank: 1,
++    name: `${selectionLabel} 후보`,
++    reason: "",
++    searchKeyword: "",
++    qualitySummary: "",
++    selectionType,
++    selectionLabel,
++    price,
++  };
++}
++
++function labelOf(items: QuickRecommendation[], name: string): string | undefined {
++  return items.find((item) => item.name === name)?.selectionLabel;
++}
++
++test("가성비 라벨이 최저가가 아니면 최저가 후보와 맞바꾼다", () => {
++  // 실제로 나갔던 화면이다. "가성비 선택"이 241,400원인데
++  // 그 아래 후보가 190,000원이었다. 값을 보고 고르라면서 틀린 말을 한 셈이다.
++  const aligned = alignValueLabelWithPrice([
++    candidate("best", "최종 선택", 260000),
++    candidate("value", "가성비 선택", 241400),
++    candidate("reliable", "A/S·신뢰성 선택", 190000),
++    candidate("premium", "성능 우선 선택", 300000),
++  ]);
++
++  assert.equal(labelOf(aligned, "A/S·신뢰성 선택 후보"), "가성비 선택");
++  assert.equal(labelOf(aligned, "가성비 선택 후보"), "A/S·신뢰성 선택");
++
++  // 순서를 정하는 selectionType 도 함께 옮겨야 라벨과 자리가 어긋나지 않는다.
++  const cheapest = aligned.find((item) => item.price === 190000);
++  assert.equal(cheapest?.selectionType, "value");
++});
++
++test("가성비 라벨이 이미 최저가면 그대로 둔다", () => {
++  const items = [
++    candidate("best", "최종 선택", 260000),
++    candidate("value", "가성비 선택", 150000),
++    candidate("reliable", "A/S·신뢰성 선택", 190000),
++  ];
++  assert.deepEqual(alignValueLabelWithPrice(items), items);
++});
++
++test("근소한 차이로는 라벨을 뒤집지 않는다", () => {
++  // 3% 차이로 라벨이 오가면 같은 조건에서 화면이 계속 달라 보인다.
++  const items = [
++    candidate("value", "가성비 선택", 200000),
++    candidate("reliable", "A/S·신뢰성 선택", 195000),
++  ];
++  assert.deepEqual(alignValueLabelWithPrice(items), items);
++});
++
++test("가격을 못 찾은 후보는 비교에서 뺀다", () => {
++  // 검색이 실패해 가격이 없는 후보를 최저가로 볼 수는 없다.
++  const items = [
++    candidate("value", "가성비 선택", 200000),
++    candidate("reliable", "A/S·신뢰성 선택", undefined),
++  ];
++  assert.deepEqual(alignValueLabelWithPrice(items), items);
++});
+-- 
+2.43.0
+
+
+From cb8af607af61e6cdda5c1f14327e13e24b98eb2f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 13:47:10 +0000
+Subject: [PATCH 6/8] feat: give the drawback its own field instead of an array
+ slot
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+감수해야 하는 점을 체크리스트와 한 배열에 두었더니 AI 가 좋은 점만 채우고
+그 항목을 빠뜨리는 쪽으로 계속 흘렀다. 항목 하나가 비는 것은 티가 나지
+않기 때문이다. 프롬프트를 조여도 같은 자리로 돌아왔다.
+
+자리를 따로 뗀다. caution 필드는 문자열 하나라 비어 있으면 그대로 드러난다.
+fitChecks 는 조건에 맞는 부분만 담고, 감수할 점은 caution 이 맡는다.
+
+이전 방식으로 답한 응답도 버리지 않는다. caution 이 비어 있고 체크리스트
+안에 감수 항목이 들어 있으면 그것을 꺼내 쓴다.
+
+AI 호출이 모두 실패해 폴백 후보가 나갈 때도 비워 두지 않는다. 조건이
+세부까지 반영되지 않았다는 것이 그 후보에서 감수해야 하는 점이고,
+그것을 숨기면 맞춤 추천을 받은 것으로 오해하게 된다.
+
+공유 링크에도 함께 담는다. 단점을 같이 보여주는 것이 이 결과 화면의
+성격이라, 공유하면서 빠지면 받는 사람은 흔한 홍보 화면을 보게 된다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/api/recommend/route.ts                | 40 +++++++++---
+ .../result/quick-recommendation-result.tsx    | 31 +++++++--
+ src/lib/recommendation/fit-checks.ts          | 59 ++++++++++-------
+ src/lib/share/share-payload.ts                |  3 +
+ src/lib/types/analyze.ts                      |  7 ++
+ tests/fit-checks.test.mts                     | 65 ++++++++++---------
+ tests/share-payload.test.mts                  | 18 +++++
+ 7 files changed, 158 insertions(+), 65 deletions(-)
+
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index f8df24c..0b6119f 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -19,6 +19,7 @@ import {
+   derivedFitChecks,
+   placeFitChecks,
+   readFitChecks,
++  readCaution,
+ } from "@/lib/recommendation/fit-checks";
+ import { alignValueLabelWithPrice } from "@/lib/recommendation/selection-labels";
+ import { toMapKeyword } from "@/lib/recommendation/map-keyword";
+@@ -54,6 +55,7 @@ type Candidate = {
+   scores?: QuickRecommendation["scores"];
+   overall?: number;
+   fitChecks?: QuickRecommendation["fitChecks"];
++  caution?: string;
+   /** 음식 전용 — 지도에서 주변 가게가 뜨는 짧은 업종·메뉴명 */
+   mapKeyword?: string;
+ };
+@@ -312,6 +314,9 @@ function candidate(name: string, reason: string, searchKeyword: string): Candida
+     reason,
+     searchKeyword,
+     qualitySummary: "실제 평점과 후기 수는 연결된 판매처·지도에서 최종 확인해 주세요.",
++    // AI 호출이 모두 실패했을 때 나가는 후보다. 적어 주신 조건이 세부까지
++    // 반영되지 않았다는 것이 이 후보에서 감수해야 하는 점이다.
++    caution: "일반 후보라 적어 주신 조건이 세부까지 반영되지 않았습니다.",
+   };
+ }
+ 
+@@ -392,6 +397,15 @@ function segmentFallbackCandidates(
+     ...item,
+     selectionType: SELECTION_ORDER[index],
+     selectionLabel: selectionLabel(categoryId, SELECTION_ORDER[index]),
++    /*
++      폴백은 AI 호출이 모두 실패했을 때 나가는 후보다. 적어 주신 조건이
++      세부까지 반영되지 않았다는 것이 여기서 감수해야 하는 점이고,
++      그 사실을 숨기면 맞춤 추천을 받은 것으로 오해하게 된다.
++      후보를 만드는 경로가 여럿이라 마지막에 한 번만 채운다.
++    */
++    caution:
++      item.caution ||
++      "일반 후보라 적어 주신 조건이 세부까지 반영되지 않았습니다.",
+   }));
+ }
+ 
+@@ -679,17 +693,22 @@ fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로
+   확인할 조건: ${[scenarioLabel, `${priorityLabel} 우선`, budgetLabel, userWish]
+     .filter(Boolean)
+     .join(" / ")}
+-- 구성은 항상 ok=true 1~2개 + ok=false 정확히 1개다. 4개 후보 모두 예외 없다.
+-- ok=false 가 빠진 후보는 잘못된 응답으로 간주한다. 넣을 것이 없다고 판단되면
+-  다시 생각하라. 어떤 제품에도 감수할 점은 있다. 값이 싸면 빠지는 기능이 있고,
+-  기능이 많으면 관리할 것이 늘고, 관리가 편하면 소모품 값이 든다.
+-- ok=false 예시: "물걸레 패드를 주기적으로 세탁해야 함",
+-  "소음이 상위 모델보다 큼", "이 가격대는 자동비움이 빠지는 경우가 많음",
+-  "편리함을 우선하면 관리 주기를 감수해야 함"
+-- 4개 후보의 ok=false 가 서로 달라야 한다. 같은 문장을 돌려쓰지 않는다.
++- 여기에는 조건에 맞는 부분만 쓴다(ok=true). 감수할 점은 caution 에 따로 쓴다.
+ - 각 항목은 20자 내외의 짧은 서술.
+ 
+-[fitChecks 에 쓰면 안 되는 것 — 중요]
++caution: 이 후보를 골랐을 때 감수해야 하는 점을 정확히 한 문장으로 쓴다.
++- 빈 문자열은 허용하지 않는다. 비운 응답은 잘못된 응답으로 간주한다.
++- 넣을 것이 없다고 판단되면 다시 생각하라. 어떤 선택에도 대가는 있다.
++  값이 싸면 빠지는 기능이 있고, 기능이 많으면 관리할 것이 늘고,
++  관리가 편하면 소모품 값이 들고, 성능이 좋으면 크고 무겁다.
++- 예: "물걸레 패드를 주기적으로 세탁해야 합니다"
++      "스틱 형태라 사용 중 직접 들고 있어야 합니다"
++      "이 가격대는 자동 먼지비움이 빠지는 경우가 많습니다"
++- 4개 후보의 caution 이 서로 달라야 한다. 같은 문장을 돌려쓰지 않는다.
++- 30~50자, "~합니다" 로 끝나는 한 문장.
++- 사양을 단정하지 않는다는 아래 규칙은 caution 에도 그대로 적용된다.
++
++[fitChecks 와 caution 에 쓰면 안 되는 것 — 중요]
+ 당신은 실제로 링크될 상품을 보지 못한다. 검색 결과로 정해지기 때문이다.
+ 그러므로 특정 상품에 어떤 기능이나 사양이 있다고 단정하면 안 된다.
+   쓰지 말 것: "자동 먼지비움 기능 탑재", "소음 55dB", "3년 무상보증",
+@@ -703,7 +722,7 @@ fitChecks: 이 사용자가 고른 조건을 항목별로 지켰는지 3~4개로
+         "편리함을 우선하면 관리 주기를 감수해야 함"
+ 
+ JSON 배열만 응답:
+-[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}]${
++[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}],"caution":""${
+     categoryId === "food" ? ',"mapKeyword":""' : ""
+   }}]`;
+ 
+@@ -771,6 +790,7 @@ JSON 배열만 응답:
+         })(),
+         scores: readScores(record.scores, categoryId),
+         fitChecks: readFitChecks(record.fitChecks),
++        caution: readCaution(record.caution, record.fitChecks),
+         mapKeyword:
+           categoryId === "food"
+             ? clean(record.mapKeyword, "", 20) || undefined
+diff --git a/src/components/result/quick-recommendation-result.tsx b/src/components/result/quick-recommendation-result.tsx
+index 66b2bc5..c53c80d 100644
+--- a/src/components/result/quick-recommendation-result.tsx
++++ b/src/components/result/quick-recommendation-result.tsx
+@@ -159,8 +159,10 @@ function OverallChart({
+  */
+ function FitChecklist({
+   checks,
++  caution,
+ }: {
+   checks: QuickRecommendation["fitChecks"];
++  caution?: string;
+ }) {
+   if (!checks?.length) return null;
+ 
+@@ -238,6 +240,18 @@ function FitChecklist({
+           </ul>
+         </div>
+       )}
++
++      {/*
++        감수해야 하는 점은 체크리스트와 한 배열에 두지 않는다. 섞어 두면
++        AI 가 좋은 점만 채우고 이 항목을 빠뜨리는 쪽으로 계속 흘렀다.
++        자리를 따로 떼어 두면 비어 있는 것 자체가 드러난다.
++      */}
++      {caution && (
++        <p className="mt-2.5 flex items-start gap-2 text-[13px] leading-snug text-muted-foreground">
++          <Minus className="mt-[2px] size-3.5 shrink-0" aria-hidden />
++          <span>{caution}</span>
++        </p>
++      )}
+     </div>
+   );
+ }
+@@ -662,11 +676,20 @@ export function QuickRecommendationResult({
+               )}
+ 
+               {item.fitChecks?.length ? (
+-                <FitChecklist checks={item.fitChecks} />
++                <FitChecklist checks={item.fitChecks} caution={item.caution} />
+               ) : (
+-                <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
+-                  {item.reason}
+-                </p>
++                <>
++                  <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
++                    {item.reason}
++                  </p>
++                  {/* 체크리스트를 못 만든 카드에서도 감수할 점은 빠지지 않아야 한다. */}
++                  {item.caution && (
++                    <p className="mt-2.5 flex items-start gap-2 text-[13px] leading-snug text-muted-foreground">
++                      <Minus className="mt-[2px] size-3.5 shrink-0" aria-hidden />
++                      <span>{item.caution}</span>
++                    </p>
++                  )}
++                </>
+               )}
+ 
+               <AxisBreakdown scores={item.scores} />
+diff --git a/src/lib/recommendation/fit-checks.ts b/src/lib/recommendation/fit-checks.ts
+index 972ad74..feb3e87 100644
+--- a/src/lib/recommendation/fit-checks.ts
++++ b/src/lib/recommendation/fit-checks.ts
+@@ -3,14 +3,16 @@ import type { QuickRecommendation, RecommendationFitCheck } from "@/lib/types/an
+ /** 체크리스트 한 줄은 훑어서 읽혀야 한다. 길어지면 줄글과 다를 게 없다. */
+ const MAX_TEXT_LENGTH = 34;
+ const MAX_CHECKS = 4;
++/** 감수할 점은 한 문장이라 체크리스트 한 줄보다 여유를 준다. */
++const MAX_CAUTION_LENGTH = 60;
+ 
+-function cleanText(value: unknown): string {
++function cleanText(value: unknown, maxLength = MAX_TEXT_LENGTH): string {
+   if (typeof value !== "string") return "";
+   return value
+     .replace(/<[^>]*>/g, "")
+     .replace(/\s+/g, " ")
+     .trim()
+-    .slice(0, MAX_TEXT_LENGTH);
++    .slice(0, maxLength);
+ }
+ 
+ /**
+@@ -20,8 +22,31 @@ function cleanText(value: unknown): string {
+  * 감수해야 할 항목이 하나도 없으면 체크리스트로 쓰지 않고 줄글 이유로 되돌린다.
+  */
+ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefined {
+-  if (!Array.isArray(value)) return undefined;
+-  const parsed = value
++  const parsed = parseChecks(value).filter((item) => item.ok);
++  return parsed.length >= 2 ? parsed.slice(0, MAX_CHECKS) : undefined;
++}
++
++/**
++ * 감수해야 하는 점을 읽는다.
++ *
++ * 체크리스트와 한 배열에 두었을 때는 AI 가 좋은 점만 채우고 단점을 빼먹는 일이
++ * 반복됐다. 항목 하나를 빠뜨리는 것은 티가 나지 않기 때문이다. 필드를 따로
++ * 두면 비어 있는 것이 그대로 드러나 빠뜨리기 어려워진다.
++ *
++ * 이전 방식으로 답한 응답도 버리지 않는다. caution 이 없고 체크리스트 안에
++ * 감수 항목이 들어 있으면 그것을 꺼내 쓴다.
++ */
++export function readCaution(value: unknown, fitChecks?: unknown): string | undefined {
++  const direct = cleanText(value, MAX_CAUTION_LENGTH);
++  if (direct) return direct;
++
++  const fromChecks = parseChecks(fitChecks).find((item) => !item.ok);
++  return fromChecks?.text;
++}
++
++function parseChecks(value: unknown): RecommendationFitCheck[] {
++  if (!Array.isArray(value)) return [];
++  return value
+     .map((item) => {
+       const record =
+         item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+@@ -31,14 +56,7 @@ export function readFitChecks(value: unknown): RecommendationFitCheck[] | undefi
+       // 확인된 사실과 섞이지 않게 guide 로 표시한다.
+       return { ok: record.ok !== false, text, source: "guide" as const };
+     })
+-    .filter((item): item is NonNullable<typeof item> => item !== null)
+-    .slice(0, MAX_CHECKS);
+-
+-  const met = parsed.filter((item) => item.ok);
+-  const unmet = parsed.filter((item) => !item.ok);
+-  if (met.length < 2 || unmet.length === 0) return undefined;
+-  // 충족 항목을 먼저, 감수 항목을 마지막에 둔다.
+-  return [...met, ...unmet];
++    .filter((item): item is NonNullable<typeof item> => item !== null);
+ }
+ 
+ /**
+@@ -69,19 +87,16 @@ export function derivedFitChecks(
+   const drawbacks = [...verified, ...guides].filter((check) => !check.ok);
+ 
+   /*
+-    단점이 하나도 없으면 체크리스트를 만들지 않는다.
++    체크리스트가 좋은 점만 남는 것 자체는 이제 막지 않는다.
++    감수해야 하는 점은 caution 으로 따로 받아 카드에 항상 붙기 때문이다.
+ 
+-    AI 에게 ok=false 를 하나 넣으라고 시켜 두었지만 매번 지키지는 않는다.
+-    지키지 않은 요청에서 확인된 사실만 남으면 그것은 전부 좋은 점이라,
+-    좋은 점만 넉 줄 늘어선 카드가 나간다. 그런 화면은 광고와 구별되지 않고,
+-    이 서비스가 다른 추천 사이트와 갈리는 지점이 바로 거기다.
+-    없는 단점을 지어내지는 않으므로, 대신 체크리스트를 접고 줄글 이유로 돌아간다.
++    다만 여기서 나오는 감수 항목(예산 초과 같은 것)은 조회로 확인된 사실이라
++    조건 판단에 속한다. 목록 끝에 자리를 비워 두어 잘려 나가지 않게 한다.
+   */
+-  if (drawbacks.length === 0) return undefined;
+-
++  const reserved = drawbacks.length > 0 ? 1 : 0;
+   const combined = [
+-    ...positives.slice(0, MAX_CHECKS - 1),
+-    ...drawbacks.slice(0, 1),
++    ...positives.slice(0, MAX_CHECKS - reserved),
++    ...drawbacks.slice(0, reserved),
+   ];
+   return combined.length >= 2 ? combined : undefined;
+ }
+diff --git a/src/lib/share/share-payload.ts b/src/lib/share/share-payload.ts
+index b2821bd..2290f74 100644
+--- a/src/lib/share/share-payload.ts
++++ b/src/lib/share/share-payload.ts
+@@ -87,6 +87,9 @@ function toSharedRecommendation(value: unknown): QuickRecommendation | null {
+           .filter((check) => check.text)
+           .slice(0, 4)
+       : undefined,
++    // 감수해야 하는 점은 공유 링크에서도 빠지면 안 된다.
++    // 단점을 함께 보여주는 것이 이 결과 화면의 성격 자체다.
++    caution: text(item.caution, 60),
+   };
+ }
+ 
+diff --git a/src/lib/types/analyze.ts b/src/lib/types/analyze.ts
+index 4a3cea3..d251360 100644
+--- a/src/lib/types/analyze.ts
++++ b/src/lib/types/analyze.ts
+@@ -145,6 +145,13 @@ export type QuickRecommendation = {
+   scores?: RecommendationScore[];
+   /** 내 조건을 지켰는지 항목별로 끊어 보여주는 체크리스트 */
+   fitChecks?: RecommendationFitCheck[];
++  /**
++   * 이 후보를 골랐을 때 감수해야 하는 점 한 가지.
++   *
++   * 체크리스트와 한 배열에 두었더니 AI 가 좋은 점만 채우는 쪽으로 계속 흘렀다.
++   * 자리를 따로 떼어 두면 비워 놓는 것 자체가 눈에 띄어 빠뜨리기 어려워진다.
++   */
++  caution?: string;
+ };
+ 
+ /** POST /api/analyze 성공 시 본문 — 항상 JSON 객체 */
+diff --git a/tests/fit-checks.test.mts b/tests/fit-checks.test.mts
+index 9930e97..8193941 100644
+--- a/tests/fit-checks.test.mts
++++ b/tests/fit-checks.test.mts
+@@ -4,10 +4,13 @@ import test from "node:test";
+ import {
+   derivedFitChecks,
+   placeFitChecks,
++  readCaution,
+   readFitChecks,
+ } from "../src/lib/recommendation/fit-checks.ts";
+ 
+-test("충족·미충족이 함께 있으면 체크리스트로 쓴다", () => {
++test("체크리스트에는 충족 항목만 담는다", () => {
++  // 감수할 점은 caution 으로 따로 받는다. 한 배열에 섞어 두었더니
++  // AI 가 좋은 점만 채우고 단점을 빠뜨리는 쪽으로 계속 흘렀다.
+   const parsed = readFitChecks([
+     { ok: true, text: "예산 안에 들어옴" },
+     { ok: false, text: "카펫 흡입력은 아쉬움" },
+@@ -17,20 +20,27 @@ test("충족·미충족이 함께 있으면 체크리스트로 쓴다", () => {
+   assert.deepEqual(parsed, [
+     { ok: true, text: "예산 안에 들어옴", source: "guide" },
+     { ok: true, text: "원룸에 세워둘 수 있는 크기", source: "guide" },
+-    { ok: false, text: "카펫 흡입력은 아쉬움", source: "guide" },
+   ]);
+ });
+ 
+-test("단점이 하나도 없으면 체크리스트를 쓰지 않는다", () => {
+-  // 장점만 나열되면 광고 문구가 된다. 이럴 땐 줄글 이유로 되돌아가야 한다.
++test("caution 을 읽는다", () => {
+   assert.equal(
+-    readFitChecks([
++    readCaution("물걸레 패드를 주기적으로 세탁해야 합니다"),
++    "물걸레 패드를 주기적으로 세탁해야 합니다"
++  );
++});
++
++test("caution 이 비어 있으면 체크리스트의 감수 항목을 꺼내 쓴다", () => {
++  // 이전 방식으로 답한 응답도 버리지 않는다.
++  assert.equal(
++    readCaution("", [
+       { ok: true, text: "예산 안에 들어옴" },
+-      { ok: true, text: "조용함" },
+-      { ok: true, text: "가벼움" },
++      { ok: false, text: "카펫 흡입력은 아쉬움" },
+     ]),
+-    undefined
++    "카펫 흡입력은 아쉬움"
+   );
++  assert.equal(readCaution(undefined, undefined), undefined);
++  assert.equal(readCaution("   ", [{ ok: true, text: "조용함" }]), undefined);
+ });
+ 
+ test("충족 항목이 2개 미만이면 체크리스트를 쓰지 않는다", () => {
+@@ -58,7 +68,7 @@ test("ok 가 없으면 충족으로 본다", () => {
+     { text: "조용함" },
+     { ok: false, text: "무거움" },
+   ]);
+-  assert.deepEqual(parsed?.map((item) => item.ok), [true, true, false]);
++  assert.deepEqual(parsed?.map((item) => item.ok), [true, true]);
+ });
+ 
+ test("확인된 가격·배송으로 체크리스트를 만든다", () => {
+@@ -88,27 +98,24 @@ test("확인된 가격·배송으로 체크리스트를 만든다", () => {
+   );
+ });
+ 
+-test("좋은 점만 남으면 체크리스트를 접는다", () => {
+-  /*
+-    AI 에게 단점을 하나 넣으라고 시켜 두었지만 매번 지키지는 않는다.
+-    지키지 않은 요청에서 확인된 사실만 남으면 전부 좋은 점이라, 좋은 점만
+-    늘어선 카드가 나간다. 없는 단점을 지어낼 수는 없으니 줄글로 되돌린다.
+-  */
+-  assert.equal(
+-    derivedFitChecks(
+-      {
+-        rank: 1,
+-        name: "무선청소기",
+-        reason: "",
+-        searchKeyword: "",
+-        qualitySummary: "",
+-        price: 169000,
+-        isRocket: true,
+-      },
+-      200000
+-    ),
+-    undefined
++test("좋은 점만 남아도 체크리스트는 그대로 쓴다", () => {
++  // 감수할 점은 caution 으로 카드에 따로 붙으므로, 여기서 접을 이유가 없다.
++  const checks = derivedFitChecks(
++    {
++      rank: 1,
++      name: "무선청소기",
++      reason: "",
++      searchKeyword: "",
++      qualitySummary: "",
++      price: 169000,
++      isRocket: true,
++    },
++    200000
+   );
++  assert.deepEqual(checks?.map((item) => item.text), [
++    "예산의 85% 수준",
++    "로켓배송으로 바로 받음",
++  ]);
+ });
+ 
+ test("확인된 사실에서도 감수할 점을 꺼낸다", () => {
+diff --git a/tests/share-payload.test.mts b/tests/share-payload.test.mts
+index 4fc3145..3515812 100644
+--- a/tests/share-payload.test.mts
++++ b/tests/share-payload.test.mts
+@@ -112,3 +112,21 @@ test("미리보기 문구에 1등과 조건이 들어간다", () => {
+   assert.ok(preview.title.includes("원룸 자취방"));
+   assert.ok(preview.description.length > 0);
+ });
++
++test("감수해야 하는 점도 공유 링크에 담는다", () => {
++  // 단점을 함께 보여주는 것이 이 결과 화면의 성격이다. 공유하면서 빠지면
++  // 링크를 받은 사람은 흔한 홍보 화면을 보게 된다.
++  const payload = toSharedResultPayload({
++    ...baseResult,
++    quickRecommendations: [
++      {
++        ...baseResult.quickRecommendations[0],
++        caution: "물걸레 패드를 주기적으로 세탁해야 합니다",
++      },
++    ],
++  });
++  assert.equal(
++    payload?.recommendations[0].caution,
++    "물걸레 패드를 주기적으로 세탁해야 합니다"
++  );
++});
+-- 
+2.43.0
+
+
+From bfb050ced4191add994a3748ff25d23510e0d19a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 16 Aug 2026 17:27:00 +0000
+Subject: [PATCH 7/8] fix: judge duplicate products by id and thumbnail, not
+ the link alone
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+같은 상품이 두 슬롯에 그대로 들어가는 것을 주소 비교로 막고 있었는데,
+제휴 딥링크에는 호출마다 달라지는 추적 파라미터가 붙는다. 같은 상품이라도
+주소가 달라 검사를 그냥 빠져나간다.
+
+쿠팡이 주는 상품 번호를 받아 그것으로 먼저 가린다. 썸네일도 함께 본다.
+판매자만 다른 같은 물건은 번호가 갈리지만 사진이 같고, 화면에서는
+같은 값 같은 사진으로 나란히 서기 때문이다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/api/recommend/route.ts         | 10 +++-
+ src/lib/monetization/coupang-server.ts | 41 ++++++++++++--
+ tests/coupang-server.test.mts          | 77 ++++++++++++++++++++++++++
+ 3 files changed, 121 insertions(+), 7 deletions(-)
+
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 0b6119f..806d357 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -24,7 +24,10 @@ import {
+ import { alignValueLabelWithPrice } from "@/lib/recommendation/selection-labels";
+ import { toMapKeyword } from "@/lib/recommendation/map-keyword";
+ import { resolveDisplayName } from "@/lib/monetization/brand-verify";
+-import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
++import {
++  productDedupKeys,
++  searchCoupangProduct,
++} from "@/lib/monetization/coupang-server";
+ import type {
+   AnalyzeApiResult,
+   QuickRecommendation,
+@@ -843,14 +846,15 @@ async function enrichProductPrices(
+       // 쿠팡 상품 검색은 썸네일·실가격과 함께 제휴 추적이 포함된 상품 상세
+       // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
+       product = await searchCoupangProduct(searchKeyword, maxBudgetWon, {
+-        excludeProductUrls: usedProductKeys,
++        excludeKeys: usedProductKeys,
+       });
+     } catch {
+       product = null;
+     }
+ 
+     if (product) {
+-      usedProductKeys.add(product.productUrl);
++      // 주소 하나만 담으면 추적 파라미터가 다른 같은 상품을 못 걸러낸다.
++      productDedupKeys(product).forEach((key) => usedProductKeys.add(key));
+       items.push({
+         rank: index + 1,
+         ...candidate,
+diff --git a/src/lib/monetization/coupang-server.ts b/src/lib/monetization/coupang-server.ts
+index 94673e2..188b902 100644
+--- a/src/lib/monetization/coupang-server.ts
++++ b/src/lib/monetization/coupang-server.ts
+@@ -294,6 +294,8 @@ export const COUPANG_SEARCH_PATH =
+   "/v2/providers/affiliate_open_api/apis/openapi/products/search";
+ 
+ export type CoupangProduct = {
++  /** 쿠팡이 매기는 상품 번호. 같은 상품인지 가리는 기준이다. */
++  productId?: string;
+   productName: string;
+   productPrice: number;
+   productImage: string;
+@@ -303,11 +305,28 @@ export type CoupangProduct = {
+   isFreeShipping: boolean;
+ };
+ 
++/**
++ * 같은 상품인지 가릴 때 쓰는 값들.
++ *
++ * 상품 주소만으로는 부족하다. 제휴 딥링크에는 호출마다 달라지는 추적
++ * 파라미터가 붙어, 같은 상품인데 주소가 달라 중복 검사를 빠져나간다.
++ * 상품 번호를 먼저 보고, 썸네일도 함께 본다. 판매자만 다른 같은 물건은
++ * 번호가 갈리지만 사진이 같아서, 화면에서는 그냥 같은 상품으로 보인다.
++ */
++export function productDedupKeys(product: CoupangProduct): string[] {
++  return [
++    product.productId && `id:${product.productId}`,
++    product.productUrl && `url:${product.productUrl}`,
++    product.productImage && `img:${product.productImage}`,
++  ].filter((key): key is string => Boolean(key));
++}
++
+ type CoupangSearchResponse = {
+   rCode?: string;
+   rMessage?: string;
+   data?: {
+     productData?: Array<{
++      productId?: number | string;
+       productName?: string;
+       productPrice?: number;
+       productImage?: string;
+@@ -337,16 +356,16 @@ export async function searchCoupangProduct(
+   maxPriceWon?: number,
+   options: {
+     /**
+-     * 이미 다른 후보에 쓴 상품 주소.
++     * 이미 다른 후보에 쓴 상품을 가리키는 값들(productDedupKeys 로 만든다).
+      * 검색어가 달라도 같은 상품이 걸리는 일이 있어, 슬롯이 겹치지 않도록 뺀다.
+      */
+-    excludeProductUrls?: ReadonlySet<string>;
++    excludeKeys?: ReadonlySet<string>;
+   } = {}
+ ): Promise<CoupangProduct | null> {
+   const normalizedKeyword = normalizeCoupangKeyword(keyword);
+   if (!normalizedKeyword) return null;
+ 
+-  const excluded = options.excludeProductUrls;
++  const excluded = options.excludeKeys;
+   // 제외 목록이 있으면 결과가 달라질 수 있으므로 캐시를 쓰지 않는다.
+   const useCache = !excluded || excluded.size === 0;
+   const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}`;
+@@ -405,11 +424,23 @@ export async function searchCoupangProduct(
+     }
+ 
+     const items = payload.data?.productData ?? [];
++    const isExcluded = (item: (typeof items)[number]) => {
++      if (!excluded || excluded.size === 0) return false;
++      return productDedupKeys({
++        productId: item.productId === undefined ? undefined : String(item.productId),
++        productName: "",
++        productPrice: 0,
++        productImage: String(item.productImage ?? ""),
++        productUrl: String(item.productUrl ?? ""),
++        isRocket: false,
++        isFreeShipping: false,
++      }).some((key) => excluded.has(key));
++    };
+     const isUsable = (item: (typeof items)[number]) =>
+       Boolean(item.productUrl) &&
+       Boolean(item.productName) &&
+       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
+-      !excluded?.has(String(item.productUrl));
++      !isExcluded(item);
+ 
+     const picked = items.find((item) => {
+       if (!isUsable(item)) return false;
+@@ -425,6 +456,8 @@ export async function searchCoupangProduct(
+     }
+ 
+     const product: CoupangProduct = {
++      productId:
++        chosen.productId === undefined ? undefined : String(chosen.productId),
+       productName: String(chosen.productName).slice(0, 120),
+       productPrice: Number(chosen.productPrice) || 0,
+       productImage: String(chosen.productImage ?? ""),
+diff --git a/tests/coupang-server.test.mts b/tests/coupang-server.test.mts
+index 29dbd77..6133464 100644
+--- a/tests/coupang-server.test.mts
++++ b/tests/coupang-server.test.mts
+@@ -7,6 +7,7 @@ import {
+   formatCoupangSignedDate,
+   isAllowedCoupangRedirectUrl,
+   normalizeCoupangKeyword,
++  productDedupKeys,
+ } from "../src/lib/monetization/coupang-server.ts";
+ 
+ test("formats Coupang signed dates in UTC", () => {
+@@ -61,3 +62,79 @@ test("only accepts known HTTPS Coupang redirect hosts", () => {
+   );
+   assert.equal(isAllowedCoupangRedirectUrl("not-a-url"), false);
+ });
++
++test("같은 상품인지 가릴 때 주소 하나만 보지 않는다", () => {
++  // 제휴 딥링크에는 호출마다 달라지는 추적 파라미터가 붙는다.
++  // 주소만 비교하면 같은 상품이 두 슬롯에 그대로 들어간다.
++  const first = productDedupKeys({
++    productId: "12345",
++    productName: "차이슨 무선청소기",
++    productPrice: 190000,
++    productImage: "https://img.coupangcdn.com/a.jpg",
++    productUrl: "https://link.coupang.com/re/AFF?pageKey=12345&traceid=aaa",
++    isRocket: true,
++    isFreeShipping: false,
++  });
++  const sameProductLaterCall = productDedupKeys({
++    productId: "12345",
++    productName: "차이슨 무선청소기",
++    productPrice: 190000,
++    productImage: "https://img.coupangcdn.com/a.jpg",
++    productUrl: "https://link.coupang.com/re/AFF?pageKey=12345&traceid=bbb",
++    isRocket: true,
++    isFreeShipping: false,
++  });
++
++  assert.notEqual(first[1], sameProductLaterCall[1]);
++  const used = new Set(first);
++  assert.ok(sameProductLaterCall.some((key) => used.has(key)));
++});
++
++test("판매자만 다른 같은 물건도 사진으로 걸러낸다", () => {
++  // 상품 번호는 갈리지만 화면에서는 같은 사진, 같은 값으로 보인다.
++  const used = new Set(
++    productDedupKeys({
++      productId: "111",
++      productName: "차이슨 무선청소기",
++      productPrice: 190000,
++      productImage: "https://img.coupangcdn.com/a.jpg",
++      productUrl: "https://link.coupang.com/re/AFF?pageKey=111",
++      isRocket: true,
++      isFreeShipping: false,
++    })
++  );
++  const otherSeller = productDedupKeys({
++    productId: "222",
++    productName: "차이슨 무선청소기",
++    productPrice: 190000,
++    productImage: "https://img.coupangcdn.com/a.jpg",
++    productUrl: "https://link.coupang.com/re/AFF?pageKey=222",
++    isRocket: true,
++    isFreeShipping: false,
++  });
++  assert.ok(otherSeller.some((key) => used.has(key)));
++});
++
++test("다른 상품은 걸러내지 않는다", () => {
++  const used = new Set(
++    productDedupKeys({
++      productId: "111",
++      productName: "차이슨 무선청소기",
++      productPrice: 190000,
++      productImage: "https://img.coupangcdn.com/a.jpg",
++      productUrl: "https://link.coupang.com/re/AFF?pageKey=111",
++      isRocket: true,
++      isFreeShipping: false,
++    })
++  );
++  const different = productDedupKeys({
++    productId: "999",
++    productName: "로보락 로봇청소기",
++    productPrice: 420000,
++    productImage: "https://img.coupangcdn.com/z.jpg",
++    productUrl: "https://link.coupang.com/re/AFF?pageKey=999",
++    isRocket: true,
++    isFreeShipping: false,
++  });
++  assert.ok(!different.some((key) => used.has(key)));
++});
+-- 
+2.43.0
+
+
+From a88bb46bd7338a160d9d3f99e5468e552a95ed34 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 17 Aug 2026 08:10:57 +0000
+Subject: [PATCH 8/8] fix: split rental category criteria by what the choice
+ actually is
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+렌탈·큰 지출은 자동차·부동산 기준 하나로 묶여 있었다. 그래서 통신 요금제
+카드에 "처분 가치 — 보유 기간 뒤 재판매 수요와 예상 감가"가 붙어 나갔다.
+요금제는 되팔 수 있는 물건이 아니다. 읽는 사람에게 아무 뜻도 없는 줄이고,
+그 한 줄 때문에 옆에 있는 판단까지 의심하게 된다.
+
+용도에 따라 나눈다. 되팔 수 있는 것에는 처분 가치와 환금성을 두고,
+계약으로 묶이는 것에는 빠져나올 때 드는 비용을 대신 둔다.
+통신·구독은 약정 잔여와 위약금, 보험은 해지환급금과 갱신 인상,
+렌탈은 의무 사용 기간과 반납 비용이다. 실제로 돈이 갈리는 지점이 거기다.
+
+용도를 모를 때는 어느 쪽도 붙이지 않는다. 틀린 기준을 대는 것보다
+계약 위험만 남기는 편이 낫다.
+
+AI 에게 주는 판단 규칙과 감가 필드도 같은 기준으로 나눴다. 되팔 수 없는
+용도에서는 감가·재판매를 아예 언급하지 못하게 했다.
+
+후보가 서로 갈리는 기준도 카테고리마다 다르게 준다. 통신·구독에서 넷이
+모두 "구독 정리" 한 가지 이야기의 강도만 달랐다. 유지·공급자 교체·계약
+형태 변경·전면 정리로 축을 나눠 하나씩 고르게 하고, 실행 절차가 사실상
+같은 후보는 버리고 다시 고르게 했다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/api/recommend/route.ts                | 90 +++++++++++++++++--
+ .../recommendation-presentation.ts            | 80 ++++++++++++++---
+ tests/recommendation-presentation.test.mts    | 45 ++++++++++
+ 3 files changed, 195 insertions(+), 20 deletions(-)
+
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 806d357..d5b7651 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -548,7 +548,10 @@ function isAdvisoryOnly(categoryId: CategoryId): boolean {
+   return categoryId === "asset";
+ }
+ 
+-function categoryDecisionRules(categoryId: CategoryId): string {
++function categoryDecisionRules(
++  categoryId: CategoryId,
++  scenarioId: string
++): string {
+   if (categoryId === "gift") {
+     return "받는 사람·관계·기념일 적합성, 포장과 배송, 취향 실패 시 교환 가능성을 판단한다. A/S와 중고 감가는 전자제품 후보가 아닌 한 언급하지 않는다.";
+   }
+@@ -562,11 +565,64 @@ function categoryDecisionRules(categoryId: CategoryId): string {
+     return "이동 시간, 예약·취소, 날씨 영향, 함께하는 사람에게 맞는 경험을 판단한다.";
+   }
+   if (categoryId === "asset") {
+-    return "초기 비용보다 총비용, 계약·중도해지 위험, 보증, 환금성과 감가를 판단한다.";
++    return assetDecisionRules(scenarioId);
+   }
+   return "선택한 상황과 우선조건에 직접 관련된 근거만 판단한다.";
+ }
+ 
++/**
++ * 렌탈·큰 지출은 하위 용도가 서로 너무 달라 한 가지 기준으로 묶을 수 없다.
++ * 자동차 기준을 통신 요금제에 그대로 대면 감가와 재판매 이야기가 나오는데,
++ * 요금제는 되팔 수 있는 물건이 아니다.
++ */
++function assetDecisionRules(scenarioId: string): string {
++  if (scenarioId === "car" || scenarioId === "property") {
++    return "초기 비용보다 총비용, 계약·중도해지 위험, 보증, 환금성과 감가를 판단한다.";
++  }
++  if (scenarioId === "subscription") {
++    return `월 고정 지출, 약정 잔여 기간과 위약금, 결합 할인이 풀릴 때의 반환금,
++실제 사용량 대비 낭비를 판단한다. 되팔 수 있는 물건이 아니므로
++감가·재판매·중고 시세는 어떤 경우에도 언급하지 않는다.`;
++  }
++  if (scenarioId === "insurance") {
++    return `보장 범위의 중복과 공백, 갱신 시 보험료 인상, 해지환급금, 면책 기간을 판단한다.
++감가·재판매·중고 시세는 언급하지 않는다.`;
++  }
++  if (scenarioId === "rental") {
++    return `월 납입액 총합, 의무 사용 기간, 중도해지 위약금, 반납·철거 비용,
++자가 구매와의 총비용 비교를 판단한다.
++빌려 쓰는 것이므로 사용자의 재판매·감가는 언급하지 않는다.`;
++  }
++  if (scenarioId === "business") {
++    return `구매와 렌탈의 총비용 비교, 계약 종료 시 반납 조건과 구매 전환가,
++유지보수 범위를 판단한다.`;
++  }
++  return "초기 비용보다 총비용, 계약·중도해지 위험, 보증을 판단한다.";
++}
++
++/**
++ * 후보 넷이 서로 달라야 고르는 의미가 있다.
++ *
++ * 통신·구독에서 "결합 해지 후 단독 회선", "OTT 1개만 남기고 정리",
++ * "무약정 다이렉트로 이동" 넷이 나왔는데 결국 같은 이야기의 강도만 달랐다.
++ * 무엇을 기준으로 갈라야 하는지 카테고리마다 다르게 일러 준다.
++ */
++function differentiationRules(categoryId: CategoryId): string {
++  if (categoryId === "asset") {
++    return `4개 후보는 접근 방식 자체가 달라야 한다. 같은 전략의 강도만 바꾼 변형은 금지한다.
++서로 다른 축에서 하나씩 고른다.
++- 지금 구조를 유지하면서 불필요한 것만 덜어내는 방식
++- 공급자(통신사·보험사·렌탈사)를 바꾸는 방식
++- 계약 형태를 바꾸는 방식(약정↔무약정, 렌탈↔구매, 결합↔단독)
++- 필요 자체를 줄이거나 전면 정리하는 방식
++두 후보의 실행 절차가 사실상 같다면 하나를 버리고 다른 축에서 다시 고른다.`;
++  }
++  if (categoryId === "food" || categoryId === "date") {
++    return "4개 후보는 서로 뚜렷하게 다른 종류여야 한다.";
++  }
++  return "4개 후보는 서로 뚜렷하게 다른 제품군이어야 한다.";
++}
++
+ /**
+  * 쇼핑 카테고리는 검색어가 곧 매출이다. 쿠팡 검색 결과가 한 가지 상품군으로
+  * 좁혀지도록 "제품군 + 구분 조건" 형태를 요구한다.
+@@ -606,6 +662,7 @@ name 에는 브랜드를 쓰지 않는 것을 원칙으로 하고, 어떤 종류
+ 
+ async function generateCandidates(
+   categoryId: CategoryId,
++  scenarioId: string,
+   scenarioLabel: string,
+   priorityLabel: string,
+   budgetLabel: string,
+@@ -669,13 +726,14 @@ ${effectiveExcluded.length > 0 ? `이미 추천한 후보(반드시 제외): ${e
+ - reliable: 이 카테고리에 맞는 실패 위험과 후기 신뢰성을 우선한 선택
+ - premium: 예산 범위 안에서 성능·소재·경험을 높인 프리미엄 선택
+ 
+-카테고리별 판단 규칙: ${categoryDecisionRules(categoryId)}
++카테고리별 판단 규칙: ${categoryDecisionRules(categoryId, scenarioId)}
+ ${keywordRules(categoryId)}
+ 
+ 확인하지 않은 실시간 평점·후기 수·가격은 절대 만들지 않는다.
+ 사용자가 직접 적은 요청이 있으면 그것을 다른 어떤 조건보다 우선한다.
+ 요청에 "~말고", "~빼고" 같은 제외 조건이 있으면 그 항목은 후보에서 완전히 뺀다.
+-최우선 조건과 예산을 반드시 지킨다. 4개 후보는 서로 뚜렷하게 다른 제품군이어야 한다.
++최우선 조건과 예산을 반드시 지킨다.
++${differentiationRules(categoryId)}
+ reason은 이 사용자의 상황(${scenarioLabel} · ${priorityLabel} 우선)에 직접 연결해 70~110자로 쓴다.
+ "무난해요" 같은 뭉뚱그린 표현 대신, 무엇이 어떻게 좋은지 한 가지는 구체적으로 짚는다.
+ 4개의 reason이 서로 다른 근거를 담게 하고 같은 문장을 반복하지 않는다.
+@@ -777,13 +835,18 @@ JSON 배열만 응답:
+           categoryId === "appliance" || categoryId === "asset"
+             ? clean(record.asSummary, fallback.asSummary)
+             : undefined,
++        // 감가는 되팔 수 있는 것에만 뜻이 있다. 요금제·보험에 붙이면
++        // 읽는 사람에게 아무 뜻도 없는 줄이 된다.
+         depreciationSummary:
+-          categoryId === "appliance" || categoryId === "asset"
++          categoryId === "appliance" ||
++          (categoryId === "asset" &&
++            (scenarioId === "car" || scenarioId === "property"))
+             ? clean(record.depreciationSummary, fallback.depreciationSummary)
+             : undefined,
+         evidence: categoryEvidence(
+           categoryId,
+-          clean(record.reason, fallback.reason)
++          clean(record.reason, fallback.reason),
++          scenarioId
+         ),
+         overall: (() => {
+           const raw = Number(record.overall);
+@@ -1317,13 +1380,15 @@ function buildFallbackFoodRecommendations(
+ 
+ function buildFallbackNonFoodRecommendations(
+   categoryId: CategoryId,
++  scenarioId: string,
+   candidates: Candidate[]
+ ): QuickRecommendation[] {
+   const shopping = ["gift", "appliance", "fashion"].includes(categoryId);
+   return segmentFallbackCandidates(categoryId, candidates).map((item, index) => ({
+     rank: index + 1,
+     ...item,
+-    evidence: item.evidence || categoryEvidence(categoryId, item.reason),
++    evidence:
++      item.evidence || categoryEvidence(categoryId, item.reason, scenarioId),
+     ...(shopping
+       ? {
+           sourceUrl: buildDirectCoupangNpSearchUrl(
+@@ -1532,6 +1597,7 @@ export async function POST(request: Request) {
+         ? null
+         : await generateCandidates(
+             rawCategory,
++            scenario.id,
+             scenario.label,
+             priority.label,
+             budget.label,
+@@ -1592,6 +1658,7 @@ export async function POST(request: Request) {
+     // 제휴 전환이 사실상 일어나지 않는다.
+     const generated = await generateCandidates(
+       rawCategory,
++      scenario.id,
+       scenario.label,
+       priority.label,
+       budget.label,
+@@ -1610,7 +1677,8 @@ export async function POST(request: Request) {
+             rank: index + 1,
+             ...item,
+             evidence:
+-              item.evidence || categoryEvidence(rawCategory, item.reason),
++              item.evidence ||
++              categoryEvidence(rawCategory, item.reason, scenario.id),
+             // 고가·렌탈은 외부 판매 링크로 넘기지 않는다. 계약 조건이 개인마다
+             // 달라 검색 결과로 넘기는 것이 오히려 잘못된 판단을 부른다.
+             ...(isAdvisoryOnly(rawCategory)
+@@ -1654,7 +1722,11 @@ export async function POST(request: Request) {
+             advancedContext,
+             location
+           )
+-        : buildFallbackNonFoodRecommendations(rawCategory, fallbacks)
++        : buildFallbackNonFoodRecommendations(
++            rawCategory,
++            scenario.id,
++            fallbacks
++          )
+     ).slice(0, 4);
+     const result = toAnalyzeResult(
+       rawCategory,
+diff --git a/src/lib/recommendation/recommendation-presentation.ts b/src/lib/recommendation/recommendation-presentation.ts
+index b930d99..f688252 100644
+--- a/src/lib/recommendation/recommendation-presentation.ts
++++ b/src/lib/recommendation/recommendation-presentation.ts
+@@ -36,7 +36,9 @@ export function normalizeProductSearchKeyword(
+ 
+ export function categoryEvidence(
+   categoryId: CategoryId,
+-  reason: string
++  reason: string,
++  /** 같은 분야 안에서도 용도에 따라 봐야 할 것이 갈린다(렌탈·큰 지출). */
++  scenarioId?: string
+ ): RecommendationEvidence[] {
+   if (categoryId === "gift") {
+     return [
+@@ -96,17 +98,73 @@ export function categoryEvidence(
+   if (categoryId === "asset") {
+     return [
+       { label: "총비용", text: reason, kind: "guide" },
+-      {
+-        label: "계약 위험",
+-        text: "보증 범위, 면책, 중도해지 비용을 서면 조건으로 확인하세요.",
+-        kind: "caution",
+-      },
+-      {
+-        label: "처분 가치",
+-        text: "보유 기간 뒤 재판매 수요와 예상 감가를 별도로 계산하세요.",
+-        kind: "caution",
+-      },
++      ...assetChecks(scenarioId),
+     ];
+   }
+   return [{ label: "선택 이유", text: reason, kind: "guide" }];
+ }
++
++/**
++ * 렌탈·큰 지출은 하위 용도가 서로 너무 다르다.
++ *
++ * 자동차·부동산 기준을 그대로 쓰면 통신 요금제 카드에 "처분 가치 — 보유 기간
++ * 뒤 재판매 수요와 예상 감가"가 붙는다. 요금제는 되팔 수 있는 물건이 아니라
++ * 읽는 사람에게 아무 뜻도 없는 줄이 되고, 나머지 판단까지 의심하게 만든다.
++ *
++ * 되팔 수 있는 것에만 처분 가치를 두고, 계약으로 묶이는 것에는 빠져나올 때
++ * 드는 비용을 대신 둔다. 실제로 돈이 갈리는 지점이 거기이기 때문이다.
++ */
++function assetChecks(scenarioId?: string): RecommendationEvidence[] {
++  const resale: Record<string, RecommendationEvidence> = {
++    car: {
++      label: "처분 가치",
++      text: "보유 기간 뒤 재판매 수요와 예상 감가를 별도로 계산하세요.",
++      kind: "caution",
++    },
++    property: {
++      label: "환금성",
++      text: "되팔 때 걸리는 기간과 보유 기간 뒤 시세 변동을 함께 보세요.",
++      kind: "caution",
++    },
++  };
++  const exit: Record<string, RecommendationEvidence> = {
++    subscription: {
++      label: "해지 조건",
++      text: "약정 잔여 기간, 위약금, 결합 할인 반환금을 함께 확인하세요.",
++      kind: "caution",
++    },
++    insurance: {
++      label: "해지·갱신",
++      text: "해지환급금, 갱신 시 보험료 인상 폭, 면책 기간을 확인하세요.",
++      kind: "caution",
++    },
++    rental: {
++      label: "의무 기간",
++      text: "의무 사용 기간, 중도해지 위약금, 반납·철거 비용을 확인하세요.",
++      kind: "caution",
++    },
++    business: {
++      label: "반납·전환",
++      text: "계약 종료 시 반납 조건과 구매 전환가를 함께 계산하세요.",
++      kind: "caution",
++    },
++  };
++
++  const contract: RecommendationEvidence =
++    scenarioId && scenarioId in exit
++      ? {
++          label: "계약 위험",
++          text: "약정 기간과 요금 인상 조건을 가입 전에 서면으로 확인하세요.",
++          kind: "caution",
++        }
++      : {
++          label: "계약 위험",
++          text: "보증 범위, 면책, 중도해지 비용을 서면 조건으로 확인하세요.",
++          kind: "caution",
++        };
++
++  const second = scenarioId ? (resale[scenarioId] ?? exit[scenarioId]) : undefined;
++  // 용도를 모를 때는 어느 쪽도 단정하지 않는다. 틀린 기준을 붙이는 것보다
++  // 계약 위험만 남기는 편이 낫다.
++  return second ? [contract, second] : [contract];
++}
+diff --git a/tests/recommendation-presentation.test.mts b/tests/recommendation-presentation.test.mts
+index a711c88..6a16025 100644
+--- a/tests/recommendation-presentation.test.mts
++++ b/tests/recommendation-presentation.test.mts
+@@ -39,3 +39,48 @@ test("does not attach appliance criteria to gifts or fashion", () => {
+   assert.match(applianceText, /A\/S/);
+   assert.match(applianceText, /감가/);
+ });
++
++test("되팔 수 없는 것에 감가·재판매 기준을 붙이지 않는다", () => {
++  // 통신 요금제 카드에 "처분 가치 — 보유 기간 뒤 재판매 수요와 예상 감가"가
++  // 붙어 나갔다. 요금제는 되팔 수 있는 물건이 아니라 아무 뜻도 없는 줄이 된다.
++  const text = (scenarioId: string) =>
++    categoryEvidence("asset", "월 고정 지출을 줄이는 후보", scenarioId)
++      .map((item) => `${item.label} ${item.text}`)
++      .join(" ");
++
++  for (const scenarioId of ["subscription", "insurance", "rental"]) {
++    assert.doesNotMatch(text(scenarioId), /감가|재판매|처분 가치/);
++  }
++});
++
++test("계약으로 묶이는 용도에는 빠져나올 때 드는 비용을 보여준다", () => {
++  assert.match(text("subscription"), /위약금/);
++  assert.match(text("insurance"), /해지환급금|갱신/);
++  assert.match(text("rental"), /의무 사용 기간|위약금/);
++
++  function text(scenarioId: string) {
++    return categoryEvidence("asset", "후보", scenarioId)
++      .map((item) => `${item.label} ${item.text}`)
++      .join(" ");
++  }
++});
++
++test("되팔 수 있는 것에는 감가·환금성을 그대로 둔다", () => {
++  const car = categoryEvidence("asset", "후보", "car")
++    .map((item) => `${item.label} ${item.text}`)
++    .join(" ");
++  const property = categoryEvidence("asset", "후보", "property")
++    .map((item) => `${item.label} ${item.text}`)
++    .join(" ");
++
++  assert.match(car, /감가/);
++  assert.match(property, /환금성|시세/);
++});
++
++test("용도를 모르면 어느 쪽 기준도 단정하지 않는다", () => {
++  const text = categoryEvidence("asset", "후보")
++    .map((item) => `${item.label} ${item.text}`)
++    .join(" ");
++  assert.doesNotMatch(text, /감가|재판매|위약금/);
++  assert.match(text, /계약 위험/);
++});
+-- 
+2.43.0
+

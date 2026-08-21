@@ -1,0 +1,449 @@
+From f6bcd5c3261fd58eb285ed6dfc81acfe436a9a1b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 03:53:17 +0000
+Subject: [PATCH 1/2] fix: center food map links on the user's location and add
+ a Coupang link diagnostic
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+음식 추천에서 지도를 열면 현재 위치가 아닌 곳이 나왔다. 위치 권한을 받아
+서버로 좌표까지 보내놓고 정작 지도 링크에는 넘기지 않아, 검색이 IP 기준
+임의 지역에서 이뤄지고 있었다.
+
+- buildNearbyMapUrl 을 추가해 좌표가 있으면 /@lat,lng,15z 형식으로 지도
+  중심을 사용자 위치에 고정한다. 좌표가 없을 때만 기존 검색 URL을 쓴다.
+- AI 메뉴 경로와 정적 폴백 경로 모두에 위치를 전달한다.
+- 버튼 문구도 위치 사용 여부에 따라 "내 주변에서 이 메뉴 찾기"로 구분한다.
+
+제휴 링크 진단
+- GET /api/coupang/diagnose 를 추가한다. 상품 검색과 딥링크를 각각 시도해
+  어느 단계에서 끊기는지, 실제로 어떤 종류의 링크가 나가는지를 한 번에
+  보여준다. 리포트에 클릭이 잡히지 않을 때 키·권한·링크 형태 중 무엇이
+  문제인지 구분할 방법이 없어 추가했다.
+- COUPANG_DIAGNOSTIC_TOKEN 으로 보호하고 키 값은 응답에 포함하지 않는다.
+
+- 2026-07-31 종료된 NAVER 쇼핑검색 연동 코드를 제거한다. 쿠팡 상품 검색으로
+  대체돼 더 이상 호출되지 않는다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ src/app/api/coupang/diagnose/route.ts | 109 ++++++++++++++++++++++++++
+ src/app/api/recommend/route.ts        |  82 +++++++------------
+ 2 files changed, 138 insertions(+), 53 deletions(-)
+ create mode 100644 src/app/api/coupang/diagnose/route.ts
+
+diff --git a/src/app/api/coupang/diagnose/route.ts b/src/app/api/coupang/diagnose/route.ts
+new file mode 100644
+index 0000000..8d524eb
+--- /dev/null
++++ b/src/app/api/coupang/diagnose/route.ts
+@@ -0,0 +1,109 @@
++import { NextResponse } from "next/server";
++
++import {
++  createCoupangDeepLink,
++  getCoupangConfigurationStatus,
++  hasValidDiagnosticToken,
++  isDiagnosticTokenConfigured,
++  normalizeCoupangKeyword,
++  searchCoupangProduct,
++} from "@/lib/monetization/coupang-server";
++
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++export const preferredRegion = "icn1";
++
++const NO_STORE = { "Cache-Control": "no-store, no-cache, must-revalidate" };
++
++/**
++ * 제휴 링크가 어느 단계에서 끊기는지 한 번에 확인하는 진단 엔드포인트.
++ *
++ * 리포트에 클릭이 잡히지 않을 때 원인이 키인지, 권한인지, 링크 형태인지
++ * 구분할 방법이 없어 추가했다. 응답에 키 값은 절대 포함하지 않는다.
++ *
++ * 사용: GET /api/coupang/diagnose?q=검색어
++ *       Authorization: Bearer <COUPANG_DIAGNOSTIC_TOKEN>
++ */
++export async function GET(request: Request) {
++  if (!isDiagnosticTokenConfigured()) {
++    return NextResponse.json(
++      { ok: false, code: "DIAGNOSTIC_TOKEN_MISSING" },
++      { status: 503, headers: NO_STORE }
++    );
++  }
++  if (!hasValidDiagnosticToken(request.headers.get("authorization"))) {
++    return NextResponse.json(
++      { ok: false, code: "UNAUTHORIZED" },
++      { status: 401, headers: NO_STORE }
++    );
++  }
++
++  const { searchParams } = new URL(request.url);
++  const keyword =
++    normalizeCoupangKeyword(searchParams.get("q")) || "보온 스테인리스 텀블러";
++
++  const configuration = getCoupangConfigurationStatus();
++
++  // 1) 상품 검색 — 성공하면 상품 상세 직링크를 쓰게 된다.
++  let productStep: Record<string, unknown>;
++  try {
++    const product = await searchCoupangProduct(keyword);
++    productStep = product
++      ? {
++          ok: true,
++          productName: product.productName,
++          productPrice: product.productPrice,
++          hasImage: Boolean(product.productImage),
++          isRocket: product.isRocket,
++          urlHost: new URL(product.productUrl).host,
++          urlPath: new URL(product.productUrl).pathname.slice(0, 60),
++        }
++      : { ok: false, reason: "NO_PRODUCT_OR_API_FAILED" };
++  } catch (error) {
++    productStep = {
++      ok: false,
++      reason: error instanceof Error ? error.message.slice(0, 200) : "UNKNOWN",
++    };
++  }
++
++  // 2) 딥링크 — 상품 검색이 실패했을 때 쓰이는 경로.
++  let deepLinkStep: Record<string, unknown>;
++  try {
++    const url = await createCoupangDeepLink(keyword);
++    deepLinkStep = { ok: true, urlHost: new URL(url).host };
++  } catch (error) {
++    deepLinkStep = {
++      ok: false,
++      reason: error instanceof Error ? error.message.slice(0, 200) : "UNKNOWN",
++    };
++  }
++
++  const linkMode = productStep.ok
++    ? "product-detail"
++    : deepLinkStep.ok
++      ? "deeplink-search"
++      : "no-tracking-fallback";
++
++  return NextResponse.json(
++    {
++      ok: true,
++      keyword,
++      configuration: {
++        configured: configuration.configured,
++        missing: configuration.missing,
++        subIdConfigured: Boolean(process.env.COUPANG_SUB_ID?.trim()),
++      },
++      productSearch: productStep,
++      deepLink: deepLinkStep,
++      // 실제로 사용자에게 나가는 링크 종류
++      linkMode,
++      hint:
++        linkMode === "no-tracking-fallback"
++          ? "두 경로 모두 실패했습니다. 이 상태에서는 제휴 추적이 되지 않습니다."
++          : linkMode === "deeplink-search"
++            ? "상품 검색이 실패해 검색 페이지 딥링크로 나갑니다. 추적은 되지만 전환은 낮습니다."
++            : "상품 상세 직링크로 나갑니다. 정상입니다.",
++    },
++    { headers: NO_STORE }
++  );
++}
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 9eece2c..939056f 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -56,13 +56,6 @@ type ValidAdvancedAnswer = {
+   optionLabel: string;
+ };
+ 
+-type NaverShopItem = {
+-  title?: string;
+-  link?: string;
+-  lprice?: string;
+-  mallName?: string;
+-};
+-
+ type GooglePlace = {
+   displayName?: { text?: string };
+   formattedAddress?: string;
+@@ -719,39 +712,6 @@ JSON 배열만 응답:
+   }
+ }
+ 
+-async function findNaverLowestPrice(
+-  query: string,
+-  maxBudgetWon?: number
+-): Promise<NaverShopItem | undefined> {
+-  const clientId = process.env.NAVER_CLIENT_ID?.trim();
+-  const clientSecret = process.env.NAVER_CLIENT_SECRET?.trim();
+-  if (!clientId || !clientSecret) return undefined;
+-
+-  const url = new URL("https://openapi.naver.com/v1/search/shop.json");
+-  url.searchParams.set("query", query);
+-  url.searchParams.set("display", "10");
+-  url.searchParams.set("start", "1");
+-  url.searchParams.set("sort", "asc");
+-  url.searchParams.set("exclude", "used:rental:cbshop");
+-
+-  const response = await fetch(url, {
+-    headers: {
+-      "X-Naver-Client-Id": clientId,
+-      "X-Naver-Client-Secret": clientSecret,
+-    },
+-    cache: "no-store",
+-    // NAVER 쇼핑검색 API는 2026-07-31 종료됐다. 키가 남아 있어도 실패하므로
+-    // 응답 지연을 만들지 않도록 타임아웃을 짧게 잡는다.
+-    signal: AbortSignal.timeout(4000),
+-  });
+-  if (!response.ok) return undefined;
+-  const payload = (await response.json()) as { items?: NaverShopItem[] };
+-  return payload.items?.find((item) => {
+-    const price = Number(item.lprice);
+-    return price > 0 && (!maxBudgetWon || price <= maxBudgetWon);
+-  });
+-}
+-
+ async function enrichProductPrices(
+   candidates: Candidate[],
+   maxBudgetWon?: number
+@@ -1126,12 +1086,28 @@ async function findGooglePlaces(
+   });
+ }
+ 
++/**
++ * 메뉴 이름으로 지도를 열 때 사용자의 현재 위치를 중심으로 잡는다.
++ * 좌표가 없으면 지도는 IP 기준 임의 지역을 보여줘 "내 주변"이 되지 않는다.
++ */
++function buildNearbyMapUrl(keyword: string, location?: RequestLocation): string {
++  const query = encodeURIComponent(keyword);
++  if (!location) {
++    return `https://www.google.com/maps/search/?api=1&query=${query}`;
++  }
++  const lat = location.latitude.toFixed(6);
++  const lng = location.longitude.toFixed(6);
++  // /@lat,lng,zoom 형식은 지도 중심을 그 좌표로 고정한다.
++  return `https://www.google.com/maps/search/${query}/@${lat},${lng},15z`;
++}
++
+ /** AI가 만든 메뉴 후보를 지도 검색 결과 카드로 변환한다. */
+ function buildAiFoodRecommendations(
+   candidates: Candidate[],
+   priorityLabel: string,
+   budgetLabel: string,
+-  userWish: string
++  userWish: string,
++  location?: RequestLocation
+ ): QuickRecommendation[] {
+   return candidates.map((item, index) => ({
+     rank: index + 1,
+@@ -1157,10 +1133,8 @@ function buildAiFoodRecommendations(
+         kind: "caution" as const,
+       },
+     ],
+-    sourceUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+-      item.searchKeyword
+-    )}`,
+-    sourceLabel: "이 메뉴 주변에서 찾기",
++    sourceUrl: buildNearbyMapUrl(item.searchKeyword, location),
++    sourceLabel: location ? "내 주변에서 이 메뉴 찾기" : "이 메뉴 지도에서 찾기",
+     dataStatus: "category-guide" as const,
+   }));
+ }
+@@ -1169,7 +1143,8 @@ function buildFallbackFoodRecommendations(
+   candidates: Candidate[],
+   priorityLabel: string,
+   budgetLabel: string,
+-  advancedContext = ""
++  advancedContext = "",
++  location?: RequestLocation
+ ): QuickRecommendation[] {
+   return segmentFallbackCandidates("food", candidates).map((item, index) => ({
+     rank: index + 1,
+@@ -1187,10 +1162,8 @@ function buildFallbackFoodRecommendations(
+         kind: "caution" as const,
+       },
+     ],
+-    sourceUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+-      item.searchKeyword
+-    )}`,
+-    sourceLabel: "Google 지도에서 이 메뉴 주변 검색",
++    sourceUrl: buildNearbyMapUrl(item.searchKeyword, location),
++    sourceLabel: location ? "내 주변에서 이 메뉴 찾기" : "지도에서 이 메뉴 검색",
+     dataStatus: "category-guide" as const,
+   }));
+ }
+@@ -1426,13 +1399,15 @@ export async function POST(request: Request) {
+               menuCandidates.candidates,
+               priority.label,
+               budget.label,
+-              userWish
++              userWish,
++              location
+             )
+           : buildFallbackFoodRecommendations(
+               fallbacks,
+               priority.label,
+               budget.label,
+-              advancedContext
++              advancedContext,
++              location
+             ))
+       ).slice(0, 4);
+       const result = toAnalyzeResult(
+@@ -1527,7 +1502,8 @@ export async function POST(request: Request) {
+             fallbacks,
+             priority.label,
+             budget.label,
+-            advancedContext
++            advancedContext,
++            location
+           )
+         : buildFallbackNonFoodRecommendations(rawCategory, fallbacks)
+     ).slice(0, 4);
+-- 
+2.43.0
+
+
+From 9e353c387260d6751ec9325f7d4b996867119b48 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 10:41:53 +0000
+Subject: [PATCH 2/2] fix: use map-searchable menu names for food results
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+음식 추천의 지도 링크가 "1인용 냉동삼겹살 밀키트" 같은 상품형 문구로
+검색돼 지도에 상호가 하나도 뜨지 않았다. 지도는 "삼겹살" 처럼 짧은 업종·
+메뉴 이름이어야 주변 가게를 보여준다.
+
+- 프롬프트에 음식 전용 검색어 규칙을 추가한다. 2~6자 업종·메뉴명만 쓰게 하고
+  수량 표기, 밀키트/냉동 같은 가공식품 표현, 포장 단위, 브랜드명을 금지한다.
+  사용자에게 보여줄 이름(name)과 지도 검색어(searchKeyword)를 분리해 설명한다.
+- 프롬프트만으로는 어길 수 있으므로 서버에서도 toMapKeyword 로 한 번 더
+  정리한다. 수량·가공식품 표현을 걷어내고 앞 두 단어만 남긴다.
+- toMapKeyword 를 lib/recommendation/map-keyword.ts 로 분리하고 테스트를
+  추가한다. 한글 뒤에서는 \b 가 경계로 잡히지 않아 한글 단위와 영문 단위를
+  나눠 처리해야 한다("1인용"이 지워지지 않던 원인).
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ package.json                          |  5 +++--
+ src/app/api/recommend/route.ts        | 12 +++++++++++-
+ src/lib/recommendation/map-keyword.ts | 21 +++++++++++++++++++++
+ tests/map-keyword.test.mts            | 19 +++++++++++++++++++
+ 4 files changed, 54 insertions(+), 3 deletions(-)
+ create mode 100644 src/lib/recommendation/map-keyword.ts
+ create mode 100644 tests/map-keyword.test.mts
+
+diff --git a/package.json b/package.json
+index d2bbc6c..37da2b7 100644
+--- a/package.json
++++ b/package.json
+@@ -7,10 +7,11 @@
+     "build": "next build",
+     "start": "next start",
+     "lint": "next lint",
+-    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation",
++    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map",
+     "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts",
+     "test:quick": "node --experimental-strip-types --test tests/quick-options.test.mts",
+-    "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts"
++    "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts",
++    "test:map": "node --experimental-strip-types --test tests/map-keyword.test.mts"
+   },
+   "dependencies": {
+     "@base-ui/react": "^1.4.0",
+diff --git a/src/app/api/recommend/route.ts b/src/app/api/recommend/route.ts
+index 939056f..bfc2171 100644
+--- a/src/app/api/recommend/route.ts
++++ b/src/app/api/recommend/route.ts
+@@ -15,6 +15,7 @@ import {
+   normalizeProductSearchKeyword,
+ } from "@/lib/recommendation/recommendation-presentation";
+ import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
++import { toMapKeyword } from "@/lib/recommendation/map-keyword";
+ import { searchCoupangProduct } from "@/lib/monetization/coupang-server";
+ import type {
+   AnalyzeApiResult,
+@@ -551,6 +552,15 @@ function keywordRules(categoryId: CategoryId): string {
+ - 널리 팔리는 브랜드가 명확하면 브랜드를 앞에 붙여도 된다. 확실하지 않으면 붙이지 않는다.
+ - 광고 문구(최저가·정품·무료배송), 옵션 나열, 쉼표 연결은 금지한다.
+ - name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.`;
++  }
++  if (categoryId === "food") {
++    return `searchKeyword는 지도 앱에서 주변 가게가 뜨는 "업종·메뉴 이름"만 쓴다.
++- 2~6자 사이의 짧은 메뉴명 또는 업종명. 예: "삼겹살", "국밥", "파스타", "이자카야"
++- 상품처럼 쓰면 지도에 상호가 하나도 안 뜬다. 아래는 모두 금지한다.
++  수량/인분 표기("1인용", "2인분"), 가공식품 표현("밀키트", "냉동", "간편식"),
++  포장 단위("500g", "세트"), 브랜드명, 수식어("맛있는", "유명한").
++- name 에는 사용자에게 보여줄 이름을 자유롭게 쓰되, searchKeyword 는 위 규칙을 지킨다.
++  예: name "숯불 삼겹살 전문점" / searchKeyword "삼겹살"`;
+   }
+   return `searchKeyword는 네이버에서 조건을 확인할 수 있는 구체적인 검색어로 8~24자로 쓴다.
+ 광고 문구와 쉼표 연결은 금지한다.`;
+@@ -1091,7 +1101,7 @@ async function findGooglePlaces(
+  * 좌표가 없으면 지도는 IP 기준 임의 지역을 보여줘 "내 주변"이 되지 않는다.
+  */
+ function buildNearbyMapUrl(keyword: string, location?: RequestLocation): string {
+-  const query = encodeURIComponent(keyword);
++  const query = encodeURIComponent(toMapKeyword(keyword));
+   if (!location) {
+     return `https://www.google.com/maps/search/?api=1&query=${query}`;
+   }
+diff --git a/src/lib/recommendation/map-keyword.ts b/src/lib/recommendation/map-keyword.ts
+new file mode 100644
+index 0000000..bd86fc4
+--- /dev/null
++++ b/src/lib/recommendation/map-keyword.ts
+@@ -0,0 +1,21 @@
++/**
++ * 지도 검색어 정리.
++ * AI가 "1인용 냉동삼겹살 밀키트" 같은 상품형 문구를 만들면 지도에는
++ * 상호가 하나도 뜨지 않는다. 상품 표현을 걷어내고 핵심 메뉴명만 남긴다.
++ */
++export function toMapKeyword(value: string): string {
++  const stripped = value
++    // \b 는 한글 뒤에서 경계로 잡히지 않아 한글 단위와 영문 단위를 나눠 처리한다.
++    .replace(/\d+\s*(인용|인분|개입|봉|팩)/g, " ")
++    .replace(/\d+\s*(kg|g|ml|l)(?![a-z가-힣])/gi, " ")
++    .replace(
++      /(밀키트|간편식|냉동|즉석|가정간편식|HMR|세트|선물세트|포장|배달|택배|정품|무료배송)/g,
++      " "
++    )
++    .replace(/\s+/g, " ")
++    .trim();
++  const base = stripped || value;
++  // 지도 검색은 단어 2개를 넘기면 결과가 급격히 줄어든다.
++  return base.split(" ").slice(0, 2).join(" ").slice(0, 20);
++}
++
+diff --git a/tests/map-keyword.test.mts b/tests/map-keyword.test.mts
+new file mode 100644
+index 0000000..22f7656
+--- /dev/null
++++ b/tests/map-keyword.test.mts
+@@ -0,0 +1,19 @@
++import { strict as assert } from "node:assert";
++import test from "node:test";
++
++import { toMapKeyword } from "../src/lib/recommendation/map-keyword.ts";
++
++test("상품형 문구를 지도에서 검색되는 메뉴명으로 줄인다", () => {
++  assert.equal(toMapKeyword("1인용 냉동삼겹살 밀키트"), "삼겹살");
++  assert.equal(toMapKeyword("2인분 국밥 간편식"), "국밥");
++  assert.equal(toMapKeyword("모둠전 밀키트 세트"), "모둠전");
++});
++
++test("이미 지도에서 통하는 짧은 메뉴명은 그대로 둔다", () => {
++  assert.equal(toMapKeyword("삼겹살"), "삼겹살");
++  assert.equal(toMapKeyword("이자카야"), "이자카야");
++});
++
++test("단어가 많으면 앞 두 개만 남긴다", () => {
++  assert.equal(toMapKeyword("분위기 좋은 이자카야 추천"), "분위기 좋은");
++});
+-- 
+2.43.0
+

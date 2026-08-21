@@ -1,0 +1,987 @@
+From af841717a3afb111d4c50b60fe5837add017f7b5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 13 Aug 2026 10:59:52 +0000
+Subject: [PATCH] feat: make shared results actually open for the person who
+ receives them
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+"결과 공유하기"가 복사하던 것은 홈 주소였다.
+
+    const shareUrl = user ? `${baseUrl}/?ref=${user.id}` : baseUrl;
+
+결과 내용이 주소에 없어서, 링크를 받은 사람은 빈 홈 화면을 봤다. 게다가
+지금 주력 화면인 /result 에는 공유 수단이 아예 없었다. 사용자가 한 명을
+데려오는 경로가 0이었다는 뜻이다.
+
+동작 방식
+- 공유를 누르면 그 시점 결과를 shared_results 에 저장하고 /r/<id> 를 만든다.
+  이후 추천이 바뀌어도 링크가 가리키는 내용은 고정된다.
+- /r/<id> 는 로그인 없이 열리는 읽기 전용 화면이다. 정밀 질문·재추천 같은
+  조작은 넣지 않았다. 받은 사람의 목적은 확인이고, 다음 행동은 직접 해보기라
+  하단 CTA 를 그쪽으로 뒀다.
+- 제휴 링크와 공정위 고지를 함께 실었다. 공유가 퍼질수록 수익 경로도 함께 간다.
+- 카카오톡·트위터 미리보기에 1등 후보와 조건이 뜨도록 제목·설명을 결과에서
+  만든다. layout 에 metadataBase 가 없어 미리보기 이미지 주소가 상대 경로로
+  나가던 것도 함께 고쳤다.
+
+담기는 내용을 좁혔다
+- 표시에 필요한 필드만 남기고 길이를 자른다. /r 은 남이 여는 화면이라
+  링크는 https 만 통과시킨다. javascript: 주소가 버튼에 실리면 받은 사람이
+  피해를 본다. 테스트 8개로 고정했다.
+- shared_results 는 RLS 를 켜고 정책을 만들지 않았다. anon 키로는 어떤 행도
+  직접 읽거나 쓸 수 없고, 서버 라우트로만 접근한다.
+- 검색에 색인되지 않도록 noindex 를 걸었다. 사용자가 만든 일회성 페이지다.
+
+주소를 아는 사람은 누구나 볼 수 있다는 점과 삭제 요청 방법을
+개인정보처리방침에 명시했다.
+
+supabase/sql/shared_results.sql 을 Supabase SQL Editor 에서 실행해야
+동작한다. 실행 전에는 공유 요청이 503 으로 떨어지고 나머지 기능은 그대로다.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0197fvboKypZvMCAicdSexmx
+---
+ package.json                                  |   3 +-
+ src/app/api/share/route.ts                    | 101 +++++++++
+ src/app/layout.tsx                            |   2 +
+ src/app/privacy/page.tsx                      |   6 +
+ src/app/r/[id]/page.tsx                       |  75 +++++++
+ .../result/quick-recommendation-result.tsx    |   5 +-
+ src/components/result/share-result-button.tsx | 113 ++++++++++
+ src/components/result/shared-result-view.tsx  | 209 ++++++++++++++++++
+ src/lib/share/share-payload.ts                | 164 ++++++++++++++
+ supabase/sql/shared_results.sql               |  27 +++
+ tests/share-payload.test.mts                  | 114 ++++++++++
+ 11 files changed, 817 insertions(+), 2 deletions(-)
+ create mode 100644 src/app/api/share/route.ts
+ create mode 100644 src/app/r/[id]/page.tsx
+ create mode 100644 src/components/result/share-result-button.tsx
+ create mode 100644 src/components/result/shared-result-view.tsx
+ create mode 100644 src/lib/share/share-payload.ts
+ create mode 100644 supabase/sql/shared_results.sql
+ create mode 100644 tests/share-payload.test.mts
+
+diff --git a/package.json b/package.json
+index 307ea6b..414828c 100644
+--- a/package.json
++++ b/package.json
+@@ -7,12 +7,13 @@
+     "build": "next build",
+     "start": "next start",
+     "lint": "next lint",
+-    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map && npm run test:fit",
++    "test": "npm run test:coupang && npm run test:quick && npm run test:recommendation && npm run test:map && npm run test:fit && npm run test:share",
+     "test:coupang": "node --experimental-strip-types --test tests/coupang-server.test.mts",
+     "test:quick": "node --experimental-strip-types --test tests/quick-options.test.mts",
+     "test:recommendation": "node --experimental-strip-types --test tests/recommendation-presentation.test.mts",
+     "test:map": "node --experimental-strip-types --test tests/map-keyword.test.mts",
+     "test:fit": "node --experimental-strip-types --test tests/fit-checks.test.mts",
++    "test:share": "node --experimental-strip-types --test tests/share-payload.test.mts",
+     "android:sync": "npm --prefix platforms/android run sync",
+     "android:assets": "npm --prefix platforms/android run assets",
+     "android:open": "npm --prefix platforms/android run open",
+diff --git a/src/app/api/share/route.ts b/src/app/api/share/route.ts
+new file mode 100644
+index 0000000..dd13b92
+--- /dev/null
++++ b/src/app/api/share/route.ts
+@@ -0,0 +1,101 @@
++import { NextResponse } from "next/server";
++import { createClient } from "@supabase/supabase-js";
++
++import { createRouteHandlerSupabaseClient } from "@/lib/supabase/server";
++import {
++  MAX_SHARE_PAYLOAD_BYTES,
++  toSharedResultPayload,
++} from "@/lib/share/share-payload";
++
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++
++const NO_STORE = { "Cache-Control": "no-store" };
++
++/**
++ * 추천 결과를 공유 가능한 주소로 만든다.
++ *
++ * 결과는 sessionStorage 에만 있어 링크를 받은 사람은 빈 화면을 봤다.
++ * 공유를 누른 시점의 결과를 저장하고 짧은 id 를 돌려준다.
++ */
++export async function POST(request: Request) {
++  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
++  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
++  if (!serviceKey || !supabaseUrl) {
++    return NextResponse.json(
++      { ok: false, error: "공유 기능이 아직 설정되지 않았습니다." },
++      { status: 503, headers: NO_STORE }
++    );
++  }
++
++  let body: unknown;
++  try {
++    body = await request.json();
++  } catch {
++    return NextResponse.json(
++      { ok: false, error: "요청을 읽지 못했습니다." },
++      { status: 400, headers: NO_STORE }
++    );
++  }
++
++  const payload = toSharedResultPayload(
++    (body as { result?: unknown } | null)?.result
++  );
++  if (!payload) {
++    return NextResponse.json(
++      { ok: false, error: "공유할 추천 결과가 없습니다." },
++      { status: 400, headers: NO_STORE }
++    );
++  }
++
++  const serialized = JSON.stringify(payload);
++  if (Buffer.byteLength(serialized, "utf8") > MAX_SHARE_PAYLOAD_BYTES) {
++    return NextResponse.json(
++      { ok: false, error: "결과가 너무 커서 공유할 수 없습니다." },
++      { status: 413, headers: NO_STORE }
++    );
++  }
++
++  // 로그인은 필요 없다. 로그인한 경우에만 누가 만들었는지 함께 남긴다.
++  let createdBy: string | null = null;
++  try {
++    const {
++      data: { user },
++    } = await createRouteHandlerSupabaseClient(request).auth.getUser();
++    createdBy = user?.id ?? null;
++  } catch {
++    createdBy = null;
++  }
++
++  try {
++    const admin = createClient(supabaseUrl, serviceKey);
++    const { data, error } = await admin
++      .from("shared_results")
++      .insert({
++        payload,
++        category: payload.categoryId ?? null,
++        created_by: createdBy,
++      })
++      .select("id")
++      .single();
++
++    if (error || !data?.id) {
++      console.error("[share] insert failed", error?.message);
++      return NextResponse.json(
++        { ok: false, error: "공유 링크를 만들지 못했습니다." },
++        { status: 500, headers: NO_STORE }
++      );
++    }
++
++    return NextResponse.json(
++      { ok: true, id: data.id, path: `/r/${data.id}` },
++      { headers: NO_STORE }
++    );
++  } catch (error) {
++    console.error("[share] unexpected", error);
++    return NextResponse.json(
++      { ok: false, error: "공유 링크를 만들지 못했습니다." },
++      { status: 500, headers: NO_STORE }
++    );
++  }
++}
+diff --git a/src/app/layout.tsx b/src/app/layout.tsx
+index 5b1dc50..c537aa4 100644
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -31,6 +31,8 @@ const notoSansKr = Noto_Sans_KR({
+ });
+ 
+ export const metadata: Metadata = {
++  // 이 값이 없으면 공유 링크의 미리보기 이미지 주소가 상대 경로로 나가
++  // 카카오톡·트위터에서 썸네일이 뜨지 않는다.
+   metadataBase: new URL("https://choice.ymstudio.co.kr"),
+   title: {
+     default: "ChoiceFlow — 선택장애를 위한 AI",
+diff --git a/src/app/privacy/page.tsx b/src/app/privacy/page.tsx
+index a501951..18cf436 100644
+--- a/src/app/privacy/page.tsx
++++ b/src/app/privacy/page.tsx
+@@ -61,8 +61,14 @@ export default function PrivacyPage() {
+             <li>상담 신청 정보: 상담 종료 후 3년 또는 이용자의 삭제 요청 시까지</li>
+             <li>결제 및 계약·청약철회 기록: 관련 법령에서 정한 기간</li>
+             <li>접속·보안 기록: 관련 법령 또는 보안 목적에 필요한 기간</li>
++            <li>공유 링크로 저장된 추천 결과: 이용자의 삭제 요청 시까지</li>
+           </ul>
+           <p className="mt-3">법령상 보존 의무가 있는 경우 해당 기간 동안 분리 보관한 후 파기합니다.</p>
++          <p className="mt-3">
++            <strong>공유 링크 안내:</strong> 결과 화면에서 &ldquo;결과 공유하기&rdquo;를 누르면 그 시점의 추천 결과가 저장되고 고유 주소가 만들어집니다.
++            <strong> 주소를 아는 사람은 누구나 해당 결과를 볼 수 있으므로</strong> 개인적인 내용이 담긴 결과는 공유하지 않도록 주의해 주세요.
++            삭제를 원하시면 support@ymstudio.co.kr로 해당 주소와 함께 요청해 주시면 지체 없이 삭제합니다.
++          </p>
+           <p className="mt-3">
+             회원은 <Link href="/account/delete" className="font-semibold text-primary underline underline-offset-4">계정 및 데이터 삭제</Link> 페이지에서
+             언제든 직접 계정과 관련 데이터의 삭제를 요청할 수 있습니다.
+diff --git a/src/app/r/[id]/page.tsx b/src/app/r/[id]/page.tsx
+new file mode 100644
+index 0000000..3823656
+--- /dev/null
++++ b/src/app/r/[id]/page.tsx
+@@ -0,0 +1,75 @@
++import type { Metadata } from "next";
++import { notFound } from "next/navigation";
++import { createClient } from "@supabase/supabase-js";
++
++import { SharedResultView } from "@/components/result/shared-result-view";
++import {
++  readSharedResultPayload,
++  sharePreviewText,
++  type SharedResultPayload,
++} from "@/lib/share/share-payload";
++
++export const dynamic = "force-dynamic";
++
++type Props = { params: { id: string } };
++
++/** UUID 형식이 아니면 조회 자체를 하지 않는다. */
++const UUID_PATTERN =
++  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
++
++async function loadSharedResult(
++  id: string
++): Promise<SharedResultPayload | null> {
++  if (!UUID_PATTERN.test(id)) return null;
++
++  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
++  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
++  if (!serviceKey || !supabaseUrl) return null;
++
++  try {
++    const admin = createClient(supabaseUrl, serviceKey);
++    const { data, error } = await admin
++      .from("shared_results")
++      .select("payload")
++      .eq("id", id)
++      .maybeSingle();
++    if (error || !data) return null;
++    return readSharedResultPayload(data.payload);
++  } catch {
++    return null;
++  }
++}
++
++export async function generateMetadata({ params }: Props): Promise<Metadata> {
++  const payload = await loadSharedResult(params.id);
++  if (!payload) {
++    return {
++      title: "공유된 결과를 찾을 수 없습니다",
++      robots: { index: false, follow: false },
++    };
++  }
++
++  const { title, description } = sharePreviewText(payload);
++  return {
++    title,
++    description,
++    // 공유 결과는 사용자가 만든 일회성 페이지다. 검색에 색인되면 안 된다.
++    robots: { index: false, follow: false },
++    openGraph: {
++      title,
++      description,
++      type: "article",
++    },
++    twitter: {
++      card: "summary_large_image",
++      title,
++      description,
++    },
++  };
++}
++
++export default async function SharedResultPage({ params }: Props) {
++  const payload = await loadSharedResult(params.id);
++  if (!payload) notFound();
++  return <SharedResultView payload={payload} />;
++}
+diff --git a/src/components/result/quick-recommendation-result.tsx b/src/components/result/quick-recommendation-result.tsx
+index 8413d0c..8a7d056 100644
+--- a/src/components/result/quick-recommendation-result.tsx
++++ b/src/components/result/quick-recommendation-result.tsx
+@@ -17,6 +17,7 @@ import {
+ } from "lucide-react";
+ 
+ import { Button, buttonVariants } from "@/components/ui/button";
++import { ShareResultButton } from "@/components/result/share-result-button";
+ import { buildDirectCoupangNpSearchUrl } from "@/lib/monetization/coupang-search";
+ import {
+   getQuickAdvancedQuestions,
+@@ -912,7 +913,9 @@ export function QuickRecommendationResult({
+         )}
+       </section>
+ 
+-      <div className="mt-7">
++      <ShareResultButton result={data} className="mt-7" />
++
++      <div className="mt-3">
+         <Link
+           href="/" className={cn(
+             buttonVariants({ variant: "outline" }),
+diff --git a/src/components/result/share-result-button.tsx b/src/components/result/share-result-button.tsx
+new file mode 100644
+index 0000000..f3ce953
+--- /dev/null
++++ b/src/components/result/share-result-button.tsx
+@@ -0,0 +1,113 @@
++"use client";
++
++import { useState } from "react";
++import { Check, Link2, Loader2 } from "lucide-react";
++
++import type { AnalyzeApiResult } from "@/lib/types/analyze";
++import { cn } from "@/lib/utils";
++
++/**
++ * 결과를 링크로 만들어 공유한다.
++ *
++ * 이전에는 홈 주소만 복사돼서, 받은 사람은 결과를 볼 수 없었다.
++ * 지금은 결과를 서버에 떠서 /r/<id> 주소를 만들고 그것을 넘긴다.
++ */
++export function ShareResultButton({
++  result,
++  className,
++}: {
++  result: AnalyzeApiResult;
++  className?: string;
++}) {
++  const [isSharing, setIsSharing] = useState(false);
++  const [sharedUrl, setSharedUrl] = useState("");
++  const [copied, setCopied] = useState(false);
++  const [error, setError] = useState("");
++
++  const createLink = async (): Promise<string> => {
++    if (sharedUrl) return sharedUrl;
++    const response = await fetch("/api/share", {
++      method: "POST",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ result }),
++      credentials: "same-origin",
++      cache: "no-store",
++    });
++    const payload = (await response.json().catch(() => null)) as
++      | { ok?: boolean; path?: string; error?: string }
++      | null;
++    if (!response.ok || payload?.ok !== true || !payload.path) {
++      throw new Error(payload?.error || "공유 링크를 만들지 못했습니다.");
++    }
++    const url = `${window.location.origin}${payload.path}`;
++    setSharedUrl(url);
++    return url;
++  };
++
++  const handleShare = async () => {
++    if (isSharing) return;
++    setIsSharing(true);
++    setError("");
++    try {
++      const url = await createLink();
++
++      // 모바일은 기본 공유 시트가 카카오톡까지 바로 열어준다.
++      if (typeof navigator !== "undefined" && navigator.share) {
++        try {
++          await navigator.share({ title: "ChoiceFlow 추천 결과", url });
++          return;
++        } catch (reason) {
++          // 사용자가 공유 시트를 닫은 것은 오류가 아니다. 복사로 넘어가지 않는다.
++          if (reason instanceof DOMException && reason.name === "AbortError") {
++            return;
++          }
++        }
++      }
++
++      await navigator.clipboard.writeText(url);
++      setCopied(true);
++      setTimeout(() => setCopied(false), 2500);
++    } catch (reason) {
++      setError(
++        reason instanceof Error
++          ? reason.message
++          : "공유 링크를 만들지 못했습니다."
++      );
++    } finally {
++      setIsSharing(false);
++    }
++  };
++
++  return (
++    <div className={className}>
++      <button
++        type="button"
++        onClick={() => void handleShare()}
++        disabled={isSharing}
++        className={cn(
++          "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-5 text-[14px] font-bold transition hover:border-foreground/40 disabled:opacity-60 sm:w-auto"
++        )}
++      >
++        {isSharing ? (
++          <Loader2 className="size-4 animate-spin" aria-hidden />
++        ) : copied ? (
++          <Check className="size-4 text-success" aria-hidden />
++        ) : (
++          <Link2 className="size-4" aria-hidden />
++        )}
++        {copied ? "링크를 복사했어요" : "결과 공유하기"}
++      </button>
++
++      {sharedUrl && (
++        <p className="mt-2 break-all text-[12px] text-muted-foreground">
++          {sharedUrl}
++        </p>
++      )}
++      {error && (
++        <p role="alert" className="mt-2 text-[12px] font-medium text-destructive">
++          {error}
++        </p>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/result/shared-result-view.tsx b/src/components/result/shared-result-view.tsx
+new file mode 100644
+index 0000000..230a5ce
+--- /dev/null
++++ b/src/components/result/shared-result-view.tsx
+@@ -0,0 +1,209 @@
++import Link from "next/link";
++import { ArrowRight, Check, ExternalLink, Minus, Sparkles } from "lucide-react";
++
++import type { SharedResultPayload } from "@/lib/share/share-payload";
++import { cn } from "@/lib/utils";
++
++const ROLE_LABEL: Record<string, string> = {
++  best: "가장 추천",
++  value: "가성비 선택",
++  reliable: "검증 우선",
++  premium: "한 단계 위",
++};
++
++function formatPrice(price: number) {
++  return new Intl.NumberFormat("ko-KR").format(price);
++}
++
++/**
++ * 공유 링크로 들어온 사람이 보는 읽기 전용 결과.
++ *
++ * 정밀 질문·재추천 같은 조작 기능은 넣지 않는다. 받은 사람의 목적은
++ * "무엇을 골라줬는지" 확인이고, 그다음 행동은 직접 해보기다.
++ */
++export function SharedResultView({
++  payload,
++}: {
++  payload: SharedResultPayload;
++}) {
++  const winner = payload.recommendations[0];
++  const isFood = payload.categoryId === "food";
++  const isCoupang =
++    payload.categoryId === "gift" ||
++    payload.categoryId === "appliance" ||
++    payload.categoryId === "fashion";
++  const context = [
++    payload.scenarioLabel,
++    payload.priorityLabel && `${payload.priorityLabel} 우선`,
++    payload.budgetLabel,
++  ]
++    .filter(Boolean)
++    .join(" · ");
++
++  return (
++    <main className="mx-auto w-full max-w-[1120px] px-5 pb-16 pt-8 sm:px-8">
++      <p className="text-[12px] font-bold text-muted-foreground">
++        ChoiceFlow가 고른 결과{context ? ` · ${context}` : ""}
++      </p>
++      <h1 className="mt-2 break-keep text-[28px] font-black leading-[1.2] tracking-[-0.03em] sm:text-[34px]">
++        {winner.name}
++      </h1>
++      <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
++        {winner.reason}
++      </p>
++
++      {payload.userWish && (
++        <p className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-primary-soft px-3 py-1.5 text-xs font-bold text-primary">
++          <Sparkles className="size-3.5 shrink-0" aria-hidden />
++          <span className="truncate">요청 반영: {payload.userWish}</span>
++        </p>
++      )}
++
++      <h2 className="mb-3 mt-8 text-[20px] font-black tracking-tight">
++        비교한 후보 {payload.recommendations.length}개
++      </h2>
++
++      {isCoupang && (
++        <p className="mb-3 rounded-lg bg-muted px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
++          이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를
++          제공받습니다.
++        </p>
++      )}
++
++      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
++        {payload.recommendations.map((item, index) => (
++          <article
++            key={`${item.selectionType || index}-${item.name}`}
++            className={cn(
++              "flex flex-col rounded-2xl border bg-card p-4 sm:p-5",
++              index === 0 ? "border-primary ring-1 ring-primary/20" : "border-border"
++            )}
++          >
++            <span
++              className={cn(
++                "inline-flex w-fit rounded-md px-2.5 py-1 text-[11px] font-black",
++                index === 0
++                  ? "bg-primary text-primary-foreground"
++                  : "bg-muted text-muted-foreground"
++              )}
++            >
++              {index === 0 ? "🏆 " : ""}
++              {ROLE_LABEL[item.selectionType || "best"] || "추천"}
++            </span>
++
++            <div className="mt-3 flex gap-3 lg:flex-col">
++              {item.imageUrl && (
++                /* eslint-disable-next-line @next/next/no-img-element */
++                <img
++                  src={item.imageUrl}
++                  alt=""
++                  width={84}
++                  height={84}
++                  loading="lazy"
++                  decoding="async"
++                  className="size-[84px] shrink-0 rounded-xl border border-border object-cover lg:h-[168px] lg:w-full"
++                />
++              )}
++              <div className="min-w-0 flex-1">
++                <h3 className="break-keep text-[18px] font-black leading-snug">
++                  {item.name}
++                </h3>
++                {typeof item.price === "number" && (
++                  <p className="mt-1.5 text-[20px] font-black tabular-nums">
++                    {formatPrice(item.price)}
++                    <span className="text-[14px] font-bold">원</span>
++                  </p>
++                )}
++                {item.isRocket && (
++                  <span className="mt-1 inline-block rounded bg-[#ae0000]/[0.08] px-1.5 py-0.5 text-[10px] font-black text-[#ae0000] dark:text-red-400">
++                    로켓배송
++                  </span>
++                )}
++              </div>
++            </div>
++
++            {item.fitChecks?.length ? (
++              <ul className="mt-3.5 space-y-1.5">
++                {item.fitChecks.map((check) => (
++                  <li
++                    key={check.text}
++                    className="flex items-start gap-2 text-[13.5px] leading-snug"
++                  >
++                    {check.ok ? (
++                      <Check className="mt-[3px] size-4 shrink-0 text-success" aria-hidden />
++                    ) : (
++                      <Minus className="mt-[3px] size-4 shrink-0 text-muted-foreground" aria-hidden />
++                    )}
++                    <span className={cn(!check.ok && "text-muted-foreground")}>
++                      {check.text}
++                    </span>
++                  </li>
++                ))}
++              </ul>
++            ) : (
++              <p className="mt-3 line-clamp-3 text-[14px] leading-relaxed text-muted-foreground">
++                {item.reason}
++              </p>
++            )}
++
++            {item.sourceUrl && (
++              <div className="mt-auto pt-4">
++                <a
++                  href={item.sourceUrl}
++                  target="_blank"
++                  rel="noopener noreferrer sponsored"
++                  className={cn(
++                    "flex min-h-[48px] w-full items-center justify-center rounded-lg px-3 text-center text-[15px] font-black transition",
++                    isFood
++                      ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
++                      : isCoupang
++                        ? "bg-[#ae0000] text-white hover:bg-[#8f0000]"
++                        : "border border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a]/5"
++                  )}
++                >
++                  {item.sourceLabel ||
++                    (isFood ? "지도에서 보기" : "판매처에서 확인")}
++                  <ExternalLink className="ml-2 size-4 shrink-0" />
++                </a>
++              </div>
++            )}
++          </article>
++        ))}
++      </div>
++
++      {payload.advisory && (
++        <section className="mt-7 rounded-2xl border-l-4 border-amber-500 bg-amber-50/60 p-5 dark:bg-amber-950/25">
++          <p className="text-[13px] font-black text-amber-900 dark:text-amber-200">
++            결정 전에 꼭 확인하세요
++          </p>
++          <p className="mt-2 text-[14px] leading-relaxed text-amber-900/85 dark:text-amber-100/85">
++            {payload.advisory}
++          </p>
++        </section>
++      )}
++
++      {/* 링크를 받고 들어온 사람이 다음에 할 행동. 이게 이 페이지의 목적이다. */}
++      <section className="mt-8 rounded-2xl border border-primary/20 bg-primary-soft p-6 text-center sm:p-8">
++        <h2 className="text-[20px] font-black tracking-tight sm:text-[24px]">
++          같은 고민 중이신가요?
++        </h2>
++        <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed text-muted-foreground">
++          몇 번만 누르면 내 조건에 맞춰 하나를 골라드려요. 가입도, 로그인도
++          필요 없습니다.
++        </p>
++        <Link
++          href="/"
++          className="mt-5 inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-7 text-[15px] font-black text-primary-foreground transition hover:opacity-90"
++        >
++          내 조건으로 추천받기
++          <ArrowRight className="ml-2 size-4" />
++        </Link>
++      </section>
++
++      <p className="mt-6 text-center text-[12px] leading-relaxed text-muted-foreground">
++        이 페이지는 공유된 시점의 결과를 그대로 보여줍니다. 가격·재고·영업
++        상태는 바뀔 수 있으니 이동한 판매처나 지도에서 다시 확인하세요.
++      </p>
++    </main>
++  );
++}
+diff --git a/src/lib/share/share-payload.ts b/src/lib/share/share-payload.ts
+new file mode 100644
+index 0000000..b2821bd
+--- /dev/null
++++ b/src/lib/share/share-payload.ts
+@@ -0,0 +1,164 @@
++import type { AnalyzeApiResult, QuickRecommendation } from "@/lib/types/analyze";
++
++/**
++ * 공유 링크에 담기는 결과 스냅샷.
++ *
++ * 원본 결과에는 화면 재구성에만 쓰이는 값(정밀 질문용 id 등)이 섞여 있다.
++ * 공유 페이지는 읽기 전용이므로 보여줄 것만 남긴다. 저장 용량도, 남에게
++ * 넘어가는 정보량도 줄어든다.
++ */
++export type SharedResultPayload = {
++  categoryId?: string;
++  scenarioLabel?: string;
++  priorityLabel?: string;
++  budgetLabel?: string;
++  userWish?: string;
++  advisory?: string;
++  recommendations: QuickRecommendation[];
++  checkedAt?: string;
++};
++
++/** 공유 페이로드가 이 크기를 넘으면 저장하지 않는다. 정상 결과는 20KB 안쪽이다. */
++export const MAX_SHARE_PAYLOAD_BYTES = 96 * 1024;
++
++function text(value: unknown, max = 200): string | undefined {
++  if (typeof value !== "string") return undefined;
++  const trimmed = value.replace(/\s+/g, " ").trim().slice(0, max);
++  return trimmed || undefined;
++}
++
++function number(value: unknown): number | undefined {
++  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
++}
++
++function httpsUrl(value: unknown): string | undefined {
++  if (typeof value !== "string") return undefined;
++  try {
++    const url = new URL(value);
++    return url.protocol === "https:" ? url.toString() : undefined;
++  } catch {
++    return undefined;
++  }
++}
++
++function toSharedRecommendation(value: unknown): QuickRecommendation | null {
++  if (!value || typeof value !== "object") return null;
++  const item = value as QuickRecommendation;
++  const name = text(item.name, 80);
++  if (!name) return null;
++
++  return {
++    rank: number(item.rank) ?? 0,
++    name,
++    reason: text(item.reason, 400) ?? "",
++    searchKeyword: text(item.searchKeyword, 100) ?? "",
++    qualitySummary: text(item.qualitySummary, 300) ?? "",
++    asSummary: text(item.asSummary, 300),
++    depreciationSummary: text(item.depreciationSummary, 300),
++    price: number(item.price),
++    priceLabel: text(item.priceLabel, 40),
++    rating: number(item.rating),
++    reviewCount: number(item.reviewCount),
++    address: text(item.address, 200),
++    sourceUrl: httpsUrl(item.sourceUrl),
++    sourceLabel: text(item.sourceLabel, 60),
++    priceLevel: text(item.priceLevel, 40),
++    selectionType: item.selectionType,
++    selectionLabel: text(item.selectionLabel, 40),
++    imageUrl: httpsUrl(item.imageUrl),
++    productName: text(item.productName, 160),
++    isRocket: item.isRocket === true,
++    overall: number(item.overall),
++    scores: Array.isArray(item.scores)
++      ? item.scores
++          .map((score) => ({
++            label: text(score?.label, 20) ?? "",
++            value: number(score?.value) ?? 0,
++          }))
++          .filter((score) => score.label)
++          .slice(0, 5)
++      : undefined,
++    fitChecks: Array.isArray(item.fitChecks)
++      ? item.fitChecks
++          .map((check) => ({
++            ok: check?.ok !== false,
++            text: text(check?.text, 40) ?? "",
++          }))
++          .filter((check) => check.text)
++          .slice(0, 4)
++      : undefined,
++  };
++}
++
++/**
++ * 클라이언트가 보낸 결과에서 공유해도 되는 부분만 뽑는다.
++ * 추천 후보가 하나도 없으면 공유할 것이 없으므로 null 을 돌려준다.
++ */
++export function toSharedResultPayload(
++  value: unknown
++): SharedResultPayload | null {
++  if (!value || typeof value !== "object") return null;
++  const result = value as AnalyzeApiResult;
++
++  const recommendations = Array.isArray(result.quickRecommendations)
++    ? result.quickRecommendations
++        .map(toSharedRecommendation)
++        .filter((item): item is QuickRecommendation => item !== null)
++        .slice(0, 4)
++    : [];
++  if (recommendations.length === 0) return null;
++
++  return {
++    categoryId: text(result.categoryId, 20),
++    scenarioLabel: text(result.quickScenarioLabel, 40),
++    priorityLabel: text(result.quickPriorityLabel, 40),
++    budgetLabel: text(result.quickBudgetLabel, 40),
++    userWish: text(result.quickUserWish, 100),
++    advisory: text(result.advisory, 600),
++    recommendations,
++    checkedAt: text(result.checkedAt, 40),
++  };
++}
++
++/** 저장된 jsonb 를 다시 읽을 때도 같은 규칙으로 통과시킨다. */
++export function readSharedResultPayload(
++  value: unknown
++): SharedResultPayload | null {
++  if (!value || typeof value !== "object") return null;
++  const record = value as SharedResultPayload;
++  const recommendations = Array.isArray(record.recommendations)
++    ? record.recommendations
++        .map(toSharedRecommendation)
++        .filter((item): item is QuickRecommendation => item !== null)
++        .slice(0, 4)
++    : [];
++  if (recommendations.length === 0) return null;
++
++  return {
++    categoryId: text(record.categoryId, 20),
++    scenarioLabel: text(record.scenarioLabel, 40),
++    priorityLabel: text(record.priorityLabel, 40),
++    budgetLabel: text(record.budgetLabel, 40),
++    userWish: text(record.userWish, 100),
++    advisory: text(record.advisory, 600),
++    recommendations,
++    checkedAt: text(record.checkedAt, 40),
++  };
++}
++
++/** 링크를 받은 사람이 카카오톡·트위터에서 먼저 보는 문구. */
++export function sharePreviewText(payload: SharedResultPayload): {
++  title: string;
++  description: string;
++} {
++  const winner = payload.recommendations[0];
++  const context = [payload.scenarioLabel, payload.budgetLabel]
++    .filter(Boolean)
++    .join(" · ");
++  return {
++    title: context ? `${winner.name} — ${context}` : winner.name,
++    description:
++      winner.reason ||
++      "ChoiceFlow가 조건을 비교해 하나를 골랐습니다. 같은 고민이라면 직접 받아보세요.",
++  };
++}
+diff --git a/supabase/sql/shared_results.sql b/supabase/sql/shared_results.sql
+new file mode 100644
+index 0000000..f5289f8
+--- /dev/null
++++ b/supabase/sql/shared_results.sql
+@@ -0,0 +1,27 @@
++-- =============================================================================
++-- 공유용 추천 결과 저장소
++-- Supabase Dashboard → SQL Editor 에서 실행하세요.
++--
++-- 결과를 sessionStorage 에만 두면 링크를 받은 사람은 아무것도 볼 수 없다.
++-- 공유 버튼을 누른 순간의 결과를 그대로 떠서 /r/<id> 로 열리게 한다.
++-- =============================================================================
++
++create table if not exists public.shared_results (
++  id uuid primary key default gen_random_uuid(),
++  -- 공유 시점의 추천 결과 스냅샷. 이후 추천이 바뀌어도 링크 내용은 고정된다.
++  payload jsonb not null,
++  category text,
++  created_at timestamptz not null default now(),
++  -- 만든 사람(로그인한 경우에만). 통계·남용 추적용이며 표시하지 않는다.
++  created_by uuid references auth.users (id) on delete set null
++);
++
++comment on table public.shared_results is '공유 링크로 열리는 추천 결과 스냅샷';
++
++create index if not exists shared_results_created_at_idx
++  on public.shared_results (created_at desc);
++
++-- RLS 를 켜고 정책을 만들지 않는다.
++-- 이 테이블은 서버 라우트(service role)로만 읽고 쓴다.
++-- anon 키로는 어떤 행도 직접 조회·삽입할 수 없다.
++alter table public.shared_results enable row level security;
+diff --git a/tests/share-payload.test.mts b/tests/share-payload.test.mts
+new file mode 100644
+index 0000000..4fc3145
+--- /dev/null
++++ b/tests/share-payload.test.mts
+@@ -0,0 +1,114 @@
++import { strict as assert } from "node:assert";
++import test from "node:test";
++
++import {
++  readSharedResultPayload,
++  sharePreviewText,
++  toSharedResultPayload,
++} from "../src/lib/share/share-payload.ts";
++
++const baseResult = {
++  categoryId: "appliance",
++  quickScenarioLabel: "원룸 자취방",
++  quickPriorityLabel: "조용함",
++  quickBudgetLabel: "20만원 이하",
++  quickUserWish: "원룸이라 작고 조용한 걸로",
++  quickRecommendations: [
++    {
++      rank: 1,
++      name: "저소음 무선청소기",
++      reason: "원룸이라면 소음이 체감 차이를 만듭니다.",
++      searchKeyword: "저소음 무선청소기",
++      qualitySummary: "소음 dB 표기를 확인하세요.",
++      price: 169000,
++      sourceUrl: "https://link.coupang.com/a/abc",
++      imageUrl: "https://static.coupangcdn.com/x.jpg",
++      selectionType: "best" as const,
++      fitChecks: [
++        { ok: true, text: "예산 안에 들어옴" },
++        { ok: false, text: "카펫은 아쉬움" },
++      ],
++    },
++  ],
++};
++
++test("공유할 결과에서 표시에 필요한 값만 남긴다", () => {
++  const payload = toSharedResultPayload(baseResult);
++  assert.ok(payload);
++  assert.equal(payload.categoryId, "appliance");
++  assert.equal(payload.scenarioLabel, "원룸 자취방");
++  assert.equal(payload.userWish, "원룸이라 작고 조용한 걸로");
++  assert.equal(payload.recommendations.length, 1);
++  assert.equal(payload.recommendations[0].price, 169000);
++});
++
++test("추천 후보가 없으면 공유하지 않는다", () => {
++  assert.equal(toSharedResultPayload({ quickRecommendations: [] }), null);
++  assert.equal(toSharedResultPayload({}), null);
++  assert.equal(toSharedResultPayload(null), null);
++  assert.equal(toSharedResultPayload("문자열"), null);
++});
++
++test("이름이 없는 후보는 버린다", () => {
++  const payload = toSharedResultPayload({
++    quickRecommendations: [
++      { name: "", reason: "x" },
++      { name: "정상 후보", reason: "y" },
++    ],
++  });
++  assert.equal(payload?.recommendations.length, 1);
++  assert.equal(payload?.recommendations[0].name, "정상 후보");
++});
++
++test("https 가 아닌 링크는 실어 보내지 않는다", () => {
++  // 공유 페이지는 남이 여는 화면이다. javascript: 같은 주소가 그대로
++  // 버튼에 실리면 링크를 받은 사람이 피해를 본다.
++  const payload = toSharedResultPayload({
++    quickRecommendations: [
++      {
++        name: "후보",
++        reason: "이유",
++        // eslint-disable-next-line no-script-url
++        sourceUrl: "javascript:alert(1)",
++        imageUrl: "http://insecure.example.com/a.png",
++      },
++    ],
++  });
++  assert.equal(payload?.recommendations[0].sourceUrl, undefined);
++  assert.equal(payload?.recommendations[0].imageUrl, undefined);
++});
++
++test("후보는 4개까지만 담는다", () => {
++  const payload = toSharedResultPayload({
++    quickRecommendations: Array.from({ length: 9 }, (_, i) => ({
++      name: `후보 ${i}`,
++      reason: "이유",
++    })),
++  });
++  assert.equal(payload?.recommendations.length, 4);
++});
++
++test("긴 문장은 잘라서 저장한다", () => {
++  const payload = toSharedResultPayload({
++    quickRecommendations: [{ name: "가".repeat(300), reason: "나".repeat(900) }],
++  });
++  assert.equal(payload?.recommendations[0].name.length, 80);
++  assert.equal(payload?.recommendations[0].reason.length, 400);
++});
++
++test("저장했다 다시 읽어도 같은 결과가 나온다", () => {
++  const stored = toSharedResultPayload(baseResult);
++  const roundTripped = readSharedResultPayload(
++    JSON.parse(JSON.stringify(stored))
++  );
++  assert.deepEqual(roundTripped, stored);
++});
++
++test("미리보기 문구에 1등과 조건이 들어간다", () => {
++  const payload = toSharedResultPayload(baseResult);
++  assert.ok(payload);
++  const preview = sharePreviewText(payload);
++  assert.ok(preview.title.includes("저소음 무선청소기"));
++  assert.ok(preview.title.includes("원룸 자취방"));
++  assert.ok(preview.description.length > 0);
++});
+-- 
+2.43.0
+
