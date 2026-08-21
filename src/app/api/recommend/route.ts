@@ -25,6 +25,11 @@ import {
   alignLabelsWithPrice,
   dropUnmatchedWhenOthersMatched,
 } from "@/lib/recommendation/selection-labels";
+import {
+  applyGenderToKeyword,
+  detectGender,
+  type DetectedGender,
+} from "@/lib/recommendation/gender";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { resolveDisplayName } from "@/lib/monetization/brand-verify";
 import {
@@ -637,6 +642,9 @@ function keywordRules(categoryId: CategoryId): string {
 - 예: "블루투스 스피커"(X) → "휴대용 방수 블루투스 스피커"(O)
 - 광고 문구(최저가·정품·무료배송), 옵션 나열, 쉼표 연결은 금지한다.
 - name은 사용자가 읽을 이름(24자 이내), searchKeyword는 검색용이며 서로 달라도 된다.
+- 사용자가 성별을 적었으면(남아·여아·남성·여성 등) searchKeyword 에 그대로 넣는다.
+  "아동용 벨크로 운동화"(X) → "남아 벨크로 운동화"(O)
+  성별이 빠지면 반대 성별 상품이 걸린다. 옷과 선물에서는 치명적이다.
 
 [4개 검색어는 서로 다른 상품이 걸리게 쓴다 — 중요]
 수식어만 바꾼 검색어는 쿠팡에서 같은 상품을 물어 온다. 실제로
@@ -899,7 +907,8 @@ JSON 배열만 응답:
 
 async function enrichProductPrices(
   candidates: Candidate[],
-  maxBudgetWon?: number
+  maxBudgetWon?: number,
+  gender?: DetectedGender
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
   /*
     후보마다 따로 검색하면 서로 다른 검색어가 같은 상품을 물어 오는 일이 생긴다.
@@ -914,9 +923,15 @@ async function enrichProductPrices(
 
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
-    const searchKeyword = normalizeProductSearchKeyword(
-      candidate.searchKeyword,
-      candidate.name
+    /*
+      성별은 AI 가 검색어에 넣어 주기를 기다리지 않고 여기서 직접 넣는다.
+      "6살 남아"라고 적었는데 "아동용 벨크로 운동화"로 검색해 분홍색 여아
+      캐릭터 운동화가 걸린 적이 있다. 옷과 선물은 성별이 어긋나면 그
+      추천 자체가 못 쓰는 것이 된다.
+    */
+    const searchKeyword = applyGenderToKeyword(
+      normalizeProductSearchKeyword(candidate.searchKeyword, candidate.name),
+      gender
     );
 
     let product: Awaited<ReturnType<typeof searchCoupangProduct>> = null;
@@ -925,6 +940,7 @@ async function enrichProductPrices(
       // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
       product = await searchCoupangProduct(searchKeyword, maxBudgetWon, {
         excludeKeys: usedProductKeys,
+        gender,
       });
     } catch {
       product = null;
@@ -1696,7 +1712,11 @@ export async function POST(request: Request) {
     const resultCandidates = generated.candidates.slice(0, 4);
     const supportsShopping = ["gift", "appliance", "fashion"].includes(rawCategory);
     const priced = supportsShopping
-      ? await enrichProductPrices(resultCandidates, budget.maxWon)
+      ? await enrichProductPrices(
+          resultCandidates,
+          budget.maxWon,
+          detectGender(userWish)
+        )
       : {
           recommendations: resultCandidates.map((item, index) => ({
             rank: index + 1,

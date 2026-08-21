@@ -360,6 +360,11 @@ export async function searchCoupangProduct(
      * 검색어가 달라도 같은 상품이 걸리는 일이 있어, 슬롯이 겹치지 않도록 뺀다.
      */
     excludeKeys?: ReadonlySet<string>;
+    /**
+     * 성별이 정해진 요청에서 반대 성별 상품을 빼기 위한 조건.
+     * 옷·선물은 성별이 어긋나면 그 추천 자체가 못 쓰는 것이 된다.
+     */
+    gender?: { term: string; rejectPattern: RegExp };
   } = {}
 ): Promise<CoupangProduct | null> {
   const normalizedKeyword = normalizeCoupangKeyword(keyword);
@@ -368,7 +373,7 @@ export async function searchCoupangProduct(
   const excluded = options.excludeKeys;
   // 제외 목록이 있으면 결과가 달라질 수 있으므로 캐시를 쓰지 않는다.
   const useCache = !excluded || excluded.size === 0;
-  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}`;
+  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.gender?.term ?? ""}`;
   const cached = useCache ? productCache.get(cacheKey) : undefined;
   if (cached && cached.expiresAt > Date.now()) return cached.product;
   if (productCache.size > PRODUCT_CACHE_MAX) {
@@ -436,11 +441,19 @@ export async function searchCoupangProduct(
         isFreeShipping: false,
       }).some((key) => excluded.has(key));
     };
+    // 상품명에 반대 성별 표시가 있으면 뺀다. "남아 운동화"를 찾는데
+    // 분홍색 여아 캐릭터 상품이 걸리는 일을 막는다.
+    const isWrongGender = (item: (typeof items)[number]) =>
+      options.gender
+        ? options.gender.rejectPattern.test(String(item.productName ?? ""))
+        : false;
+
     const isUsable = (item: (typeof items)[number]) =>
       Boolean(item.productUrl) &&
       Boolean(item.productName) &&
       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
-      !isExcluded(item);
+      !isExcluded(item) &&
+      !isWrongGender(item);
 
     const picked = items.find((item) => {
       if (!isUsable(item)) return false;
