@@ -10,6 +10,7 @@ import { findPriceAxis, priceBurdenScore } from "./scores.ts";
 import { collectTravelMinutes } from "./travel-time.ts";
 import { isWrongAudience, type DetectedAudience } from "./gender.ts";
 import { matchesTargetItem, type TargetItem } from "./item-match.ts";
+import { productBrandKey } from "../monetization/brand-verify.ts";
 
 /**
  * 화면에 내보내기 직전에 규칙을 어긴 곳이 없는지 본다.
@@ -253,6 +254,27 @@ export function verifyRecommendations(
       });
     }
   }
+
+  /*
+    11) 한 브랜드가 화면을 다 차지하면 안 된다.
+    밥솥 후보 넷이 전부 쿠첸으로 채워진 적이 있다. 제휴 고지가 붙는
+    화면에서 한 브랜드만 늘어서면 추천이 아니라 홍보로 읽힌다.
+  */
+  const brandCounts = new Map<string, number>();
+  for (const item of items) {
+    if (!item.productName) continue;
+    const brand = productBrandKey(item.productName);
+    if (!brand) continue;
+    brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
+  }
+  brandCounts.forEach((count, brand) => {
+    if (count >= 3) {
+      violations.push({
+        rule: "같은 브랜드가 후보 대부분을 차지함",
+        detail: { brand, count, total: items.length },
+      });
+    }
+  });
 
   if (violations.length > 0) {
     console.warn("[recommend] 결과 검증 실패", {

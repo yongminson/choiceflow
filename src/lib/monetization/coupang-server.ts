@@ -8,6 +8,7 @@ import {
   matchesTargetItem,
   type TargetItem,
 } from "../recommendation/item-match.ts";
+import { productBrandKey } from "./brand-verify.ts";
 
 export const COUPANG_API_HOST = "https://api-gateway.coupang.com";
 export const COUPANG_DEEPLINK_PATH =
@@ -379,6 +380,10 @@ export async function searchCoupangProduct(
      * 관련성을 먼저 보고, 그 안에서 중복을 걸러야 후보가 엉뚱해지지 않는다.
      */
     targetItem?: TargetItem;
+    /**
+     * 이미 자리를 채운 브랜드. 한 브랜드가 화면을 다 차지하지 않게 막는다.
+     */
+    excludeBrands?: ReadonlySet<string>;
   } = {}
 ): Promise<CoupangProduct | null> {
   const normalizedKeyword = normalizeCoupangKeyword(keyword);
@@ -386,7 +391,9 @@ export async function searchCoupangProduct(
 
   const excluded = options.excludeKeys;
   // 제외 목록이 있으면 결과가 달라질 수 있으므로 캐시를 쓰지 않는다.
-  const useCache = !excluded || excluded.size === 0;
+  const useCache =
+    (!excluded || excluded.size === 0) &&
+    (!options.excludeBrands || options.excludeBrands.size === 0);
   const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.audience?.term ?? ""}|${options.targetItem?.name ?? ""}`;
   const cached = useCache ? productCache.get(cacheKey) : undefined;
   if (cached && cached.expiresAt > Date.now()) return cached.product;
@@ -471,12 +478,20 @@ export async function searchCoupangProduct(
     const isWrongItem = (item: (typeof items)[number]) =>
       !matchesTargetItem(String(item.productName ?? ""), options.targetItem);
 
+    // 자리를 다 채운 브랜드는 건너뛴다. 품목·대상을 먼저 보고 그다음이다.
+    const isCappedBrand = (item: (typeof items)[number]) => {
+      const brands = options.excludeBrands;
+      if (!brands || brands.size === 0) return false;
+      return brands.has(productBrandKey(String(item.productName ?? "")));
+    };
+
     const isUsable = (item: (typeof items)[number]) =>
       Boolean(item.productUrl) &&
       Boolean(item.productName) &&
       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
       !isWrongItem(item) &&
       !isWrongGender(item) &&
+      !isCappedBrand(item) &&
       !isExcluded(item);
 
     const picked = items.find((item) => {

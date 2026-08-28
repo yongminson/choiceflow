@@ -169,3 +169,26 @@ function stripBrands(name: string): string {
 
   return kept || name;
 }
+
+/**
+ * 후보를 고를 때 같은 브랜드인지 가리는 열쇠.
+ *
+ * 밥솥을 찾았더니 후보 넷이 전부 쿠첸으로 채워진 적이 있다. 품목도
+ * 가격대도 달랐지만 브랜드가 하나면 "다른 관점의 선택"이라는 말이
+ * 무색해지고, 제휴 고지가 붙는 화면이라 한 브랜드 홍보로 보인다.
+ *
+ * 쿠팡 검색 응답에는 브랜드 필드가 없다. 그래서 아는 브랜드는 별칭까지
+ * 묶어 대표 이름으로 보고, 모르는 브랜드는 상품명 첫 낱말로 대신한다.
+ * 국내 쇼핑몰 상품명은 대개 브랜드로 시작한다.
+ */
+export function productBrandKey(productName: string): string {
+  const known = extractBrands(productName);
+  if (known.length > 0) return known[0];
+
+  const first = productName
+    .replace(/[([{][^)\]}]*[)\]}]/g, " ")
+    .trim()
+    .split(/\s+/)[0]
+    ?.replace(/[^0-9A-Za-z가-힣]/g, "");
+  return first ? first.toLowerCase() : "";
+}

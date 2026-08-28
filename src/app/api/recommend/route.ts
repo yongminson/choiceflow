@@ -45,6 +45,7 @@ import {
   productDedupKeys,
   searchCoupangProduct,
 } from "@/lib/monetization/coupang-server";
+import { productBrandKey } from "@/lib/monetization/brand-verify";
 import type {
   AnalyzeApiResult,
   QuickRecommendation,
@@ -936,6 +937,18 @@ JSON 배열만 응답:
   }
 }
 
+/** 후보 넷 중 같은 브랜드는 여기까지만 받는다. */
+const MAX_SAME_BRAND = 2;
+
+/** 자리를 다 채운 브랜드를 모은다. 다음 후보에서는 이 브랜드를 건너뛴다. */
+function cappedBrands(counts: Map<string, number>): Set<string> {
+  const capped = new Set<string>();
+  counts.forEach((count, brand) => {
+    if (count >= MAX_SAME_BRAND) capped.add(brand);
+  });
+  return capped;
+}
+
 async function enrichProductPrices(
   candidates: Candidate[],
   maxBudgetWon?: number,
@@ -951,6 +964,13 @@ async function enrichProductPrices(
     넷뿐이라 감당할 수 있고, 슬롯이 중복되는 것보다 낫다.
   */
   const usedProductKeys = new Set<string>();
+  /*
+    한 브랜드가 화면을 다 차지하지 않게 한다. 밥솥을 찾았더니 후보 넷이
+    전부 쿠첸으로 채워진 적이 있다. 품목도 가격대도 달랐지만 브랜드가
+    하나면 "다른 관점의 선택"이라는 말이 무색해지고, 제휴 고지가 붙는
+    화면이라 한 브랜드 홍보로 보인다.
+  */
+  const brandCounts = new Map<string, number>();
   const items: QuickRecommendation[] = [];
 
   for (let index = 0; index < candidates.length; index += 1) {
@@ -974,6 +994,7 @@ async function enrichProductPrices(
         excludeKeys: usedProductKeys,
         audience,
         targetItem,
+        excludeBrands: cappedBrands(brandCounts),
       });
     } catch {
       product = null;
@@ -982,6 +1003,8 @@ async function enrichProductPrices(
     if (product) {
       // 주소 하나만 담으면 추적 파라미터가 다른 같은 상품을 못 걸러낸다.
       productDedupKeys(product).forEach((key) => usedProductKeys.add(key));
+      const brand = productBrandKey(product.productName);
+      if (brand) brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
       items.push({
         rank: index + 1,
         ...candidate,
