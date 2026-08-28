@@ -22,9 +22,13 @@ import {
   readCaution,
 } from "@/lib/recommendation/fit-checks";
 import {
-  alignLabelsWithPrice,
+  assignSelectionLabels,
   dropUnmatchedWhenOthersMatched,
 } from "@/lib/recommendation/selection-labels";
+import { applyPriorityWeighting } from "@/lib/recommendation/overall-score";
+import { applyPriceBurdenScores } from "@/lib/recommendation/scores";
+import { normalizeTravelTime } from "@/lib/recommendation/travel-time";
+import { verifyRecommendations } from "@/lib/recommendation/verify-result";
 import {
   applyGenderToKeyword,
   detectGender,
@@ -67,6 +71,8 @@ type Candidate = {
   overall?: number;
   fitChecks?: QuickRecommendation["fitChecks"];
   caution?: string;
+  /** 이동 시간(분). 한 후보의 모든 문장이 이 값을 쓰게 맞춘다. */
+  travelTimeMin?: number;
   /** 음식 전용 — 지도에서 주변 가게가 뜨는 짧은 업종·메뉴명 */
   mapKeyword?: string;
 };
@@ -762,10 +768,18 @@ reason은 이 사용자의 상황(${scenarioLabel} · ${priorityLabel} 우선)�
 4개의 reason이 서로 다른 근거를 담게 하고 같은 문장을 반복하지 않는다.
 qualitySummary는 구매 전에 직접 확인해야 할 항목을 40자 내외로 쓴다.
 
-overall: 이 사용자의 조건 전체를 종합했을 때의 적합도를 0~100으로 매긴다.
-- 사용자의 요청과 상황에 얼마나 잘 맞는지를 하나의 숫자로 요약한 값이다.
-- 4개가 비슷하면 판단에 도움이 되지 않는다. 1등과 4등은 최소 15점 이상 벌린다.
-- best로 고른 후보가 가장 높아야 한다.
+overall: 넣지 않아도 된다. 서버가 scores 와 사용자가 고른 우선조건으로 계산한다.
+- scores 를 대충 매기고 overall 만 높게 주는 것은 통하지 않는다.
+- scores 가 곧 순위가 된다고 생각하고 축마다 진지하게 매겨라.
+
+selectionType 은 어떤 성격의 후보를 찾을지 정하는 지시일 뿐이다.
+화면에 붙는 라벨은 실제 가격을 받은 뒤 서버가 다시 정한다.
+그러므로 "가성비"라고 적어 놓고 비싼 상품을 고르면 그 자리는 다른 후보에게 간다.
+
+travelTimeMin: 사용자의 출발지에서 이 후보까지 걸리는 시간을 분 단위 숫자로 쓴다.
+- 출발지를 적지 않았으면 이 값을 넣지 않는다.
+- reason·fitChecks 에 시간을 적을 거라면 반드시 이 값과 같은 숫자를 쓴다.
+  한 후보 안에서 "차로 35분"과 "40분 내 도착"이 함께 나오면 둘 다 못 믿게 된다.
 
 scores: 아래 축으로 후보끼리 비교한 상대 점수를 0~100으로 매긴다.
 축: ${scoreAxes(categoryId).join(", ")}
@@ -806,7 +820,7 @@ caution: 이 후보를 골랐을 때 감수해야 하는 점을 정확히 한 �
         "편리함을 우선하면 관리 주기를 감수해야 함"
 
 JSON 배열만 응답:
-[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}],"caution":""${
+[{"selectionType":"best|value|reliable|premium","name":"","reason":"","searchKeyword":"","qualitySummary":"","asSummary":"","depreciationSummary":"","overall":0,"scores":[{"label":"축 이름","value":0}],"fitChecks":[{"ok":true,"text":""}],"caution":"","travelTimeMin":0${
     categoryId === "food" ? ',"mapKeyword":""' : ""
   }}]`;
 
@@ -880,6 +894,10 @@ JSON 배열만 응답:
         scores: readScores(record.scores, categoryId),
         fitChecks: readFitChecks(record.fitChecks),
         caution: readCaution(record.caution, record.fitChecks),
+        travelTimeMin: (() => {
+          const raw = Number(record.travelTimeMin);
+          return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : undefined;
+        })(),
         mapKeyword:
           categoryId === "food"
             ? clean(record.mapKeyword, "", 20) || undefined
@@ -988,9 +1006,9 @@ async function enrichProductPrices(
     });
   }
 
-  const labelled = alignLabelsWithPrice(dropUnmatchedWhenOthersMatched(items));
+  const kept = dropUnmatchedWhenOthersMatched(items);
 
-  const sorted = [...labelled].sort(
+  const sorted = [...kept].sort(
     (a, b) =>
       SELECTION_ORDER.indexOf(a.selectionType || "best") -
       SELECTION_ORDER.indexOf(b.selectionType || "best")
@@ -1709,7 +1727,10 @@ export async function POST(request: Request) {
       userWish,
       fallbacks
     );
-    const resultCandidates = generated.candidates.slice(0, 4);
+    // 한 후보 안에서 소요 시간이 갈리지 않게 먼저 맞춘다.
+    const resultCandidates = generated.candidates
+      .slice(0, 4)
+      .map((item) => normalizeTravelTime(item, item.travelTimeMin));
     const supportsShopping = ["gift", "appliance", "fashion"].includes(rawCategory);
     const priced = supportsShopping
       ? await enrichProductPrices(
@@ -1737,6 +1758,34 @@ export async function POST(request: Request) {
           })),
           live: false,
         };
+    /*
+      계산으로 정해지는 값은 전부 여기서 정한다. 순서가 중요하다.
+      가격 점수를 공식으로 확정하고, 그 점수로 종합 적합도를 계산해
+      순위를 매기고, 매겨진 순위 위에 라벨을 붙인다. 라벨이 순위보다
+      먼저 붙으면 "가장 추천"이 1위가 아닌 자리에 남는다.
+    */
+    const finalized = assignSelectionLabels(
+      applyPriorityWeighting(
+        applyPriceBurdenScores(priced.recommendations, budget.maxWon),
+        rawCategory,
+        priority.id
+      )
+    )
+      // 카드는 라벨 순서로 세운다. 히어로가 "가장 추천"이 되어야 하고,
+      // 종합 적합도 그래프는 화면에서 따로 점수순으로 정렬한다.
+      .sort(
+        (a, b) =>
+          SELECTION_ORDER.indexOf(a.selectionType || "best") -
+          SELECTION_ORDER.indexOf(b.selectionType || "best")
+      )
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+
+    // 내보내기 직전에 규칙을 어긴 곳이 없는지 훑는다. 고치지는 않고 남긴다.
+    verifyRecommendations(finalized, {
+      categoryId: rawCategory,
+      priorityId: priority.id,
+    });
+
     const result = toAnalyzeResult(
       rawCategory,
       scenarioId,
@@ -1748,7 +1797,7 @@ export async function POST(request: Request) {
       budget.maxWon,
       advancedAnswers.length,
       userWish,
-      priced.recommendations,
+      finalized,
       {
         ai: generated.live ? "live" : "fallback",
         price: priced.live ? "live" : "unavailable",
