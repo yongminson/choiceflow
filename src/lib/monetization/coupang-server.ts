@@ -4,6 +4,10 @@ import {
   isWrongAudience,
   type DetectedAudience,
 } from "../recommendation/gender.ts";
+import {
+  matchesTargetItem,
+  type TargetItem,
+} from "../recommendation/item-match.ts";
 
 export const COUPANG_API_HOST = "https://api-gateway.coupang.com";
 export const COUPANG_DEEPLINK_PATH =
@@ -370,6 +374,11 @@ export async function searchCoupangProduct(
      * 옷·선물은 성별이나 연령이 어긋나면 그 추천 자체가 못 쓰는 것이 된다.
      */
     audience?: DetectedAudience;
+    /**
+     * 찾는 품목. 니트를 찾는 사람에게 팔토시나 바지를 보여주지 않는다.
+     * 관련성을 먼저 보고, 그 안에서 중복을 걸러야 후보가 엉뚱해지지 않는다.
+     */
+    targetItem?: TargetItem;
   } = {}
 ): Promise<CoupangProduct | null> {
   const normalizedKeyword = normalizeCoupangKeyword(keyword);
@@ -378,7 +387,7 @@ export async function searchCoupangProduct(
   const excluded = options.excludeKeys;
   // 제외 목록이 있으면 결과가 달라질 수 있으므로 캐시를 쓰지 않는다.
   const useCache = !excluded || excluded.size === 0;
-  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.audience?.term ?? ""}`;
+  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.audience?.term ?? ""}|${options.targetItem?.name ?? ""}`;
   const cached = useCache ? productCache.get(cacheKey) : undefined;
   if (cached && cached.expiresAt > Date.now()) return cached.product;
   if (productCache.size > PRODUCT_CACHE_MAX) {
@@ -455,12 +464,20 @@ export async function searchCoupangProduct(
         ? isWrongAudience(String(item.productName ?? ""), options.audience)
         : false;
 
+    /*
+      관련성을 중복 제거보다 먼저 본다. 순서가 바뀌면 "서로 다른 상품"을
+      맞추려다 요청과 무관한 품목까지 후보로 올라온다.
+    */
+    const isWrongItem = (item: (typeof items)[number]) =>
+      !matchesTargetItem(String(item.productName ?? ""), options.targetItem);
+
     const isUsable = (item: (typeof items)[number]) =>
       Boolean(item.productUrl) &&
       Boolean(item.productName) &&
       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
-      !isExcluded(item) &&
-      !isWrongGender(item);
+      !isWrongItem(item) &&
+      !isWrongGender(item) &&
+      !isExcluded(item);
 
     const picked = items.find((item) => {
       if (!isUsable(item)) return false;

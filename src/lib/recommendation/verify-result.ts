@@ -5,6 +5,7 @@ import { chosenAxisFor } from "./overall-score.ts";
 import { findPriceAxis } from "./scores.ts";
 import { collectTravelMinutes } from "./travel-time.ts";
 import { isWrongAudience, type DetectedAudience } from "./gender.ts";
+import { matchesTargetItem, type TargetItem } from "./item-match.ts";
 
 /**
  * 화면에 내보내기 직전에 규칙을 어긴 곳이 없는지 본다.
@@ -27,6 +28,7 @@ export function verifyRecommendations(
     categoryId: CategoryId;
     priorityId: string;
     audience?: DetectedAudience;
+    targetItem?: TargetItem;
   }
 ): Violation[] {
   const violations: Violation[] = [];
@@ -175,6 +177,28 @@ export function verifyRecommendations(
           audience: context.audience.term,
           ageGroup: context.audience.ageGroup,
           products: mismatched.map((item) => item.productName),
+        },
+      });
+    }
+  }
+
+  /*
+    8) 요청한 품목과 다른 상품이 섞이면 안 된다.
+    "가을 니트"를 찾았는데 팔토시와 정장 바지가 후보에 들어왔고,
+    그중 바지가 종합 1위로 올라간 적이 있다. 개수보다 관련성이 먼저다.
+  */
+  if (context.targetItem) {
+    const offItem = items.filter(
+      (item) =>
+        item.productName &&
+        !matchesTargetItem(item.productName, context.targetItem)
+    );
+    if (offItem.length > 0) {
+      violations.push({
+        rule: "요청한 품목과 다른 상품이 섞임",
+        detail: {
+          targetItem: context.targetItem.name,
+          products: offItem.map((item) => item.productName),
         },
       });
     }

@@ -34,6 +34,11 @@ import {
   detectAudience,
   type DetectedAudience,
 } from "@/lib/recommendation/gender";
+import {
+  detectTargetItem,
+  matchesTargetItem,
+  type TargetItem,
+} from "@/lib/recommendation/item-match";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { resolveDisplayName } from "@/lib/monetization/brand-verify";
 import {
@@ -652,6 +657,14 @@ function keywordRules(categoryId: CategoryId): string {
   "아동용 벨크로 운동화"(X) → "남아 벨크로 운동화"(O)
   성별이 빠지면 반대 성별 상품이 걸린다. 옷과 선물에서는 치명적이다.
 
+[품목을 바꾸지 않는다 — 가장 중요]
+사용자가 무엇을 찾는지 적었으면(예: "가을 니트") 4개 후보가 전부 그 품목이어야 한다.
+후보를 서로 다르게 만들라는 것은 같은 품목 안에서 소재·두께·핏·가격대를
+다르게 하라는 뜻이지, 품목 자체를 바꾸라는 뜻이 아니다.
+  니트를 찾는데 팔토시·바지·가방을 넣는 것(X)
+  같은 니트를 얇은 것/두꺼운 것/오버핏/가격대로 나누는 것(O)
+품목이 다른 상품은 서버가 후보에서 빼므로 그 자리는 비어서 나간다.
+
 [4개 검색어는 서로 다른 상품이 걸리게 쓴다 — 중요]
 수식어만 바꾼 검색어는 쿠팡에서 같은 상품을 물어 온다. 실제로
 "올스텐 대용량 에어프라이어" / "대용량 가성비 에어프라이어" /
@@ -926,7 +939,8 @@ JSON 배열만 응답:
 async function enrichProductPrices(
   candidates: Candidate[],
   maxBudgetWon?: number,
-  audience?: DetectedAudience
+  audience?: DetectedAudience,
+  targetItem?: TargetItem
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
   /*
     후보마다 따로 검색하면 서로 다른 검색어가 같은 상품을 물어 오는 일이 생긴다.
@@ -959,6 +973,7 @@ async function enrichProductPrices(
       product = await searchCoupangProduct(searchKeyword, maxBudgetWon, {
         excludeKeys: usedProductKeys,
         audience,
+        targetItem,
       });
     } catch {
       product = null;
@@ -1734,11 +1749,14 @@ export async function POST(request: Request) {
     const supportsShopping = ["gift", "appliance", "fashion"].includes(rawCategory);
     // 누가 쓸 것인지는 한 번만 읽어 검색과 검증에 함께 쓴다.
     const audience = detectAudience(userWish);
+    // 무엇을 찾는지도 한 번만 읽는다. 적지 않았으면 거르지 않는다.
+    const targetItem = detectTargetItem(userWish, scenario.label);
     const priced = supportsShopping
       ? await enrichProductPrices(
           resultCandidates,
           budget.maxWon,
-          audience
+          audience,
+          targetItem
         )
       : {
           recommendations: resultCandidates.map((item, index) => ({
@@ -1787,6 +1805,7 @@ export async function POST(request: Request) {
       categoryId: rawCategory,
       priorityId: priority.id,
       audience,
+      targetItem,
     });
 
     const result = toAnalyzeResult(
