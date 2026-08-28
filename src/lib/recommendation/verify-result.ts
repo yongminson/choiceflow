@@ -1,8 +1,12 @@
 import type { CategoryId } from "@/lib/types/category";
 import type { QuickRecommendation } from "@/lib/types/analyze";
 
-import { chosenAxisFor } from "./overall-score.ts";
-import { findPriceAxis } from "./scores.ts";
+import {
+  chosenAxisFor,
+  overallWeights,
+  weightedOverall,
+} from "./overall-score.ts";
+import { findPriceAxis, priceBurdenScore } from "./scores.ts";
 import { collectTravelMinutes } from "./travel-time.ts";
 import { isWrongAudience, type DetectedAudience } from "./gender.ts";
 import { matchesTargetItem, type TargetItem } from "./item-match.ts";
@@ -29,6 +33,7 @@ export function verifyRecommendations(
     priorityId: string;
     audience?: DetectedAudience;
     targetItem?: TargetItem;
+    maxBudgetWon?: number;
   }
 ): Violation[] {
   const violations: Violation[] = [];
@@ -200,6 +205,51 @@ export function verifyRecommendations(
           targetItem: context.targetItem.name,
           products: offItem.map((item) => item.productName),
         },
+      });
+    }
+  }
+
+  /*
+    9) 화면에 나가는 숫자가 계산값과 같아야 한다.
+
+    앞 단계가 계산해 넣은 값을 뒤에서 누가 덮어써도 화면만 보고는 알 수
+    없다. 스크린샷을 손으로 대조하는 것 말고는 확인할 방법이 없었다.
+    그래서 내보내기 직전에 같은 식으로 다시 계산해 맞춰 본다.
+  */
+  const weights = overallWeights(items, context.categoryId, context.priorityId);
+  if (weights) {
+    const drifted = items
+      .filter((item) => typeof item.overall === "number")
+      .map((item) => ({
+        name: item.name,
+        shown: item.overall,
+        expected: weightedOverall(item, weights),
+      }))
+      .filter((entry) => entry.shown !== entry.expected);
+    if (drifted.length > 0) {
+      violations.push({
+        rule: "화면의 종합 적합도가 세부 점수 계산값과 다름",
+        detail: { drifted },
+      });
+    }
+  }
+
+  // 10) 가격 점수도 공식으로 다시 계산해 맞춰 본다.
+  if (priceAxis && context.maxBudgetWon) {
+    const drifted = priced
+      .map((item) => ({
+        name: item.name,
+        price: item.price,
+        shown: item.scores?.find((score) => score.label === priceAxis)?.value,
+        expected: priceBurdenScore(item.price, context.maxBudgetWon as number),
+      }))
+      .filter(
+        (entry) => typeof entry.shown === "number" && entry.shown !== entry.expected
+      );
+    if (drifted.length > 0) {
+      violations.push({
+        rule: "화면의 가격 점수가 공식값과 다름",
+        detail: { axis: priceAxis, drifted },
       });
     }
   }

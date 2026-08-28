@@ -59,18 +59,30 @@ export function chosenAxisFor(
  * 세부 점수가 없는 후보가 하나라도 있으면 손대지 않는다. 일부만 계산하면
  * 같은 화면에서 서로 다른 기준으로 매긴 점수를 나란히 놓게 된다.
  */
+/**
+ * 이 후보들에 쓰는 축별 비중. 계산이 불가능하면 undefined.
+ *
+ * 계산할 때와 나중에 검증할 때가 같은 비중을 써야 한다. 두 곳에 따로
+ * 적어 두면 한쪽만 고쳐졌을 때 어긋나고, 그것을 잡을 방법이 없어진다.
+ */
+export function overallWeights(
+  items: QuickRecommendation[],
+  categoryId: CategoryId,
+  priorityId: string
+): Map<string, number> | undefined {
+  if (items.length < 2) return undefined;
+  const axes = commonAxes(items);
+  if (axes.length < 2) return undefined;
+  return weightsFor(axes, chosenAxisFor(categoryId, priorityId));
+}
+
 export function applyPriorityWeighting<T extends QuickRecommendation>(
   items: T[],
   categoryId: CategoryId,
   priorityId: string
 ): T[] {
-  if (items.length < 2) return items;
-
-  const axes = commonAxes(items);
-  if (axes.length < 2) return items;
-
-  const chosenAxis = chosenAxisFor(categoryId, priorityId);
-  const weights = weightsFor(axes, chosenAxis);
+  const weights = overallWeights(items, categoryId, priorityId);
+  if (!weights) return items;
 
   const scored = items.map((item) => ({
     item,
@@ -113,7 +125,7 @@ function weightsFor(axes: string[], chosenAxis?: string): Map<string, number> {
   return weights;
 }
 
-function weightedOverall(
+export function weightedOverall(
   item: QuickRecommendation,
   weights: Map<string, number>
 ): number {

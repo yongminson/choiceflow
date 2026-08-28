@@ -1806,6 +1806,7 @@ export async function POST(request: Request) {
       priorityId: priority.id,
       audience,
       targetItem,
+      maxBudgetWon: budget.maxWon,
     });
 
     const result = toAnalyzeResult(

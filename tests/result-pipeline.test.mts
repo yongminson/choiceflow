@@ -238,3 +238,86 @@ test("예산을 모르면 가격 점수를 건드리지 않는다", () => {
   const items = [gift("가", "best", 50000, 90, 90), gift("나", "value", 40000, 80, 80)];
   assert.deepEqual(applyPriceBurdenScores(items, undefined), items);
 });
+
+test("화면 숫자가 계산값과 어긋나면 잡는다", () => {
+  /*
+    앞 단계가 계산해 넣은 값을 뒤에서 누가 덮어써도 화면만 보고는 알 수 없다.
+    실제 화면을 손으로 대조하는 대신 여기서 다시 계산해 맞춰 본다.
+  */
+  const fashion = (
+    name: string,
+    type: Type,
+    price: number,
+    use: number,
+    priceScore: number,
+    care: number,
+    overall: number
+  ): QuickRecommendation => ({
+    rank: 1,
+    name,
+    reason: "",
+    searchKeyword: "",
+    qualitySummary: "",
+    productName: name,
+    selectionType: type,
+    selectionLabel: GIFT_LABELS[type],
+    price,
+    overall,
+    scores: [
+      { label: "활용도", value: use },
+      { label: "가격 부담", value: priceScore },
+      { label: "관리 편의", value: care },
+    ],
+  });
+
+  // 실제 화면의 값이다. 조건이 "편리함"이므로 관리 편의에 0.8 이 실린다.
+  const correct = [
+    fashion("여신", "best", 15900, 88, 87, 90, 90),
+    fashion("무이담", "value", 13900, 90, 89, 88, 88),
+    fashion("별하늘", "premium", 22000, 86, 82, 85, 85),
+    fashion("하바우", "reliable", 15910, 85, 87, 80, 81),
+  ];
+  assert.deepEqual(
+    verifyRecommendations(correct, {
+      categoryId: "fashion",
+      priorityId: "convenience",
+      maxBudgetWon: 50000,
+    }),
+    []
+  );
+
+  // 종합 점수만 한 칸 틀어 놓으면 잡혀야 한다.
+  const drifted = correct.map((item, index) =>
+    index === 0 ? { ...item, overall: 95 } : item
+  );
+  assert.ok(
+    verifyRecommendations(drifted, {
+      categoryId: "fashion",
+      priorityId: "convenience",
+      maxBudgetWon: 50000,
+    })
+      .map((item) => item.rule)
+      .includes("화면의 종합 적합도가 세부 점수 계산값과 다름")
+  );
+
+  // 가격 점수를 공식과 다르게 넣어도 잡혀야 한다.
+  const wrongPrice = correct.map((item) =>
+    item.name === "무이담"
+      ? {
+          ...item,
+          scores: item.scores?.map((score) =>
+            score.label === "가격 부담" ? { ...score, value: 92 } : score
+          ),
+        }
+      : item
+  );
+  assert.ok(
+    verifyRecommendations(wrongPrice, {
+      categoryId: "fashion",
+      priorityId: "convenience",
+      maxBudgetWon: 50000,
+    })
+      .map((item) => item.rule)
+      .includes("화면의 가격 점수가 공식값과 다름")
+  );
+});
