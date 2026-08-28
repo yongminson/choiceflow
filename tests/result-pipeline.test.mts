@@ -1,7 +1,10 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 
-import { applyPriorityWeighting } from "../src/lib/recommendation/overall-score.ts";
+import {
+  applyPriorityWeighting,
+  chosenAxisFor,
+} from "../src/lib/recommendation/overall-score.ts";
 import { applyPriceBurdenScores, priceBurdenScore } from "../src/lib/recommendation/scores.ts";
 import {
   assignSelectionLabels,
@@ -320,4 +323,95 @@ test("화면 숫자가 계산값과 어긋나면 잡는다", () => {
       .map((item) => item.rule)
       .includes("화면의 가격 점수가 공식값과 다름")
   );
+});
+
+test("네 조건 모두 짝이 되는 축이 있다", () => {
+  /*
+    선물 분야에 "디자인"이 비어 있어서, 디자인을 고른 요청이 세 축의
+    단순 평균으로 나갔다. 고른 조건을 우선한다고 해 놓고 아무 데도
+    반영되지 않은 셈이다. 빠진 자리가 다시 생기지 않게 막는다.
+  */
+  const categories: CategoryId[] = [
+    "food",
+    "gift",
+    "appliance",
+    "fashion",
+    "date",
+    "asset",
+  ];
+  for (const categoryId of categories) {
+    for (const priorityId of ["price", "performance", "design", "convenience"]) {
+      assert.ok(
+        chosenAxisFor(categoryId, priorityId),
+        `${categoryId} / ${priorityId} 에 짝이 되는 축이 없다`
+      );
+    }
+  }
+});
+
+test("디자인을 고르면 만족도 축에 가중치가 걸린다", () => {
+  const gift = (
+    name: string,
+    type: Type,
+    price: number,
+    satisfaction: number,
+    priceScore: number,
+    safety: number
+  ): QuickRecommendation => ({
+    rank: 1,
+    name,
+    reason: "",
+    searchKeyword: "",
+    qualitySummary: "",
+    productName: name,
+    selectionType: type,
+    selectionLabel: GIFT_LABELS[type],
+    price,
+    scores: [
+      { label: "받는 사람 만족", value: satisfaction },
+      { label: "가격 부담", value: priceScore },
+      { label: "실패 위험 낮음", value: safety },
+    ],
+  });
+
+  // 실제로 나갔던 화면이다. 균등 평균이면 책가방(85)이 무드등(90)보다 위였다.
+  const ranked = applyPriorityWeighting(
+    [
+      gift("비즈세트", "best", 18660, 95, 85, 85),
+      gift("무드등", "value", 12900, 90, 90, 80),
+      gift("다이어리", "reliable", 17600, 85, 86, 90),
+      gift("책가방", "premium", 19690, 85, 84, 95),
+    ],
+    "gift",
+    "design"
+  );
+
+  const at = (name: string) => ranked.findIndex((item) => item.name === name);
+  // 받는 사람 만족이 높은 순으로 올라와야 한다.
+  assert.ok(at("비즈세트") < at("무드등"));
+  assert.ok(at("무드등") < at("책가방"));
+});
+
+test("점수가 같으면 고른 조건이 높은 쪽을, 그다음 싼 쪽을 위에 둔다", () => {
+  const same = (name: string, price: number, satisfaction: number) => ({
+    rank: 1,
+    name,
+    reason: "",
+    searchKeyword: "",
+    qualitySummary: "",
+    price,
+    scores: [
+      { label: "받는 사람 만족", value: satisfaction },
+      { label: "가격 부담", value: 90 },
+      { label: "실패 위험 낮음", value: 90 },
+    ],
+  });
+
+  const ranked = applyPriorityWeighting(
+    [same("낮은 만족", 10000, 80), same("높은 만족", 20000, 80)],
+    "gift",
+    "design"
+  );
+  // 만족도가 같으니 싼 쪽이 위로 온다.
+  assert.equal(ranked[0].name, "낮은 만족");
 });

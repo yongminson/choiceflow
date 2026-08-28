@@ -25,18 +25,47 @@ export const CHOSEN_WEIGHT = 0.8;
 
 /**
  * 2번 질문의 선택지가 어느 세부 축에 해당하는지.
- * 짝이 없는 선택지(대개 "분위기")는 비워 둔다. 그때는 모든 축을 같게 본다.
+ *
+ * 빠진 자리가 있으면 그 조건을 고른 사람에게는 가중치가 걸리지 않고
+ * 모든 축이 같아진다. 실제로 선물 분야에 "디자인"이 비어 있어서,
+ * 디자인을 고른 요청이 세 축의 단순 평균으로 나갔다. 고른 조건을
+ * 우선한다고 해 놓고 아무 데도 반영되지 않은 셈이다.
+ *
+ * 그래서 네 선택지를 모두 채운다. 딱 맞는 축이 없으면 뜻이 가장 가까운
+ * 축에 건다. "디자인"은 결국 그 선택이 얼마나 마음에 드느냐의 문제라
+ * 만족도 쪽 축으로 보낸다.
  */
 const PRIORITY_AXIS: Record<CategoryId, Record<string, string>> = {
-  food: { price: "가격 부담", performance: "맛 만족도", convenience: "접근성" },
+  food: {
+    price: "가격 부담",
+    performance: "맛 만족도",
+    design: "맛 만족도",
+    convenience: "접근성",
+  },
   gift: {
     price: "가격 부담",
     performance: "받는 사람 만족",
+    design: "받는 사람 만족",
     convenience: "실패 위험 낮음",
   },
-  appliance: { price: "가격 부담", performance: "성능", convenience: "관리 편의" },
-  fashion: { price: "가격 부담", performance: "활용도", convenience: "관리 편의" },
-  date: { price: "비용 부담", performance: "경험 만족", convenience: "이동 편의" },
+  appliance: {
+    price: "가격 부담",
+    performance: "성능",
+    design: "성능",
+    convenience: "관리 편의",
+  },
+  fashion: {
+    price: "가격 부담",
+    performance: "활용도",
+    design: "활용도",
+    convenience: "관리 편의",
+  },
+  date: {
+    price: "비용 부담",
+    performance: "경험 만족",
+    design: "경험 만족",
+    convenience: "이동 편의",
+  },
   asset: {
     price: "총비용 유리",
     performance: "안정성",
@@ -89,7 +118,24 @@ export function applyPriorityWeighting<T extends QuickRecommendation>(
     overall: weightedOverall(item, weights),
   }));
 
-  const ranked = [...scored].sort((a, b) => b.overall - a.overall);
+  /*
+    점수가 같으면 순서가 뒤죽박죽으로 보인다. 88점이 둘인데 하나에만
+    "1위"가 붙으면 왜 그쪽이 위인지 설명할 수 없다.
+    고른 조건에서 앞선 쪽을 위에 두고, 그것도 같으면 싼 쪽을 위에 둔다.
+  */
+  const chosenAxis = chosenAxisFor(categoryId, priorityId);
+  const axisScore = (item: T) =>
+    (chosenAxis &&
+      item.scores?.find((score) => score.label === chosenAxis)?.value) ||
+    0;
+
+  const ranked = [...scored].sort(
+    (a, b) =>
+      b.overall - a.overall ||
+      axisScore(b.item) - axisScore(a.item) ||
+      (a.item.price ?? Number.MAX_SAFE_INTEGER) -
+        (b.item.price ?? Number.MAX_SAFE_INTEGER)
+  );
   return ranked.map((entry) => ({ ...entry.item, overall: entry.overall }));
 }
 
@@ -113,7 +159,15 @@ function weightsFor(axes: string[], chosenAxis?: string): Map<string, number> {
   const hasChosen = chosenAxis !== undefined && axes.includes(chosenAxis);
 
   if (!hasChosen) {
-    // 짝이 되는 축이 없으면 모두 같게 본다. 적어도 세부 점수와 어긋나지는 않는다.
+    /*
+      짝이 되는 축이 없으면 모두 같게 본다. 적어도 세부 점수와 어긋나지는
+      않지만, 고른 조건이 순위에 반영되지 않는다는 뜻이기도 하다.
+      조용히 넘어가면 왜 조건이 안 먹는지 알 방법이 없어 로그로 남긴다.
+    */
+    console.warn("[recommend] 고른 조건에 짝이 되는 세부 축이 없어 균등 가중으로 계산합니다.", {
+      chosenAxis,
+      axes,
+    });
     for (const axis of axes) weights.set(axis, 1 / axes.length);
     return weights;
   }
