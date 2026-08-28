@@ -4,6 +4,7 @@ import type { QuickRecommendation } from "@/lib/types/analyze";
 import { chosenAxisFor } from "./overall-score.ts";
 import { findPriceAxis } from "./scores.ts";
 import { collectTravelMinutes } from "./travel-time.ts";
+import { isWrongAudience, type DetectedAudience } from "./gender.ts";
 
 /**
  * 화면에 내보내기 직전에 규칙을 어긴 곳이 없는지 본다.
@@ -22,7 +23,11 @@ export type Violation = { rule: string; detail: Record<string, unknown> };
 
 export function verifyRecommendations(
   items: QuickRecommendation[],
-  context: { categoryId: CategoryId; priorityId: string }
+  context: {
+    categoryId: CategoryId;
+    priorityId: string;
+    audience?: DetectedAudience;
+  }
 ): Violation[] {
   const violations: Violation[] = [];
   if (items.length < 2) return violations;
@@ -148,6 +153,29 @@ export function verifyRecommendations(
       violations.push({
         rule: "한 후보의 소요 시간이 여러 값으로 적힘",
         detail: { name: item.name, minutes: distinct },
+      });
+    }
+  }
+
+  /*
+    7) 요청한 대상과 다른 상품이 섞이면 안 된다.
+    "여성 니트"를 찾았는데 후보 넷이 전부 아동복으로 나간 적이 있다.
+    옷은 대상이 어긋나면 그 추천 자체가 못 쓰는 것이 된다.
+  */
+  if (context.audience) {
+    const mismatched = items.filter(
+      (item) =>
+        item.productName &&
+        isWrongAudience(item.productName, context.audience as DetectedAudience)
+    );
+    if (mismatched.length > 0) {
+      violations.push({
+        rule: "요청한 대상과 다른 상품이 섞임",
+        detail: {
+          audience: context.audience.term,
+          ageGroup: context.audience.ageGroup,
+          products: mismatched.map((item) => item.productName),
+        },
       });
     }
   }

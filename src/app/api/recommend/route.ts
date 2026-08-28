@@ -30,9 +30,9 @@ import { applyPriceBurdenScores } from "@/lib/recommendation/scores";
 import { normalizeTravelTime } from "@/lib/recommendation/travel-time";
 import { verifyRecommendations } from "@/lib/recommendation/verify-result";
 import {
-  applyGenderToKeyword,
-  detectGender,
-  type DetectedGender,
+  applyAudienceToKeyword,
+  detectAudience,
+  type DetectedAudience,
 } from "@/lib/recommendation/gender";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { resolveDisplayName } from "@/lib/monetization/brand-verify";
@@ -926,7 +926,7 @@ JSON 배열만 응답:
 async function enrichProductPrices(
   candidates: Candidate[],
   maxBudgetWon?: number,
-  gender?: DetectedGender
+  audience?: DetectedAudience
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
   /*
     후보마다 따로 검색하면 서로 다른 검색어가 같은 상품을 물어 오는 일이 생긴다.
@@ -947,9 +947,9 @@ async function enrichProductPrices(
       캐릭터 운동화가 걸린 적이 있다. 옷과 선물은 성별이 어긋나면 그
       추천 자체가 못 쓰는 것이 된다.
     */
-    const searchKeyword = applyGenderToKeyword(
+    const searchKeyword = applyAudienceToKeyword(
       normalizeProductSearchKeyword(candidate.searchKeyword, candidate.name),
-      gender
+      audience
     );
 
     let product: Awaited<ReturnType<typeof searchCoupangProduct>> = null;
@@ -958,7 +958,7 @@ async function enrichProductPrices(
       // 링크를 준다. 검색 페이지 딥링크보다 전환도 추적도 유리하다.
       product = await searchCoupangProduct(searchKeyword, maxBudgetWon, {
         excludeKeys: usedProductKeys,
-        gender,
+        audience,
       });
     } catch {
       product = null;
@@ -1732,11 +1732,13 @@ export async function POST(request: Request) {
       .slice(0, 4)
       .map((item) => normalizeTravelTime(item, item.travelTimeMin));
     const supportsShopping = ["gift", "appliance", "fashion"].includes(rawCategory);
+    // 누가 쓸 것인지는 한 번만 읽어 검색과 검증에 함께 쓴다.
+    const audience = detectAudience(userWish);
     const priced = supportsShopping
       ? await enrichProductPrices(
           resultCandidates,
           budget.maxWon,
-          detectGender(userWish)
+          audience
         )
       : {
           recommendations: resultCandidates.map((item, index) => ({
@@ -1784,6 +1786,7 @@ export async function POST(request: Request) {
     verifyRecommendations(finalized, {
       categoryId: rawCategory,
       priorityId: priority.id,
+      audience,
     });
 
     const result = toAnalyzeResult(

@@ -1,5 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import {
+  isWrongAudience,
+  type DetectedAudience,
+} from "../recommendation/gender.ts";
+
 export const COUPANG_API_HOST = "https://api-gateway.coupang.com";
 export const COUPANG_DEEPLINK_PATH =
   "/v2/providers/affiliate_open_api/apis/openapi/v1/deeplink";
@@ -361,10 +366,10 @@ export async function searchCoupangProduct(
      */
     excludeKeys?: ReadonlySet<string>;
     /**
-     * 성별이 정해진 요청에서 반대 성별 상품을 빼기 위한 조건.
-     * 옷·선물은 성별이 어긋나면 그 추천 자체가 못 쓰는 것이 된다.
+     * 누가 쓸 것인지 정해진 요청에서 대상이 다른 상품을 빼기 위한 조건.
+     * 옷·선물은 성별이나 연령이 어긋나면 그 추천 자체가 못 쓰는 것이 된다.
      */
-    gender?: { term: string; rejectPattern: RegExp };
+    audience?: DetectedAudience;
   } = {}
 ): Promise<CoupangProduct | null> {
   const normalizedKeyword = normalizeCoupangKeyword(keyword);
@@ -373,7 +378,7 @@ export async function searchCoupangProduct(
   const excluded = options.excludeKeys;
   // 제외 목록이 있으면 결과가 달라질 수 있으므로 캐시를 쓰지 않는다.
   const useCache = !excluded || excluded.size === 0;
-  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.gender?.term ?? ""}`;
+  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.audience?.term ?? ""}`;
   const cached = useCache ? productCache.get(cacheKey) : undefined;
   if (cached && cached.expiresAt > Date.now()) return cached.product;
   if (productCache.size > PRODUCT_CACHE_MAX) {
@@ -441,11 +446,13 @@ export async function searchCoupangProduct(
         isFreeShipping: false,
       }).some((key) => excluded.has(key));
     };
-    // 상품명에 반대 성별 표시가 있으면 뺀다. "남아 운동화"를 찾는데
-    // 분홍색 여아 캐릭터 상품이 걸리는 일을 막는다.
+    /*
+      대상이 다른 상품을 뺀다. "남아 운동화"를 찾는데 분홍색 여아 캐릭터
+      상품이 걸리거나, "여성 니트"를 찾는데 아동복이 걸리는 일을 막는다.
+    */
     const isWrongGender = (item: (typeof items)[number]) =>
-      options.gender
-        ? options.gender.rejectPattern.test(String(item.productName ?? ""))
+      options.audience
+        ? isWrongAudience(String(item.productName ?? ""), options.audience)
         : false;
 
     const isUsable = (item: (typeof items)[number]) =>
