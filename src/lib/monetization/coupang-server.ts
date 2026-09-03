@@ -9,6 +9,10 @@ import {
   type TargetItem,
 } from "../recommendation/item-match.ts";
 import { productBrandKey } from "./brand-verify.ts";
+import {
+  isWrongOccasion,
+  type Occasion,
+} from "../recommendation/occasion.ts";
 
 export const COUPANG_API_HOST = "https://api-gateway.coupang.com";
 export const COUPANG_DEEPLINK_PATH =
@@ -384,6 +388,10 @@ export async function searchCoupangProduct(
      * 이미 자리를 채운 브랜드. 한 브랜드가 화면을 다 차지하지 않게 막는다.
      */
     excludeBrands?: ReadonlySet<string>;
+    /**
+     * 언제·어떤 자리에 쓸 것인지. 추석 시댁 모임에 여름 상품이 걸린 적이 있다.
+     */
+    occasion?: Occasion;
   } = {}
 ): Promise<CoupangProduct | null> {
   const normalizedKeyword = normalizeCoupangKeyword(keyword);
@@ -394,7 +402,7 @@ export async function searchCoupangProduct(
   const useCache =
     (!excluded || excluded.size === 0) &&
     (!options.excludeBrands || options.excludeBrands.size === 0);
-  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.audience?.term ?? ""}|${options.targetItem?.name ?? ""}`;
+  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.audience?.term ?? ""}|${options.targetItem?.name ?? ""}|${options.occasion?.season ?? ""}${options.occasion?.formal ? "-formal" : ""}`;
   const cached = useCache ? productCache.get(cacheKey) : undefined;
   if (cached && cached.expiresAt > Date.now()) return cached.product;
   if (productCache.size > PRODUCT_CACHE_MAX) {
@@ -485,12 +493,19 @@ export async function searchCoupangProduct(
       return brands.has(productBrandKey(String(item.productName ?? "")));
     };
 
+    // 계절과 자리가 어긋나는 상품도 뺀다. 품목·대상 다음, 브랜드보다 먼저다.
+    const isWrongTime = (item: (typeof items)[number]) =>
+      options.occasion
+        ? isWrongOccasion(String(item.productName ?? ""), options.occasion)
+        : false;
+
     const isUsable = (item: (typeof items)[number]) =>
       Boolean(item.productUrl) &&
       Boolean(item.productName) &&
       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
       !isWrongItem(item) &&
       !isWrongGender(item) &&
+      !isWrongTime(item) &&
       !isCappedBrand(item) &&
       !isExcluded(item);
 

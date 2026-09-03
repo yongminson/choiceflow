@@ -11,6 +11,7 @@ import { collectTravelMinutes } from "./travel-time.ts";
 import { isWrongAudience, type DetectedAudience } from "./gender.ts";
 import { matchesTargetItem, type TargetItem } from "./item-match.ts";
 import { productBrandKey } from "../monetization/brand-verify.ts";
+import { isWrongOccasion, type Occasion } from "./occasion.ts";
 
 /**
  * 화면에 내보내기 직전에 규칙을 어긴 곳이 없는지 본다.
@@ -35,6 +36,7 @@ export function verifyRecommendations(
     audience?: DetectedAudience;
     targetItem?: TargetItem;
     maxBudgetWon?: number;
+    occasion?: Occasion;
   }
 ): Violation[] {
   const violations: Violation[] = [];
@@ -275,6 +277,29 @@ export function verifyRecommendations(
       });
     }
   });
+
+  /*
+    12) 계절과 자리가 어긋나는 상품이 섞이면 안 된다.
+    추석 시댁 모임에 입을 옷을 찾았는데 "여름여행 플라워 투피스"가
+    후보에 올라온 적이 있다. 상품명에 여름이라고 적혀 있었다.
+  */
+  if (context.occasion) {
+    const offSeason = items.filter(
+      (item) =>
+        item.productName &&
+        isWrongOccasion(item.productName, context.occasion as Occasion)
+    );
+    if (offSeason.length > 0) {
+      violations.push({
+        rule: "계절이나 자리에 맞지 않는 상품이 섞임",
+        detail: {
+          season: context.occasion.season,
+          formal: context.occasion.formal,
+          products: offSeason.map((item) => item.productName),
+        },
+      });
+    }
+  }
 
   if (violations.length > 0) {
     console.warn("[recommend] 결과 검증 실패", {

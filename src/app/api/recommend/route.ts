@@ -39,6 +39,7 @@ import {
   matchesTargetItem,
   type TargetItem,
 } from "@/lib/recommendation/item-match";
+import { detectOccasion, type Occasion } from "@/lib/recommendation/occasion";
 import { toMapKeyword } from "@/lib/recommendation/map-keyword";
 import { resolveDisplayName } from "@/lib/monetization/brand-verify";
 import {
@@ -953,7 +954,8 @@ async function enrichProductPrices(
   candidates: Candidate[],
   maxBudgetWon?: number,
   audience?: DetectedAudience,
-  targetItem?: TargetItem
+  targetItem?: TargetItem,
+  occasion?: Occasion
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
   /*
     후보마다 따로 검색하면 서로 다른 검색어가 같은 상품을 물어 오는 일이 생긴다.
@@ -995,6 +997,7 @@ async function enrichProductPrices(
         audience,
         targetItem,
         excludeBrands: cappedBrands(brandCounts),
+        occasion,
       });
     } catch {
       product = null;
@@ -1774,12 +1777,17 @@ export async function POST(request: Request) {
     const audience = detectAudience(userWish);
     // 무엇을 찾는지도 한 번만 읽는다. 적지 않았으면 거르지 않는다.
     const targetItem = detectTargetItem(userWish, scenario.label);
+    /*
+      계절과 자리는 옷에서만 따진다. 밥솥에 "여름"이 붙었다고 뺄 이유가 없다.
+    */
+    const occasion = rawCategory === "fashion" ? detectOccasion(userWish) : undefined;
     const priced = supportsShopping
       ? await enrichProductPrices(
           resultCandidates,
           budget.maxWon,
           audience,
-          targetItem
+          targetItem,
+          occasion
         )
       : {
           recommendations: resultCandidates.map((item, index) => ({
@@ -1829,6 +1837,7 @@ export async function POST(request: Request) {
       priorityId: priority.id,
       audience,
       targetItem,
+      occasion,
       maxBudgetWon: budget.maxWon,
     });
 
