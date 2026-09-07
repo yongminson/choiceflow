@@ -157,18 +157,29 @@ const CATEGORY_SCENES: Record<CategoryId, {
   asset: { image: "/brand/scene-big-decision.png", tag: "Major Decision", badge: "차량·부동산·렌탈" },
 };
 
+/**
+ * 화면이 어떻게 흘러가는지 보여 주는 예시.
+ *
+ * 실제 조회 결과가 아니라 손으로 적어 둔 값이다. 그래서 실존 상품명을
+ * 쓰지 않는다. 특정 브랜드에 "만족도 96%", "밀키트 1위" 같은 지어낸
+ * 수치를 붙이면 그 브랜드에 대한 허위 표시가 되고, 값을 확인할 방법도
+ * 없다. 어떤 조건에서 무엇이 뽑히는지만 보이면 이 자리의 역할은 끝난다.
+ *
+ * 고르는 이유도 후기 수치 대신 사용자가 고른 조건으로 적는다. 실제
+ * 결과 화면이 그렇게 설명하기 때문에 예시도 같아야 한다.
+ */
 const SIM_CASES = [
   {
     categoryId: "appliance" as CategoryId,
     categoryLabel: "가전·디지털",
     q1: "원룸 1인 가구 · 조용한 생활",
-    q2: "가성비 & 잔고장 제로",
+    q2: "가성비 & 잔고장 적은 것",
     q3: "예산 30~50만원대",
-    winnerName: "쿠쿠 인스퓨어 무소음 에어로",
-    matchScore: 98.4,
-    reason: "동급 대비 소음 만족도 96% · 원룸 최적 사이즈",
+    winnerName: "원룸용 저소음 공기청정기",
+    matchScore: 88,
+    reason: "고른 조건 중 소음을 가장 크게 반영 · 예산 안에 들어옴",
     price: "349,000원",
-    tag: "1위 확정",
+    tag: "가장 추천",
   },
   {
     categoryId: "food" as CategoryId,
@@ -176,11 +187,11 @@ const SIM_CASES = [
     q1: "퇴근 후 혼밥 · 얼큰한 국물 요리",
     q2: "느끼함 없고 칼칼한 맛 우선",
     q3: "예산 1~2만원",
-    winnerName: "담꾹 얼큰 소고기 버섯 샤브샤브",
-    matchScore: 99.1,
-    reason: "혼밥 밀키트 만족도 1위 · 칼칼한 특제 육수",
+    winnerName: "1인분 얼큰 국물 밀키트",
+    matchScore: 84,
+    reason: "1인분 구성 · 국물 요리 · 고른 예산대에 들어옴",
     price: "13,900원",
-    tag: "혼밥 종결",
+    tag: "가장 추천",
   },
   {
     categoryId: "gift" as CategoryId,
@@ -188,11 +199,11 @@ const SIM_CASES = [
     q1: "30대 직장 동료 집들이 선물",
     q2: "호불호 없고 실용적인 구성",
     q3: "예산 5만원 내외",
-    winnerName: "이솝 레저렉션 아로마틱 핸드워시 세트",
-    matchScore: 97.6,
-    reason: "향수보다 호불호 없음 · 센스 있는 집들이 1순위",
+    winnerName: "집들이용 생활용품 선물세트",
+    matchScore: 81,
+    reason: "취향을 덜 타는 구성 · 집들이 자리에 맞는 가격대",
     price: "53,000원",
-    tag: "선물 1위",
+    tag: "가장 추천",
   },
 ];
 
@@ -488,31 +499,51 @@ export function QuickRecommendationDashboard() {
                     ))}
                   </div>
 
-                  {/* 신뢰 지표 스트립 */}
+                  {/*
+                    신뢰 지표 스트립.
+
+                    이용자 수와 만족도는 적지 않는다. 세어 본 적이 없어서
+                    적으면 지어내는 것이 되고, 제휴 링크가 붙은 화면의 허위
+                    표시는 파트너스 계정과 검색 노출을 한 번에 잃는 길이다.
+                    이 저장소가 블로그 글에 같은 표현을 막아 두고 있기도 하다.
+
+                    대신 확인할 수 있는 것만 적는다. 가입 없이 무료로 쓰는
+                    것과 단점을 함께 보여 주는 것은 실제로 그렇게 동작하고,
+                    광고성 후기에 지친 사람에게는 지어낸 만족도보다 이쪽이
+                    더 답이 된다.
+                  */}
                   <div className="mt-8 grid grid-cols-3 gap-3 border-t border-border/80 pt-6">
                     <div>
-                      <p className="text-xl font-black text-foreground sm:text-2xl tabular-nums">148,000+</p>
-                      <p className="text-xs font-medium text-muted-foreground">누적 선택 해결</p>
+                      <p className="text-xl font-black text-foreground sm:text-2xl">무료</p>
+                      <p className="text-xs font-medium text-muted-foreground">가입·로그인 없이</p>
                     </div>
                     <div>
-                      <p className="text-xl font-black text-foreground sm:text-2xl tabular-nums">1분 12초</p>
-                      <p className="text-xs font-medium text-muted-foreground">평균 결정 소요</p>
+                      <p className="text-xl font-black text-foreground sm:text-2xl tabular-nums">3단계</p>
+                      <p className="text-xs font-medium text-muted-foreground">질문이면 끝</p>
                     </div>
                     <div>
-                      <p className="text-xl font-black text-foreground sm:text-2xl tabular-nums">98.6%</p>
-                      <p className="text-xs font-medium text-muted-foreground">추천 만족도</p>
+                      <p className="text-xl font-black text-foreground sm:text-2xl">단점까지</p>
+                      <p className="text-xs font-medium text-muted-foreground">감수할 점도 함께</p>
                     </div>
                   </div>
                 </div>
 
-                {/* 히어로 우측: 실시간 의사결정 시뮬레이터 (Motion Graphic Mock) */}
+                {/* 히어로 우측: 결과 화면 미리보기 (손으로 적어 둔 예시) */}
                 <div className="lg:col-span-5">
                   <div className="relative rounded-3xl border-2 border-primary/20 bg-gradient-to-b from-white via-blue-50/30 to-white p-5 shadow-xl sm:p-6 backdrop-blur-sm">
                     {/* 상단 탭 (시뮬레이션 카테고리 전환) */}
                     <div className="flex items-center justify-between border-b border-border/80 pb-3.5">
+                      {/*
+                        살아 있는 초록 점과 "실시간"을 붙이지 않는다. 지금
+                        조회 중인 것처럼 보이지만 화면에 적힌 값은 고정이다.
+                        예시라고 적어 두면 오해할 일이 없고, 실제로 돌려
+                        보게 만드는 데도 지장이 없다.
+                      */}
                       <div className="flex items-center gap-1.5">
-                        <span className="sim-pulse-dot size-2 rounded-full bg-emerald-500" />
-                        <span className="text-xs font-bold text-foreground">실시간 의사결정 시뮬레이터</span>
+                        <span className="size-2 rounded-full bg-muted-foreground/40" />
+                        <span className="text-xs font-bold text-foreground">
+                          결과 화면 예시
+                        </span>
                       </div>
                       <div className="flex gap-1">
                         {SIM_CASES.map((sc, idx) => (
@@ -714,11 +745,17 @@ export function QuickRecommendationDashboard() {
                   <div className="inline-flex size-10 items-center justify-center rounded-xl bg-blue-50 text-primary font-black">
                     01
                   </div>
+                  {/*
+                    후기를 역추적해 걸러 낸다고 쓰지 않는다. 상품 조회로는
+                    후기 데이터 자체를 받지 못하므로 그런 기능은 없다.
+                    실제로 하는 일은 조건에 어긋난 후보를 빼는 것이고,
+                    그쪽이 없는 기능을 적는 것보다 설득력도 있다.
+                  */}
                   <h3 className="mt-4 text-base font-bold text-foreground sm:text-lg">
-                    광고·바이럴 99.8% 차단
+                    조건에 어긋난 후보 제외
                   </h3>
                   <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                    체험단, 원고료 지급, 어뷰징 패턴을 역추적하여 순수한 실사용자 만족도와 핵심 후기만 필터링합니다.
+                    찾는 대상·품목과 다른 상품, 계절이나 자리에 맞지 않는 옷, 한 브랜드로만 채워진 후보를 먼저 걸러낸 뒤에 비교를 시작합니다.
                   </p>
                 </div>
 
@@ -739,10 +776,15 @@ export function QuickRecommendationDashboard() {
                     03
                   </div>
                   <h3 className="mt-4 text-base font-bold text-foreground sm:text-lg">
-                    실시간 최저가 & 로켓배송
+                    현재 판매가 & 로켓배송 확인
                   </h3>
+                  {/*
+                    "최저가"라고 쓰지 않는다. 여러 판매처를 비교해 최저가를
+                    가려내는 것이 아니라 조회 시점의 판매가를 그대로 보여
+                    주는 것이다. 값이 바뀔 수 있다는 것도 함께 적는다.
+                  */}
                   <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                    고민이 끝난 즉시 최저가 구매 및 로켓배송 재고를 확인하고, 식당/데이트는 지도 실시간 정보를 연동합니다.
+                    고민이 끝나면 조회 시점의 판매가와 로켓배송 여부를 바로 확인하고, 식당·데이트는 지도 정보로 이어집니다. 가격과 재고는 이동 후 다시 확인할 수 있습니다.
                   </p>
                 </div>
               </div>
