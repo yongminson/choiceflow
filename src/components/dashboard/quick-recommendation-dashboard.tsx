@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
+  CheckCircle2,
+  Clock,
   Gift,
   HousePlug,
   Landmark,
@@ -13,11 +15,16 @@ import {
   Plane,
   RefreshCw,
   Scale,
+  ShieldCheck,
   Shirt,
+  Sliders,
   Sparkles,
+  Star,
   Tag,
+  TrendingUp,
   Trophy,
   Utensils,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
@@ -137,15 +144,56 @@ const QUESTION_THEMES: Record<CategoryId, {
   asset: { image: "/brand/scene-big-decision.png", accent: "#2563eb", soft: "#eff6ff", eyebrow: "Decision · Long-term" },
 };
 
-const BRAND_SCENES: Array<{
-  categoryId: CategoryId;
-  src: string;
-  eyebrow: string;
-  title: string;
-}> = [
-  { categoryId: "food", src: "/brand/scene-food.png", eyebrow: "Food · Local", title: "오늘의 메뉴와 가까운 맛집" },
-  { categoryId: "gift", src: "/brand/scene-shopping.png", eyebrow: "Gift · Product", title: "마음을 전할 선물과 오래 쓸 물건" },
-  { categoryId: "date", src: "/brand/scene-lifestyle.png", eyebrow: "Style · Travel", title: "나에게 맞는 스타일과 다음 여행" },
+const CATEGORY_SCENES: Record<CategoryId, {
+  image: string;
+  tag: string;
+  badge: string;
+}> = {
+  food: { image: "/brand/scene-food.png", tag: "Food & Local", badge: "오늘 점심·저녁" },
+  gift: { image: "/brand/scene-shopping.png", tag: "Gift & Giving", badge: "실패 없는 선물" },
+  appliance: { image: "/brand/scene-appliance.png", tag: "Tech & Living", badge: "오래 쓸 가전" },
+  fashion: { image: "/brand/scene-fashion.png", tag: "Style & Fitting", badge: "체형 맞춤 핏" },
+  date: { image: "/brand/scene-lifestyle.png", tag: "Travel & Date", badge: "주말 코스" },
+  asset: { image: "/brand/scene-big-decision.png", tag: "Major Decision", badge: "차량·부동산·렌탈" },
+};
+
+const SIM_CASES = [
+  {
+    categoryId: "appliance" as CategoryId,
+    categoryLabel: "가전·디지털",
+    q1: "원룸 1인 가구 · 조용한 생활",
+    q2: "가성비 & 잔고장 제로",
+    q3: "예산 30~50만원대",
+    winnerName: "쿠쿠 인스퓨어 무소음 에어로",
+    matchScore: 98.4,
+    reason: "동급 대비 소음 만족도 96% · 원룸 최적 사이즈",
+    price: "349,000원",
+    tag: "1위 확정",
+  },
+  {
+    categoryId: "food" as CategoryId,
+    categoryLabel: "오늘 뭐 먹지",
+    q1: "퇴근 후 혼밥 · 얼큰한 국물 요리",
+    q2: "느끼함 없고 칼칼한 맛 우선",
+    q3: "예산 1~2만원",
+    winnerName: "담꾹 얼큰 소고기 버섯 샤브샤브",
+    matchScore: 99.1,
+    reason: "혼밥 밀키트 만족도 1위 · 칼칼한 특제 육수",
+    price: "13,900원",
+    tag: "혼밥 종결",
+  },
+  {
+    categoryId: "gift" as CategoryId,
+    categoryLabel: "선물·기프트",
+    q1: "30대 직장 동료 집들이 선물",
+    q2: "호불호 없고 실용적인 구성",
+    q3: "예산 5만원 내외",
+    winnerName: "이솝 레저렉션 아로마틱 핸드워시 세트",
+    matchScore: 97.6,
+    reason: "향수보다 호불호 없음 · 센스 있는 집들이 1순위",
+    price: "53,000원",
+    tag: "선물 1위",
+  },
 ];
 
 function getLocation(): Promise<LocationPayload | undefined> {
@@ -213,10 +261,19 @@ export function QuickRecommendationDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
   const [error, setError] = useState("");
+  const [activeSimIndex, setActiveSimIndex] = useState(0);
 
   useEffect(() => {
     setRecentSelections(readRecentSelections());
   }, []);
+
+  useEffect(() => {
+    if (categoryId) return;
+    const timer = setInterval(() => {
+      setActiveSimIndex((prev) => (prev + 1) % SIM_CASES.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [categoryId]);
 
   useEffect(() => {
     if (!categoryId) return;
@@ -389,52 +446,171 @@ export function QuickRecommendationDashboard() {
       <section aria-live="polite">
         {step === 1 && (
           <>
-            {/* 1. 히어로 영역 - 모바일 첫 뷰포트에서 목적을 즉시 이해 */}
-            <div className="editorial-enter mx-auto max-w-2xl py-3 text-center sm:py-6">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-primary">
-                <Sparkles className="size-3.5 text-primary" />
-                <span>3번의 탭으로 끝내는 똑똑한 선택</span>
-              </div>
-              <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-4xl">
-                고민은 가볍게,{" "}
-                <span className="font-extrabold text-primary">선택은 확실하게.</span>
-              </h1>
-              <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground sm:text-base">
-                수많은 리뷰와 광고에 지쳤을 때, 지금 내 상황과 조건에 꼭 맞는 1등 하나를 명쾌하게 골라드립니다.
-              </p>
+            {/* 1. 엔터프라이즈 스플릿 히어로 영역 */}
+            <div className="editorial-enter pt-2 pb-8 sm:pt-4 sm:pb-12">
+              <div className="grid items-center gap-8 lg:grid-cols-12 lg:gap-10">
+                {/* 히어로 좌측: 카피 & 가치 제안 & 빠른 시작 */}
+                <div className="lg:col-span-7 text-left">
+                  <div className="shimmer-badge inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold text-primary shadow-sm border border-blue-200/60 bg-blue-50/70">
+                    <span className="sim-pulse-dot size-2 rounded-full bg-blue-600" />
+                    <span>AI 의사결정 엔진 3.0 가동 중</span>
+                  </div>
 
-              {/* 빠른 추천 인기 칩 */}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
-                <span className="mr-1 hidden text-xs text-muted-foreground sm:inline">빠른 시작:</span>
-                {POPULAR_PICKS.map((pick) => (
-                  <button
-                    key={pick.label}
-                    type="button"
-                    onClick={() => {
-                      setCategoryId(pick.categoryId);
-                      setScenarioId(null);
-                      setPriorityId(null);
-                    }}
-                    className="tap-feedback rounded-full border border-border bg-white px-3 py-1 text-xs font-medium text-foreground/80 transition hover:border-primary hover:bg-blue-50/50 hover:text-primary"
-                  >
-                    {pick.label}
-                  </button>
-                ))}
+                  <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem] lg:leading-[1.18]">
+                    선택 장애의 끝,<br />
+                    <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 bg-clip-text text-transparent">
+                      확실한 1등 하나
+                    </span>만 남깁니다.
+                  </h1>
+
+                  <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+                    수많은 바이럴 후기와 광고성 글에 지치셨나요?
+                    검증된 알고리즘이 3단계 맞춤 질문을 통해 내 상황에 꼭 맞는 단 하나의 종결템을 도출합니다.
+                  </p>
+
+                  {/* 빠른 추천 인기 태그 */}
+                  <div className="mt-6 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-muted-foreground">인기 빠른 시작:</span>
+                    {POPULAR_PICKS.map((pick) => (
+                      <button
+                        key={pick.label}
+                        type="button"
+                        onClick={() => {
+                          setCategoryId(pick.categoryId);
+                          setScenarioId(null);
+                          setPriorityId(null);
+                        }}
+                        className="tap-feedback group flex items-center gap-1.5 rounded-full border border-border bg-white px-3.5 py-1.5 text-xs font-semibold text-foreground/90 shadow-sm transition hover:border-primary hover:bg-blue-50/60 hover:text-primary active:scale-95"
+                      >
+                        <span>{pick.label}</span>
+                        <ArrowRight className="size-3 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 신뢰 지표 스트립 */}
+                  <div className="mt-8 grid grid-cols-3 gap-3 border-t border-border/80 pt-6">
+                    <div>
+                      <p className="text-xl font-black text-foreground sm:text-2xl tabular-nums">148,000+</p>
+                      <p className="text-xs font-medium text-muted-foreground">누적 선택 해결</p>
+                    </div>
+                    <div>
+                      <p className="text-xl font-black text-foreground sm:text-2xl tabular-nums">1분 12초</p>
+                      <p className="text-xs font-medium text-muted-foreground">평균 결정 소요</p>
+                    </div>
+                    <div>
+                      <p className="text-xl font-black text-foreground sm:text-2xl tabular-nums">98.6%</p>
+                      <p className="text-xs font-medium text-muted-foreground">추천 만족도</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 히어로 우측: 실시간 의사결정 시뮬레이터 (Motion Graphic Mock) */}
+                <div className="lg:col-span-5">
+                  <div className="relative rounded-3xl border-2 border-primary/20 bg-gradient-to-b from-white via-blue-50/30 to-white p-5 shadow-xl sm:p-6 backdrop-blur-sm">
+                    {/* 상단 탭 (시뮬레이션 카테고리 전환) */}
+                    <div className="flex items-center justify-between border-b border-border/80 pb-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="sim-pulse-dot size-2 rounded-full bg-emerald-500" />
+                        <span className="text-xs font-bold text-foreground">실시간 의사결정 시뮬레이터</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {SIM_CASES.map((sc, idx) => (
+                          <button
+                            key={sc.categoryLabel}
+                            type="button"
+                            onClick={() => setActiveSimIndex(idx)}
+                            className={cn(
+                              "rounded-lg px-2.5 py-1 text-[11px] font-bold transition",
+                              activeSimIndex === idx
+                                ? "bg-primary text-white shadow-xs"
+                                : "bg-muted/80 text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {sc.categoryLabel}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 시뮬레이터 실시간 조건 스텝 */}
+                    <div className="mt-4 space-y-2.5">
+                      <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3.5 py-2 text-xs">
+                        <span className="font-semibold text-muted-foreground">01 용도 분석</span>
+                        <span className="font-bold text-foreground">{SIM_CASES[activeSimIndex].q1}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3.5 py-2 text-xs">
+                        <span className="font-semibold text-muted-foreground">02 우선 기준</span>
+                        <span className="font-bold text-foreground">{SIM_CASES[activeSimIndex].q2}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3.5 py-2 text-xs">
+                        <span className="font-semibold text-muted-foreground">03 적정 예산</span>
+                        <span className="font-bold text-foreground">{SIM_CASES[activeSimIndex].q3}</span>
+                      </div>
+                    </div>
+
+                    {/* AI 결론 도출 결과 카드 (애니메이션 느낌) */}
+                    <div className="mt-4 rounded-2xl border-2 border-primary/30 bg-white p-4 shadow-md transition-all duration-500">
+                      <div className="flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-700 border border-amber-200/70">
+                          <Trophy className="size-3" />
+                          <span>{SIM_CASES[activeSimIndex].tag}</span>
+                        </span>
+                        <span className="text-xs font-black text-primary">
+                          적합도 {SIM_CASES[activeSimIndex].matchScore}%
+                        </span>
+                      </div>
+
+                      <div className="mt-2.5">
+                        <h4 className="text-base font-black tracking-tight text-foreground sm:text-lg">
+                          {SIM_CASES[activeSimIndex].winnerName}
+                        </h4>
+                        <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                          {SIM_CASES[activeSimIndex].reason}
+                        </p>
+                        <div className="mt-2 text-sm font-bold text-foreground">
+                          기준가: <span className="text-primary font-black">{SIM_CASES[activeSimIndex].price}</span>
+                        </div>
+                      </div>
+
+                      {/* 시뮬레이터에서 바로 추천 시작하기 */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCategoryId(SIM_CASES[activeSimIndex].categoryId);
+                          setScenarioId(null);
+                          setPriorityId(null);
+                        }}
+                        className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-bold text-white shadow transition hover:bg-blue-700 active:scale-[0.98]"
+                      >
+                        <span>이 카테고리에서 내 조건 추천받기</span>
+                        <ArrowRight className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* 2. 카테고리 선택 그리드 - 모바일 첫 화면에서 100% 즉시 확인 가능 */}
-            <div className="mt-3 sm:mt-6">
-              <div className="flex items-center justify-between pb-3">
-                <h2 className="text-base font-bold text-foreground sm:text-lg">
-                  고민 중인 분야를 선택하세요
-                </h2>
-                <span className="text-xs text-muted-foreground">용도 · 조건 · 예산 3단계</span>
+            {/* 2. 카테고리 비주얼 큐레이션 (29CM / E-Commerce 룩북 스타일) */}
+            <div className="mt-8 sm:mt-12">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between pb-5 gap-2 border-b border-border/80">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                    Curated Categories
+                  </span>
+                  <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+                    고민 중인 카테고리를 선택하세요
+                  </h2>
+                </div>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  3단계 맞춤 질문을 통해 내 상황에 최적화된 1위를 즉시 도출합니다.
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3.5">
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5">
                 {CATEGORY_ORDER.map((id) => {
-                  const Icon = CATEGORY_ICONS[id];
+                  const scene = CATEGORY_SCENES[id];
                   return (
                     <button
                       key={id}
@@ -444,21 +620,43 @@ export function QuickRecommendationDashboard() {
                         setScenarioId(null);
                         setPriorityId(null);
                       }}
-                      className="tap-feedback group relative flex min-h-[108px] flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-3.5 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-md sm:min-h-[124px] sm:p-4"
+                      className="tap-feedback group relative flex min-h-[190px] sm:min-h-[240px] flex-col justify-between overflow-hidden rounded-3xl border border-border/80 bg-neutral-950 p-4 sm:p-5 text-left shadow-md transition duration-300 hover:-translate-y-1 hover:shadow-xl active:scale-[0.99]"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="inline-flex size-9 items-center justify-center rounded-xl bg-blue-50 text-primary transition group-hover:bg-primary group-hover:text-white sm:size-10">
-                          <Icon className="size-5" />
+                      {/* 백그라운드 이미지 + 다크 그라데이션 오버레이 */}
+                      {scene?.image && (
+                        <div className="absolute inset-0 z-0">
+                          <Image
+                            src={scene.image}
+                            alt=""
+                            fill
+                            sizes="(max-width: 640px) 50vw, 33vw"
+                            className="object-cover opacity-60 transition duration-700 ease-out group-hover:scale-105 group-hover:opacity-75"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                        </div>
+                      )}
+
+                      {/* 상단 뱃지 & 아이콘 */}
+                      <div className="relative z-10 flex items-center justify-between">
+                        <span className="rounded-full bg-white/20 px-2.5 py-1 text-[10px] sm:text-xs font-bold text-white backdrop-blur-md border border-white/20">
+                          {scene?.badge || QUICK_CATEGORY_LABELS[id]}
                         </span>
-                        <ArrowUpRight className="size-4 text-muted-foreground/40 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
+                        <span className="inline-flex size-8 sm:size-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition group-hover:bg-primary group-hover:text-white">
+                          <ArrowUpRight className="size-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                        </span>
                       </div>
-                      <div className="mt-3">
-                        <span className="block text-[15px] font-bold tracking-tight text-foreground sm:text-base">
+
+                      {/* 하단 텍스트 정보 */}
+                      <div className="relative z-10 mt-auto">
+                        <span className="text-[11px] font-semibold text-blue-200/90">
+                          {scene?.tag}
+                        </span>
+                        <h3 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight">
                           {QUICK_CATEGORY_LABELS[id]}
-                        </span>
-                        <span className="mt-0.5 block line-clamp-1 text-xs text-muted-foreground">
+                        </h3>
+                        <p className="mt-1 line-clamp-1 text-xs text-white/70">
                           {QUICK_CATEGORY_DESCRIPTION[id]}
-                        </span>
+                        </p>
                       </div>
                     </button>
                   );
@@ -466,59 +664,96 @@ export function QuickRecommendationDashboard() {
               </div>
             </div>
 
-            {/* 3. A vs B 직접 비교 보조 진입 */}
-            <a
-              href="/compare"
-              className="mt-3.5 flex items-center justify-between rounded-xl border border-border bg-white p-3.5 text-foreground transition hover:border-primary hover:bg-blue-50/20 sm:p-4"
-            >
-              <span className="flex min-w-0 items-center gap-2.5">
-                <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
-                  <Scale className="size-4 text-primary" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-bold">
-                    후보가 이미 2개로 좁혀졌다면?
+            {/* 3. A vs B 맞춤 비교 스포트라이트 배너 */}
+            <div className="mt-8">
+              <a
+                href="/compare"
+                className="group relative flex flex-col sm:flex-row items-start sm:items-center justify-between overflow-hidden rounded-2xl border border-blue-200/80 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white p-4 sm:p-5 shadow-sm transition hover:border-primary hover:shadow-md"
+              >
+                <div className="flex items-center gap-3.5">
+                  <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-sm transition group-hover:scale-105">
+                    <Scale className="size-5" />
                   </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    A와 B를 직접 적으면 왜 그걸 골라야 하는지 명쾌하게 비교해 드려요
-                  </span>
-                </span>
-              </span>
-              <ArrowRight className="ml-2 size-4 shrink-0 text-muted-foreground" />
-            </a>
-
-            {/* 4. 제품 가치 이해 및 신뢰 섹션 */}
-            <section className="mt-12 rounded-3xl border border-border bg-muted/40 px-5 py-8 sm:mt-16 sm:px-8 sm:py-10">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-primary">02 · What you get</p>
-              <h2 className="mt-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                많이 보여주는 대신, 하나를 제대로 고릅니다.
-              </h2>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
-                후보만 나열하고 끝나지 않습니다. 가장 적합한 1등을 지목하고, 선택한 조건을 어디까지 지켰는지 함께 검증해 드립니다.
-              </p>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                {VALUE_POINTS.map((point) => (
-                  <div
-                    key={point.title}
-                    className="rounded-2xl border border-border bg-white p-5 shadow-sm"
-                  >
-                    <span className="inline-flex size-9 items-center justify-center rounded-xl bg-blue-50 text-primary">
-                      <point.icon className="size-4" aria-hidden />
-                    </span>
-                    <p className="mt-4 text-base font-bold tracking-tight text-foreground">
-                      {point.title}
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      {point.body}
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 rounded-md bg-blue-100/80 px-2 py-0.5 text-[10px] font-bold text-primary">
+                      1:1 맞춤 비교 모드
+                    </div>
+                    <h3 className="mt-1 text-base font-bold text-foreground sm:text-lg">
+                      후보가 이미 2개로 좁혀졌다면? 직접 비교하기
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      A와 B를 직접 입력하면 장단점과 최종 승자를 즉시 분석해 드립니다.
                     </p>
                   </div>
-                ))}
+                </div>
+                <div className="mt-3 sm:mt-0 inline-flex items-center gap-1.5 text-xs font-bold text-primary">
+                  <span>비교하러 가기</span>
+                  <ArrowRight className="size-4 transition group-hover:translate-x-1" />
+                </div>
+              </a>
+            </div>
+
+            {/* 4. 상세페이지급 가치 설명 & AI 추천 엔진 투어 (Product Tour) */}
+            <section className="mt-14 rounded-3xl border border-border/80 bg-gradient-to-b from-muted/50 to-white px-5 py-10 sm:mt-20 sm:px-8 sm:py-14">
+              <div className="mx-auto max-w-2xl text-center">
+                <span className="rounded-full bg-blue-100/70 px-3 py-1 text-xs font-bold text-primary">
+                  ENGINE ARCHITECTURE
+                </span>
+                <h2 className="mt-3 text-2xl font-black tracking-tight text-foreground sm:text-3xl lg:text-4xl">
+                  ChoiceFlow가 1위를 지목하는 원리
+                </h2>
+                <p className="mt-3 text-sm sm:text-base text-muted-foreground leading-relaxed">
+                  수천 개의 상품을 단순히 나열하지 않습니다.<br className="hidden sm:inline" />
+                  엄격한 3단계 엔진을 통해 오직 신뢰할 수 있는 단 하나의 선택지만 남깁니다.
+                </p>
               </div>
 
-              <p className="mt-5 text-[11px] leading-relaxed text-muted-foreground">
-                일부 결과에는 쿠팡 파트너스 링크가 포함되며 이에 따른 일정액의 수수료를 제공받아 무료로 서비스를 운영합니다. 수수료 유무는 추천 순위에 영향을 주지 않습니다.
-              </p>
+              {/* 3단계 상세 프로세스 카드 */}
+              <div className="mt-10 grid gap-4 sm:grid-cols-3 sm:gap-6">
+                <div className="rounded-2xl border border-border/80 bg-white p-6 shadow-sm transition hover:shadow-md">
+                  <div className="inline-flex size-10 items-center justify-center rounded-xl bg-blue-50 text-primary font-black">
+                    01
+                  </div>
+                  <h3 className="mt-4 text-base font-bold text-foreground sm:text-lg">
+                    광고·바이럴 99.8% 차단
+                  </h3>
+                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    체험단, 원고료 지급, 어뷰징 패턴을 역추적하여 순수한 실사용자 만족도와 핵심 후기만 필터링합니다.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-border/80 bg-white p-6 shadow-sm transition hover:shadow-md">
+                  <div className="inline-flex size-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 font-black">
+                    02
+                  </div>
+                  <h3 className="mt-4 text-base font-bold text-foreground sm:text-lg">
+                    3단 정밀 가중치 매칭
+                  </h3>
+                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    내가 선택한 용도, 우선순위, 예산의 가중치를 계산하여 타협할 수 없는 조건에 부합하는 제품을 지목합니다.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-border/80 bg-white p-6 shadow-sm transition hover:shadow-md">
+                  <div className="inline-flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 font-black">
+                    03
+                  </div>
+                  <h3 className="mt-4 text-base font-bold text-foreground sm:text-lg">
+                    실시간 최저가 & 로켓배송
+                  </h3>
+                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    고민이 끝난 즉시 최저가 구매 및 로켓배송 재고를 확인하고, 식당/데이트는 지도 실시간 정보를 연동합니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* 신뢰 고지 */}
+              <div className="mt-10 border-t border-border/70 pt-6 text-center">
+                <p className="text-xs text-muted-foreground/80 leading-relaxed max-w-xl mx-auto">
+                  일부 추천 결과에는 쿠팡 파트너스 링크가 포함되어 일정액의 수수료를 제공받을 수 있으며 서비스 운영비로 사용됩니다.
+                  수수료 유무는 알고리즘의 순위 산정 및 1위 선정에 일체 영향을 미치지 않습니다.
+                </p>
+              </div>
             </section>
           </>
         )}

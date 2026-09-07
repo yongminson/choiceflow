@@ -11,6 +11,7 @@ import {
   MapPin,
   Minus,
   RotateCcw,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Star,
@@ -491,17 +492,24 @@ export function QuickRecommendationResult({
       </div>
 
       {/* 🏆 최상단 1등(Winner) 추천 단독 카드 */}
-      <header className="editorial-enter overflow-hidden rounded-2xl border-2 border-primary bg-white p-5 shadow-lg sm:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-bold text-white shadow-sm">
+      <header className="editorial-enter relative overflow-hidden rounded-3xl border-2 border-primary/40 bg-white p-5 shadow-xl sm:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-4">
+          <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-1 text-xs font-black text-white shadow-sm">
             <Trophy className="size-3.5" />
-            <span>AI 추천 1위 · 가장 적합한 선택</span>
+            <span>AI 추천 1위 · 종결 선택지</span>
           </div>
-          <span className="text-xs font-medium text-muted-foreground">
-            {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
+              <ShieldCheck className="size-3.5" />
+              <span>조건 검증 완료</span>
+            </span>
+            <span>·</span>
+            <span>
+              {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </div>
         </div>
 
         <div className={cn("mt-5 grid gap-6", winner?.imageUrl && "md:grid-cols-[1fr_220px] lg:grid-cols-[1fr_260px]")}>
@@ -513,7 +521,7 @@ export function QuickRecommendationResult({
 
               {winner && typeof winner.price === "number" ? (
                 <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
+                  <span className="text-2xl font-black tabular-nums text-foreground sm:text-3xl">
                     {formatPrice(winner.price)}원
                   </span>
                   {winner.isRocket && (
@@ -525,7 +533,7 @@ export function QuickRecommendationResult({
               ) : null}
 
               {/* 핵심 추천 이유 요약 */}
-              <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/80 p-3.5 text-sm font-semibold leading-relaxed text-blue-900">
+              <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/80 p-4 text-sm font-semibold leading-relaxed text-blue-950">
                 {winner?.reason || "선택하신 조건에 가장 잘 맞는 1순위 후보입니다."}
               </div>
 
@@ -561,7 +569,7 @@ export function QuickRecommendationResult({
                       position: 0,
                     })
                   }
-                  className="tap-feedback flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-bold text-white shadow-md transition hover:bg-blue-700 active:scale-[0.98] sm:w-fit"
+                  className="tap-feedback flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-7 text-base font-black text-white shadow-lg transition hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] sm:w-fit"
                 >
                   <span>
                     {isFood
@@ -1066,6 +1074,43 @@ export function QuickRecommendationResult({
           처음부터 다시 추천받기
         </Link>
       </div>
+
+      {/* 모바일 하단 플로팅 1위 즉시 전환 바 */}
+      {winner?.sourceUrl && (
+        <div className="fixed bottom-0 inset-x-0 z-40 border-t border-border/80 bg-white/95 p-3.5 backdrop-blur-md shadow-2xl sm:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-black text-primary">1위</span>
+                <p className="truncate text-xs font-black text-foreground">{winner.name}</p>
+              </div>
+              {typeof winner.price === "number" ? (
+                <p className="text-xs font-bold tabular-nums text-primary">{formatPrice(winner.price)}원</p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">추천 결과 확인</p>
+              )}
+            </div>
+            <a
+              href={winner.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              onClick={() =>
+                trackOutboundClick({
+                  categoryId: data.categoryId,
+                  selectionType: winner.selectionType,
+                  name: winner.name,
+                  keyword: winner.searchKeyword,
+                  position: 0,
+                })
+              }
+              className="tap-feedback shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-black text-white shadow-md active:scale-95"
+            >
+              <span>{isFood ? "매장 지도 보기" : "최저가 확인"}</span>
+              <ExternalLink className="size-3.5" />
+            </a>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
