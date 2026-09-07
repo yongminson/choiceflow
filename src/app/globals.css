@@ -148,8 +148,6 @@
   .editorial-enter-delay-3 {
     animation-delay: 270ms;
   }
-
-  }
 }
 
 @keyframes editorial-enter {

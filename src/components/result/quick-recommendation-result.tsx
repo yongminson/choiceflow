@@ -630,11 +630,22 @@ export function QuickRecommendationResult({
         </p>
       </div>
 
-      {/* 공정위 추천·보증 심사지침 준수 안내 */}
+      {/*
+        공정위 추천·보증 심사지침은 경제적 이해관계를 추천 내용과 가까운
+        위치에 표시하도록 한다. 푸터에만 두지 않고 상품 바로 위에 둔다.
+        쿠팡 링크가 실제로 있는 화면에서만 노출한다.
+
+        문구는 줄이거나 바꾸지 않는다. 쿠팡 파트너스는 이 문장을 그대로
+        쓰도록 요구하고, "제휴"로 뭉뚱그리면 어디서 수수료를 받는지가
+        사라져 고지의 뜻이 없어진다.
+      */}
       {(isCoupang || (isFood && relatedKeyword)) && (
-        <div className="mb-4 rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground flex items-center gap-2">
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground">
           <span>ℹ️</span>
-          <span>ChoiceFlow는 투명한 조건 분석을 원칙으로 하며, 일부 결과의 제휴 수수료를 통해 무료로 운영됩니다.</span>
+          <span>
+            이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의
+            수수료를 제공받습니다.
+          </span>
         </div>
       )}
 
