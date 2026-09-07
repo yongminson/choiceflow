@@ -14,6 +14,7 @@ import {
   ShoppingBag,
   Sparkles,
   Star,
+  Trophy,
 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -49,19 +50,19 @@ const ROLE_BADGE: Record<
 > = {
   best: {
     label: "가장 추천",
-    className: "bg-foreground text-background",
+    className: "bg-primary text-white",
   },
   value: {
     label: "가성비 선택",
-    className: "bg-[#dff6d6] text-[#244b1d]",
+    className: "bg-emerald-100 text-emerald-800",
   },
   reliable: {
     label: "검증 우선",
-    className: "bg-muted text-muted-foreground",
+    className: "bg-gray-100 text-gray-700",
   },
   premium: {
     label: "한 단계 위",
-    className: "bg-muted text-muted-foreground",
+    className: "bg-purple-100 text-purple-800",
   },
 };
 
@@ -462,72 +463,129 @@ export function QuickRecommendationResult({
   };
 
   return (
-    <main className="relative isolate mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[1180px] px-5 pb-20 pt-6 before:fixed before:inset-0 before:-z-10 before:bg-[#f4f1eb] sm:px-8 sm:pt-10">
-      <header className="choice-brand-stage editorial-enter overflow-hidden rounded-[2rem] text-white sm:rounded-[3rem]">
-        <div className={cn("grid", winner?.imageUrl && "lg:grid-cols-[1.2fr_0.8fr]")}>
-          <div className="flex min-h-[430px] flex-col justify-between p-6 sm:min-h-[520px] sm:p-10 lg:p-14">
+    <main className="relative isolate mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[1120px] px-4 pb-20 pt-3 sm:px-6 sm:pt-6">
+      {/* 상단 네비게이션 & 빠른 액션 */}
+      <div className="mb-4 flex items-center justify-between">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
+        >
+          <ArrowLeft className="size-4" />
+          <span>다시 선택하기</span>
+        </Link>
+        <div className="flex items-center gap-2">
+          {canRefine && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!aiAvailable}
+              onClick={() => setShowAdvanced((prev) => !prev)}
+              className="h-8 rounded-full text-xs font-semibold"
+            >
+              {showAdvanced ? "정밀 질문 닫기" : "조건 더 다듬기"}
+            </Button>
+          )}
+          <ShareResultButton result={data} />
+        </div>
+      </div>
+
+      {/* 🏆 최상단 1등(Winner) 추천 단독 카드 */}
+      <header className="editorial-enter overflow-hidden rounded-2xl border-2 border-primary bg-white p-5 shadow-lg sm:p-7">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-bold text-white shadow-sm">
+            <Trophy className="size-3.5" />
+            <span>AI 추천 1위 · 가장 적합한 선택</span>
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">
+            {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </div>
+
+        <div className={cn("mt-5 grid gap-6", winner?.imageUrl && "md:grid-cols-[1fr_220px] lg:grid-cols-[1fr_260px]")}>
+          <div className="flex flex-col justify-between">
             <div>
-              <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-background/45 sm:text-[11px]">
-                <span>ChoiceFlow result</span>
-                <span>•</span>
-                <span>
-                  {[data.quickScenarioLabel, data.quickPriorityLabel && `${data.quickPriorityLabel} 우선`, data.quickBudgetLabel]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              </div>
-              <p className="mt-10 text-[12px] font-bold text-background/55">지금 가장 잘 맞는 선택</p>
-              <h1 className="mt-3 max-w-3xl break-keep text-[clamp(2.8rem,7vw,6.2rem)] font-black leading-[0.94] tracking-[-0.075em]">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {winner?.name || `${data.quickScenarioLabel} 추천`}
               </h1>
-              <p className="mt-6 max-w-2xl text-[14px] font-medium leading-relaxed text-background/60 sm:text-[17px]">
-                {winner?.reason ||
-                  "선택한 조건을 기준으로 가장 적합한 후보를 정리했어요."}
-              </p>
 
+              {winner && typeof winner.price === "number" ? (
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-bold tabular-nums text-foreground sm:text-3xl">
+                    {formatPrice(winner.price)}원
+                  </span>
+                  {winner.isRocket && (
+                    <span className="rounded bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600">
+                      로켓배송
+                    </span>
+                  )}
+                </div>
+              ) : null}
+
+              {/* 핵심 추천 이유 요약 */}
+              <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/80 p-3.5 text-sm font-semibold leading-relaxed text-blue-900">
+                {winner?.reason || "선택하신 조건에 가장 잘 맞는 1순위 후보입니다."}
+              </div>
+
+              {/* 유저 요청 반영 배지 */}
               {data.quickUserWish && (
-                <p className="mt-5 inline-flex max-w-full items-center gap-2 rounded-full border border-background/15 px-4 py-2 text-xs font-bold text-background/75">
-                  <Sparkles className="size-3.5 shrink-0" />
-                  <span className="truncate">요청 반영 · {data.quickUserWish}</span>
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground">
+                  <Sparkles className="size-3.5 text-primary shrink-0" />
+                  <span>요청 반영: {data.quickUserWish}</span>
                 </p>
+              )}
+
+              {/* Fit Checks 체크리스트 */}
+              {winner?.fitChecks && winner.fitChecks.length > 0 && (
+                <div className="mt-4">
+                  <FitChecklist checks={winner.fitChecks} caution={winner.caution} />
+                </div>
               )}
             </div>
 
+            {/* 최우선 전환 CTA 버튼 */}
             {winner?.sourceUrl && (
-              <a
-                href={winner.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer sponsored"
-                onClick={() =>
-                  trackOutboundClick({
-                    categoryId: data.categoryId,
-                    selectionType: winner.selectionType,
-                    name: winner.name,
-                    keyword: winner.searchKeyword,
-                    position: 0,
-                  })
-                }
-                className="mt-10 inline-flex min-h-[54px] w-full items-center justify-center rounded-full bg-background px-6 text-[15px] font-black text-foreground transition hover:-translate-y-0.5 hover:shadow-2xl sm:w-fit"
-              >
-                {isFood
-                  ? "지도에서 이곳 확인하기"
-                  : isCoupang
-                    ? "쿠팡에서 현재 가격 확인"
-                    : "조건 직접 확인하기"}
-                <ExternalLink className="ml-2 size-4" />
-              </a>
+              <div className="mt-6">
+                <a
+                  href={winner.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer sponsored"
+                  onClick={() =>
+                    trackOutboundClick({
+                      categoryId: data.categoryId,
+                      selectionType: winner.selectionType,
+                      name: winner.name,
+                      keyword: winner.searchKeyword,
+                      position: 0,
+                    })
+                  }
+                  className="tap-feedback flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-bold text-white shadow-md transition hover:bg-blue-700 active:scale-[0.98] sm:w-fit"
+                >
+                  <span>
+                    {isFood
+                      ? "지도에서 매장 위치·영업시간 확인"
+                      : isCoupang
+                        ? "쿠팡에서 최저가 & 로켓배송 확인하기"
+                        : "조건 직접 확인하기"}
+                  </span>
+                  <ExternalLink className="size-4" />
+                </a>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  실시간 재고 및 가격 변동은 이동 후 바로 확인할 수 있습니다.
+                </p>
+              </div>
             )}
           </div>
 
           {winner?.imageUrl && (
-            <div className="min-h-[300px] bg-[#ecebe6] p-5 lg:min-h-full lg:p-8">
+            <div className="relative aspect-square w-full max-w-[260px] overflow-hidden rounded-2xl border border-border bg-muted/30 self-start">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={winner.imageUrl}
                 alt=""
-                width={720}
-                height={720}
-                className="h-full min-h-[280px] w-full rounded-[1.5rem] object-cover lg:rounded-[2rem]"
+                className="size-full object-cover"
               />
             </div>
           )}
@@ -560,31 +618,27 @@ export function QuickRecommendationResult({
         }
       />
 
-      <div className="mb-5 mt-16 sm:flex sm:items-end sm:justify-between sm:mt-24">
+      <div className="mb-4 mt-10 sm:mt-14 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Candidates</p>
-          <h2 className="mt-2 text-[34px] font-black leading-none tracking-[-0.055em] sm:text-[54px]">
-            다른 관점의 선택들
+          <p className="text-xs font-bold uppercase tracking-wider text-primary">Candidates</p>
+          <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+            다른 관점의 선택지
           </h2>
         </div>
-        <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-muted-foreground sm:mt-0 sm:text-right">
-          같은 조건에서도 가격, 검증, 경험 중 무엇을 더 보느냐에 따라 답은 달라집니다.
+        <p className="text-xs leading-relaxed text-muted-foreground sm:text-right max-w-sm">
+          같은 조건에서도 가성비, 검증, 브랜드 등 우선하는 가치에 따라 대안이 될 수 있습니다.
         </p>
       </div>
 
-      {/*
-        공정위 추천·보증 심사지침은 경제적 이해관계를 추천 내용과 가까운
-        위치에 표시하도록 한다. 푸터에만 두지 않고 상품 바로 위에 둔다.
-        쿠팡 링크가 실제로 있는 화면에서만 노출한다.
-      */}
+      {/* 공정위 추천·보증 심사지침 준수 안내 */}
       {(isCoupang || (isFood && relatedKeyword)) && (
-        <p className="mb-3 rounded-lg bg-muted px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
-          이 게시물은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를
-          제공받습니다.
-        </p>
+        <div className="mb-4 rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground flex items-center gap-2">
+          <span>ℹ️</span>
+          <span>ChoiceFlow는 투명한 조건 분석을 원칙으로 하며, 일부 결과의 제휴 수수료를 통해 무료로 운영됩니다.</span>
+        </div>
       )}
 
-      {/* 후보는 항상 4개다. 3열로 두면 마지막 하나만 다음 줄에 떨어져 빈 칸이 생긴다. */}
+      {/* 4개 후보 카드 그리드 */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {recommendations.map((item, index) => {
           const priceLevel = formatPriceLevel(item.priceLevel);
@@ -594,10 +648,10 @@ export function QuickRecommendationResult({
           return (
             <article
               key={`${item.selectionType || index}-${item.name}`} className={cn(
-                "group flex flex-col rounded-[1.5rem] border bg-card p-4 transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_-34px_rgba(23,23,25,0.55)] sm:p-5",
+                "group flex flex-col rounded-2xl border bg-card p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-5",
                 index === 0
-                  ? "border-foreground bg-[#f1f0ec] ring-1 ring-foreground/10"
-                  : "border-foreground/10"
+                  ? "border-primary/40 bg-blue-50/20 ring-1 ring-primary/20"
+                  : "border-border"
               )}
             >
               <span
@@ -734,12 +788,12 @@ export function QuickRecommendationResult({
                         position: index + 1,
                       })
                     } className={cn(
-                      "flex min-h-[48px] w-full items-center justify-center rounded-lg px-3 text-center text-[15px] font-black transition",
+                      "tap-feedback flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl px-3 text-center text-sm font-bold shadow-sm transition active:scale-[0.98]",
                       isFood
-                        ? "border border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950"
+                        ? "border border-emerald-600 bg-emerald-50/60 text-emerald-700 hover:bg-emerald-100/80"
                         : isCoupang
-                          ? "bg-[#ae0000] text-white hover:bg-[#8f0000]"
-                          : "border border-[#03c75a] text-[#03c75a] hover:bg-[#03c75a]/5"
+                          ? "bg-primary text-white hover:bg-blue-700"
+                          : "border border-border bg-white text-foreground hover:bg-muted"
                     )}
                   >
                     {item.sourceLabel ||

@@ -190,25 +190,24 @@ export function ResultDashboardView() {
     <div className="relative flex min-h-[calc(100dvh-3.5rem)] w-full flex-col items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_90%_60%_at_50%_20%,oklch(0.62_0.12_252/0.14),transparent_55%),radial-gradient(ellipse_70%_45%_at_80%_80%,oklch(0.75_0.08_280/0.1),transparent_50%)]" aria-hidden />
 
-      <div ref={captureRef} className="w-full max-w-5xl rounded-[2rem] border border-white/30 bg-white/[0.38] p-6 shadow-glass backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.08] sm:p-10 md:p-12">
+      <div ref={captureRef} className="w-full max-w-4xl rounded-2xl border border-border bg-white p-6 shadow-sm sm:p-10">
         <header className="text-center">
-          <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/90">Analysis Result</p>
-          <h1 className="font-display text-balance leading-[1.12] tracking-[-0.04em] sm:text-4xl md:text-5xl lg:text-[3.25rem]">
-            <span className="inline-block align-middle text-[2.25rem] sm:text-5xl md:text-6xl">🏆</span>{" "}
-            <span className="align-middle text-[1.05rem] font-medium text-muted-foreground sm:text-lg md:text-xl">AI의 최종 선택:</span>
-            <span className="mt-3 block bg-gradient-to-br from-primary via-sky-500 to-primary bg-clip-text text-3xl font-extrabold tracking-tight text-transparent sm:mt-4 sm:text-4xl md:text-5xl lg:text-[2.75rem]">
-              {m.winnerName}
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-primary">Analysis Result</p>
+          <h1 className="font-display text-balance leading-tight tracking-tight sm:text-4xl md:text-5xl">
+            <span className="align-middle text-base font-semibold text-muted-foreground sm:text-lg">AI의 최종 결정:</span>
+            <span className="mt-2 block text-3xl font-bold tracking-tight text-primary sm:text-4xl md:text-5xl">
+              🏆 {m.winnerName}
             </span>
           </h1>
         </header>
 
-        <div className="mx-auto mt-12 flex w-full max-w-3xl flex-col gap-6 sm:flex-row sm:gap-10">
+        <div className="mx-auto mt-10 flex w-full max-w-2xl flex-col gap-5 sm:flex-row sm:gap-8">
           <MetricBar percent={m.winPercentage ?? m.score} label="AI 모델 예측 승률" icon={<CheckCircle2 className="size-4.5 text-primary" />} />
           <MetricBar percent={m.regretProbability ?? Math.max(0, 100 - m.score)} label="선택 후 후회 확률" icon={<ThumbsDown className="size-4.5 text-rose-500" />} isDanger />
         </div>
 
         {m.comparisonMetrics && m.comparisonMetrics.length > 0 && (
-          <section className="mt-12 overflow-hidden rounded-2xl border border-white/25 bg-white/[0.12] p-6 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.04] sm:p-8">
+          <section className="mt-10 overflow-hidden rounded-2xl border border-border bg-muted/30 p-6 sm:p-8">
             <div className="mb-8 flex items-center justify-center gap-2.5">
               <div className="flex size-9 items-center justify-center rounded-full bg-primary/15 text-primary"><BarChart3 className="size-5" /></div>
               <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">AI 심층 분석 스탯 비교</h3>
