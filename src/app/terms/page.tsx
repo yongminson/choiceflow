@@ -1,5 +1,13 @@
+import type { Metadata } from "next";
+
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "이용약관",
+  // 같은 내용이 여러 주소로 잡히지 않게 원본 주소를 못박는다.
+  alternates: { canonical: "/terms" },
+};
 
 export default function TermsPage() {
   return (

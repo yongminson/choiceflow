@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   title: "구매 판단 가이드",
   description:
     "무엇을 사라가 아니라, 무엇을 기준으로 판단할지 정리한 글 모음입니다. 카테고리별로 비교 기준과 확인 방법을 다룹니다.",
+  // 같은 내용이 여러 주소로 잡히지 않게 원본 주소를 못박는다.
+  alternates: { canonical: "/blog" },
 };
 
 export default async function BlogIndexPage() {

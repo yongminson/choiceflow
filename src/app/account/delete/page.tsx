@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   title: "계정 및 데이터 삭제 | ChoiceFlow",
   description:
     "ChoiceFlow 계정과 수집된 데이터를 삭제하는 방법, 삭제되는 항목과 보관되는 항목을 안내합니다.",
+  // 같은 내용이 여러 주소로 잡히지 않게 원본 주소를 못박는다.
+  alternates: { canonical: "/account/delete" },
 };
 
 /**
