@@ -35,7 +35,7 @@ export function GuideLinkList({
     <section className={cn("w-full", className)}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-[20px] font-black tracking-[-0.03em] sm:text-[24px]">
+          <h2 className="text-[20px] font-bold tracking-[-0.02em] sm:text-[26px]">
             {title}
           </h2>
           {description && (
@@ -58,12 +58,12 @@ export function GuideLinkList({
           <li key={post.slug}>
             <Link
               href={`/blog/${post.slug}`}
-              className="group flex h-full flex-col gap-1.5 rounded-2xl border border-border bg-white/60 p-5 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-glass-sm dark:bg-white/[0.06]"
+              className="group flex h-full flex-col gap-1.5 rounded-2xl border border-border bg-card p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
             >
               <span className="text-[12px] font-bold text-primary">
                 {CATEGORY_LABEL[post.categoryId]}
               </span>
-              <span className="text-[16px] font-black leading-snug tracking-tight">
+              <span className="text-[16px] font-bold leading-snug tracking-tight">
                 {post.title}
               </span>
               <span className="text-[13px] leading-relaxed text-muted-foreground">
