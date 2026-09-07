@@ -75,11 +75,5 @@ export async function getRelatedPosts(
   return [...sameCategory, ...rest].slice(0, limit);
 }
 
-export const CATEGORY_LABEL: Record<BlogPost["categoryId"], string> = {
-  food: "음식",
-  gift: "선물",
-  appliance: "가전·디지털",
-  fashion: "패션",
-  date: "여행·데이트",
-  asset: "렌탈·큰 지출",
-};
+// 이름표는 브라우저로 내려가는 화면에서도 쓰므로 파일을 읽지 않는 쪽에 둔다.
+export { CATEGORY_LABEL } from "@/lib/blog/guide-link";
