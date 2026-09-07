@@ -10,6 +10,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AnalyzeApiResult } from "@/lib/types/analyze";
 import { AnalysisAffiliateSection } from "@/components/result/analysis-affiliate-section";
+import { GuideLinkList } from "@/components/blog/guide-link-list";
+import { pickGuideLinks, type GuideLink } from "@/lib/blog/guide-link";
 
 // 🔥 방금 만든 고가자산 프리미엄 폼 가져오기
 import { ConsultationForm } from "@/components/result/consultation-form";
@@ -58,7 +60,37 @@ function MetricBar({ percent, label, icon, isDanger }: { percent: number; label:
   );
 }
 
-export function ResultDashboardView() {
+/**
+ * 결과를 본 뒤 이어서 읽을 글.
+ *
+ * 추천만 보고 나가면 판단 기준은 남지 않는다. 같은 분야 글을 걸어 두면
+ * 왜 그렇게 골랐는지 확인할 자리가 되고, 글로 들어가는 경로도 하나 는다.
+ */
+function ResultGuideSection({
+  posts,
+  categoryId,
+}: {
+  posts: GuideLink[];
+  categoryId?: string;
+}) {
+  const picked = pickGuideLinks(posts, categoryId);
+  if (picked.length === 0) return null;
+
+  return (
+    <GuideLinkList
+      posts={picked}
+      title="이 결과를 읽는 기준"
+      description="같은 분야에서 무엇을 먼저 보는지 정리한 글입니다."
+      className="no-capture mx-auto mt-12 w-full max-w-5xl px-4 sm:px-6"
+    />
+  );
+}
+
+export function ResultDashboardView({
+  guidePosts = [],
+}: {
+  guidePosts?: GuideLink[];
+}) {
   const captureRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<AnalyzeApiResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -176,7 +208,14 @@ export function ResultDashboardView() {
   }
 
   if (data.recommendationMode === "quick") {
-    return <QuickRecommendationResult data={data} onResultUpdate={setData} />;
+    return (
+      <>
+        <QuickRecommendationResult data={data} onResultUpdate={setData} />
+        <div className="pb-16">
+          <ResultGuideSection posts={guidePosts} categoryId={data.categoryId} />
+        </div>
+      </>
+    );
   }
 
   const m = data;
@@ -392,6 +431,8 @@ export function ResultDashboardView() {
           </div>
         </div>
       </div>
+
+      <ResultGuideSection posts={guidePosts} categoryId={m.categoryId} />
 
       <Link href="/" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "mt-8 text-[13px] text-muted-foreground hover:text-foreground")}>← 홈으로</Link>
     </div>
