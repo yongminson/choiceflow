@@ -22,6 +22,10 @@ import {
   readCaution,
 } from "@/lib/recommendation/fit-checks";
 import { dropAccessories } from "@/lib/recommendation/accessory-match";
+import {
+  SELECTION_ORDER,
+  orderForDisplay,
+} from "@/lib/recommendation/display-order";
 import { replaceWrongCautions } from "@/lib/recommendation/caution-match";
 import {
   detectCleaningNeed,
@@ -122,12 +126,6 @@ const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 20;
 const RATE_BUCKET_MAX = 5_000;
 
-const SELECTION_ORDER: SelectionType[] = [
-  "best",
-  "value",
-  "reliable",
-  "premium",
-];
 const DEFAULT_SELECTION_LABELS: Record<SelectionType, string> = {
   best: "최종 선택",
   value: "최저가·가성비 선택",
@@ -1743,6 +1741,18 @@ export async function POST(request: Request) {
               location
             ))
       ).slice(0, 4);
+      /*
+        음식은 여기서 바로 응답을 만들어 돌려준다. 그 바람에 아래 본
+        경로가 하는 정렬과 검증을 거치지 않았다. 맨 위 카드와 종합 1위가
+        어긋나는 증상을 가전 쪽에서 고쳤는데 음식에서는 그대로였던
+        이유다. 세우는 순서는 분야를 가리지 않으므로 같은 함수를 쓴다.
+      */
+      const orderedFood = orderForDisplay(recommendations);
+      verifyRecommendations(orderedFood, {
+        categoryId: rawCategory,
+        priorityId: priority.id,
+        maxBudgetWon: budget.maxWon,
+      });
       const result = toAnalyzeResult(
         rawCategory,
         scenarioId,
@@ -1754,7 +1764,7 @@ export async function POST(request: Request) {
         budget.maxWon,
         advancedAnswers.length,
         userWish,
-        recommendations,
+        orderedFood,
         {
           ai: menuCandidates?.live ? "live" : "fallback",
           price: "unavailable",
@@ -1860,7 +1870,7 @@ export async function POST(request: Request) {
       "연결된 판매처에서 사양과 사용 조건을 한 번 더 확인해 주세요."
     );
 
-    const finalized = assignSelectionLabels(
+    const labelled = assignSelectionLabels(
       applyPriorityWeighting(
         applyPriceBurdenScores(priced.recommendations, budget.maxWon),
         rawCategory,
@@ -1873,32 +1883,12 @@ export async function POST(request: Request) {
         후보가 몇 개든 같은 문구가 나온다.
       */
       (selectionType) => selectionLabel(rawCategory, selectionType)
-    )
-      /*
-        카드는 종합 적합도 순으로 세운다.
-
-        전에는 라벨 순서로 세웠다. 그런데 "가장 추천"은 최저가·최고가를
-        뺀 나머지 중 1위라, 최고가가 종합 1위면 그 자리를 얻지 못한다.
-        그래서 맨 위 카드에 "AI 추천 1위"라고 적힌 제품이 같은 화면의
-        종합 적합도 그래프에서는 3위로 나오는 일이 생겼다. 한 화면이
-        서로 다른 말을 하면 어느 쪽도 믿기 어려워진다.
-
-        맨 위는 종합 적합도가 가장 높은 후보다. 그래프의 1위와 언제나
-        같은 것이 된다. 라벨은 그 후보가 어떤 자리인지 따로 알려 준다.
-        점수가 같으면 라벨 순서로, 그것도 같으면 싼 쪽을 앞에 둔다.
-      */
-      .sort(
-        (a, b) =>
-          (b.overall ?? 0) - (a.overall ?? 0) ||
-          SELECTION_ORDER.indexOf(a.selectionType || "best") -
-            SELECTION_ORDER.indexOf(b.selectionType || "best") ||
-          (a.price ?? Number.MAX_SAFE_INTEGER) -
-            (b.price ?? Number.MAX_SAFE_INTEGER)
-      )
-      .map((item, index) => ({ ...item, rank: index + 1 }));
+    );
+    // 세우는 순서는 분야와 상관없이 한 곳에서 정한다.
+    const ordered = orderForDisplay(labelled);
 
     // 내보내기 직전에 규칙을 어긴 곳이 없는지 훑는다. 고치지는 않고 남긴다.
-    verifyRecommendations(finalized, {
+    verifyRecommendations(ordered, {
       categoryId: rawCategory,
       priorityId: priority.id,
       audience,
@@ -1919,7 +1909,7 @@ export async function POST(request: Request) {
       budget.maxWon,
       advancedAnswers.length,
       userWish,
-      finalized,
+      ordered,
       {
         ai: generated.live ? "live" : "fallback",
         price: priced.live ? "live" : "unavailable",
