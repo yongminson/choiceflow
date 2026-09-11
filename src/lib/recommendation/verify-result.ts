@@ -13,6 +13,7 @@ import { matchesTargetItem, type TargetItem } from "./item-match.ts";
 import { productBrandKey } from "../monetization/brand-verify.ts";
 import { isWrongOccasion, type Occasion } from "./occasion.ts";
 import { isWrongCaution } from "./caution-match.ts";
+import { isWrongCleaning, type CleaningNeed } from "./cleaning-match.ts";
 
 /**
  * 화면에 내보내기 직전에 규칙을 어긴 곳이 없는지 본다.
@@ -38,6 +39,7 @@ export function verifyRecommendations(
     targetItem?: TargetItem;
     maxBudgetWon?: number;
     occasion?: Occasion;
+    cleaning?: CleaningNeed;
   }
 ): Violation[] {
   const violations: Violation[] = [];
@@ -258,6 +260,29 @@ export function verifyRecommendations(
         })),
       },
     });
+  }
+
+  /*
+    4-2) 청소기는 무엇을 닦는 물건인지까지 맞아야 한다.
+    "바닥 물걸레 청소기"를 찾았는데 유리창 청소 로봇이 종합 1위로
+    올라갔다. 상품명에 "청소기"가 들어가 품목 필터를 통과한 탓이다.
+  */
+  if (context.cleaning) {
+    const offCleaning = items.filter(
+      (item) =>
+        item.productName &&
+        isWrongCleaning(item.productName, context.cleaning)
+    );
+    if (offCleaning.length > 0) {
+      violations.push({
+        rule: "청소 대상이 요청과 다른 상품이 섞임",
+        detail: {
+          surface: context.cleaning.surface,
+          method: context.cleaning.method,
+          products: offCleaning.map((item) => item.productName),
+        },
+      });
+    }
   }
 
   // 5) 같은 상품이 두 자리를 차지하면 안 된다.

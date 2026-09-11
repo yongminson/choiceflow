@@ -10,6 +10,10 @@ import {
 } from "../recommendation/item-match.ts";
 import { productBrandKey } from "./brand-verify.ts";
 import {
+  isWrongCleaning,
+  type CleaningNeed,
+} from "../recommendation/cleaning-match.ts";
+import {
   isWrongOccasion,
   type Occasion,
 } from "../recommendation/occasion.ts";
@@ -384,6 +388,10 @@ export async function searchCoupangProduct(
      * 관련성을 먼저 보고, 그 안에서 중복을 걸러야 후보가 엉뚱해지지 않는다.
      */
     targetItem?: TargetItem;
+    /** 청소기는 무엇을 어떻게 닦는지까지 맞아야 한다. */
+    cleaning?: CleaningNeed;
+    /** 다른 방식 하나를 이미 썼으면 더는 받지 않는다. */
+    blockOffMethod?: boolean;
     /**
      * 이미 자리를 채운 브랜드. 한 브랜드가 화면을 다 차지하지 않게 막는다.
      */
@@ -402,7 +410,7 @@ export async function searchCoupangProduct(
   const useCache =
     (!excluded || excluded.size === 0) &&
     (!options.excludeBrands || options.excludeBrands.size === 0);
-  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.audience?.term ?? ""}|${options.targetItem?.name ?? ""}|${options.occasion?.season ?? ""}${options.occasion?.formal ? "-formal" : ""}`;
+  const cacheKey = `${normalizedKeyword}|${maxPriceWon ?? ""}|${options.audience?.term ?? ""}|${options.targetItem?.name ?? ""}|${options.occasion?.season ?? ""}${options.occasion?.formal ? "-formal" : ""}|${options.cleaning?.surface ?? ""}-${options.cleaning?.method ?? ""}${options.blockOffMethod ? "-strict" : ""}`;
   const cached = useCache ? productCache.get(cacheKey) : undefined;
   if (cached && cached.expiresAt > Date.now()) return cached.product;
   if (productCache.size > PRODUCT_CACHE_MAX) {
@@ -486,6 +494,18 @@ export async function searchCoupangProduct(
     const isWrongItem = (item: (typeof items)[number]) =>
       !matchesTargetItem(String(item.productName ?? ""), options.targetItem);
 
+    /*
+      "청소기"라는 낱말만으로는 같은 물건이 되지 않는다. 유리창 청소
+      로봇도 상품명에 청소기가 들어가 품목 필터를 그대로 통과했다.
+      바닥을 닦겠다는 사람에게 창문 닦는 기계가 올라간 적이 있다.
+    */
+    const isWrongCleaningItem = (item: (typeof items)[number]) =>
+      isWrongCleaning(
+        String(item.productName ?? ""),
+        options.cleaning,
+        options.blockOffMethod
+      );
+
     // 자리를 다 채운 브랜드는 건너뛴다. 품목·대상을 먼저 보고 그다음이다.
     const isCappedBrand = (item: (typeof items)[number]) => {
       const brands = options.excludeBrands;
@@ -504,6 +524,7 @@ export async function searchCoupangProduct(
       Boolean(item.productName) &&
       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
       !isWrongItem(item) &&
+      !isWrongCleaningItem(item) &&
       !isWrongGender(item) &&
       !isWrongTime(item) &&
       !isCappedBrand(item) &&

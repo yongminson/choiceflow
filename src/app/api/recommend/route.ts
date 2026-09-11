@@ -23,6 +23,11 @@ import {
 } from "@/lib/recommendation/fit-checks";
 import { replaceWrongCautions } from "@/lib/recommendation/caution-match";
 import {
+  detectCleaningNeed,
+  isOffMethod,
+  type CleaningNeed,
+} from "@/lib/recommendation/cleaning-match";
+import {
   assignSelectionLabels,
   dropUnmatchedWhenOthersMatched,
 } from "@/lib/recommendation/selection-labels";
@@ -956,6 +961,7 @@ async function enrichProductPrices(
   maxBudgetWon?: number,
   audience?: DetectedAudience,
   targetItem?: TargetItem,
+  cleaning?: CleaningNeed,
   occasion?: Occasion
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
   /*
@@ -974,6 +980,13 @@ async function enrichProductPrices(
     화면이라 한 브랜드 홍보로 보인다.
   */
   const brandCounts = new Map<string, number>();
+  /*
+    요청과 다른 방식은 하나까지만 받는다. 물걸레를 찾았어도 진공을 겸하는
+    것은 생각해 볼 만한 대안이지만, 넷 중 셋이 다른 방식이면 그건 대안이
+    아니라 요청을 못 읽은 것이다.
+  */
+  let offMethodCount = 0;
+  const OFF_METHOD_LIMIT = 1;
   const items: QuickRecommendation[] = [];
 
   for (let index = 0; index < candidates.length; index += 1) {
@@ -999,6 +1012,8 @@ async function enrichProductPrices(
         targetItem,
         excludeBrands: cappedBrands(brandCounts),
         occasion,
+        cleaning,
+        blockOffMethod: offMethodCount >= OFF_METHOD_LIMIT,
       });
     } catch {
       product = null;
@@ -1009,6 +1024,7 @@ async function enrichProductPrices(
       productDedupKeys(product).forEach((key) => usedProductKeys.add(key));
       const brand = productBrandKey(product.productName);
       if (brand) brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
+      if (isOffMethod(product.productName, cleaning)) offMethodCount += 1;
       items.push({
         rank: index + 1,
         ...candidate,
@@ -1779,6 +1795,11 @@ export async function POST(request: Request) {
     // 무엇을 찾는지도 한 번만 읽는다. 적지 않았으면 거르지 않는다.
     const targetItem = detectTargetItem(userWish, scenario.label);
     /*
+      청소기는 품목 이름이 같아도 무엇을 어떻게 닦는지가 다르면 다른
+      물건이다. 바닥을 닦겠다는 요청에 유리창 로봇이 올라간 적이 있다.
+    */
+    const cleaning = detectCleaningNeed(userWish, scenario.label);
+    /*
       계절과 자리는 옷에서만 따진다. 밥솥에 "여름"이 붙었다고 뺄 이유가 없다.
     */
     const occasion = rawCategory === "fashion" ? detectOccasion(userWish) : undefined;
@@ -1788,6 +1809,7 @@ export async function POST(request: Request) {
           budget.maxWon,
           audience,
           targetItem,
+          cleaning,
           occasion
         )
       : {
@@ -1873,6 +1895,7 @@ export async function POST(request: Request) {
       audience,
       targetItem,
       occasion,
+      cleaning,
       maxBudgetWon: budget.maxWon,
     });
 
