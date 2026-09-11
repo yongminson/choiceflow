@@ -126,6 +126,9 @@ const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 20;
 const RATE_BUCKET_MAX = 5_000;
 
+/** 대상(성별·연령)이 상품 선택을 가르는 분야. */
+const AUDIENCE_CATEGORIES: CategoryId[] = ["fashion", "gift"];
+
 const DEFAULT_SELECTION_LABELS: Record<SelectionType, string> = {
   best: "최종 선택",
   value: "최저가·가성비 선택",
@@ -1801,8 +1804,21 @@ export async function POST(request: Request) {
       .slice(0, 4)
       .map((item) => normalizeTravelTime(item, item.travelTimeMin));
     const supportsShopping = ["gift", "appliance", "fashion"].includes(rawCategory);
-    // 누가 쓸 것인지는 한 번만 읽어 검색과 검증에 함께 쓴다.
-    const audience = detectAudience(userWish);
+    /*
+      누가 쓸 것인지는 옷과 선물에서만 따진다.
+
+      "8년 쓴 거실 TV 교체, 남편은 스포츠 보고..."라고 적었더니 남편을
+      읽어 검색어가 전부 "남성 4K 스마트 TV 65인치"가 되었다. TV 에는
+      남성용이 없으므로 검색만 흐려지고 엉뚱한 상품이 딸려 왔다.
+      AI 가 그려 둔 후보와 실제로 붙은 상품이 어긋나 단점 문구가
+      서로 바뀐 것처럼 보이는 화면이 나갔다.
+
+      몸에 걸치거나 사람에게 주는 것이 아니면 대상은 상품 선택에
+      영향을 주지 않는다.
+    */
+    const audience = AUDIENCE_CATEGORIES.includes(rawCategory)
+      ? detectAudience(userWish)
+      : undefined;
     // 무엇을 찾는지도 한 번만 읽는다. 적지 않았으면 거르지 않는다.
     const targetItem = detectTargetItem(userWish, scenario.label);
     /*
@@ -1867,7 +1883,8 @@ export async function POST(request: Request) {
 
     replaceWrongCautions(
       priced.recommendations,
-      "연결된 판매처에서 사양과 사용 조건을 한 번 더 확인해 주세요."
+      "연결된 판매처에서 사양과 사용 조건을 한 번 더 확인해 주세요.",
+      budget.maxWon
     );
 
     const labelled = assignSelectionLabels(

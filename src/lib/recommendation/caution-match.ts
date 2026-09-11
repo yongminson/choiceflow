@@ -53,19 +53,87 @@ const EXCLUSIVE_TERMS: { marks: RegExp; products: RegExp; what: string }[] = [
 ];
 
 /**
+ * 값이나 브랜드를 걸고 말하는 단점.
+ *
+ * 앞의 규칙은 제품 방식만 봤다. 그런데 22만원짜리 최저가 후보에
+ * "가격이 예산 상한선에 가까워질 수 있습니다"가 붙고, 삼성 제품에
+ * "대기업 제품에 비해 음질이 아쉽다"가 붙어 나갔다. 방식은 맞는데
+ * 값과 브랜드가 상품과 정반대였다.
+ *
+ * 이런 말은 상품의 값과 이름을 보면 맞는지 바로 알 수 있다.
+ */
+const BUDGET_NEAR_LIMIT = /예산\s*상한|상한선|예산을?\s*거의|예산에\s*가까/;
+const BUDGET_NEAR_LIMIT_MIN_RATIO = 0.5;
+
+const BIG_BRAND_COMPARE = /대기업\s*(제품|브랜드|모델)?에?\s*비해|메이저\s*브랜드에\s*비해|대기업\s*대비/;
+const LOW_PRICE_CLAIM = /가격대가\s*낮|저렴한\s*만큼|값이\s*싼\s*만큼/;
+
+/** 이름이 이 브랜드면 "대기업 제품에 비해"라고 말할 수 없다. */
+const BIG_BRANDS =
+  /삼성|samsung|비스포크|엘지|\bLG\b|코드제로|오브제|위니아|대우|쿠쿠|쿠첸|코웨이|다이슨|dyson|애플|apple|소니|sony/i;
+
+export type CautionContext = {
+  price?: number;
+  maxBudgetWon?: number;
+};
+
+/**
+ * 값·브랜드를 걸고 한 말이 상품과 어긋나는지.
+ */
+function contradictsPriceOrBrand(
+  caution: string,
+  productName: string,
+  context: CautionContext | undefined
+): string | undefined {
+  const { price, maxBudgetWon } = context ?? {};
+
+  if (
+    BUDGET_NEAR_LIMIT.test(caution) &&
+    typeof price === "number" &&
+    typeof maxBudgetWon === "number" &&
+    maxBudgetWon > 0 &&
+    price / maxBudgetWon < BUDGET_NEAR_LIMIT_MIN_RATIO
+  ) {
+    return "예산을 한참 밑도는 값인데 상한선에 가깝다고 적음";
+  }
+
+  if (BIG_BRAND_COMPARE.test(caution) && BIG_BRANDS.test(productName)) {
+    return "대기업 브랜드 상품에 대기업과 비교하는 말을 적음";
+  }
+
+  if (
+    LOW_PRICE_CLAIM.test(caution) &&
+    typeof price === "number" &&
+    typeof maxBudgetWon === "number" &&
+    maxBudgetWon > 0 &&
+    price / maxBudgetWon >= BUDGET_NEAR_LIMIT_MIN_RATIO
+  ) {
+    return "예산의 절반을 넘는 값인데 가격대가 낮다고 적음";
+  }
+
+  return undefined;
+}
+
+/**
  * 이 단점이 이 상품 이야기가 아닌지.
  *
  * 상품명을 모르면 판단하지 않는다. 확인할 수 없는 것을 틀렸다고 할 수 없다.
  */
 export function isWrongCaution(
   caution: string | undefined,
-  productName: string | undefined
+  productName: string | undefined,
+  context?: CautionContext
 ): boolean {
   if (!caution || !productName) return false;
 
-  return EXCLUSIVE_TERMS.some(
-    ({ marks, products }) => marks.test(caution) && !products.test(productName)
-  );
+  if (
+    EXCLUSIVE_TERMS.some(
+      ({ marks, products }) => marks.test(caution) && !products.test(productName)
+    )
+  ) {
+    return true;
+  }
+  return contradictsPriceOrBrand(caution, productName, context) !== undefined;
 }
 
 /**
@@ -76,12 +144,16 @@ export function isWrongCaution(
  * 카드가 되는데, 그것이 이 화면에서 가장 피하려던 모습이다.
  */
 export function replaceWrongCautions(
-  items: { caution?: string; productName?: string; name: string }[],
-  fallback: string
+  items: { caution?: string; productName?: string; name: string; price?: number }[],
+  fallback: string,
+  maxBudgetWon?: number
 ): void {
   for (const item of items) {
     if (!item.caution || !item.productName) continue;
-    const reason = wrongCautionReason(item.caution, item.productName);
+    const reason = wrongCautionReason(item.caution, item.productName, {
+      price: item.price,
+      maxBudgetWon,
+    });
     if (!reason) continue;
 
     console.warn("[recommend] 상품과 맞지 않는 단점을 바꿉니다.", {
@@ -97,10 +169,12 @@ export function replaceWrongCautions(
 /** 어긋난 이유를 로그에 적기 위한 설명. */
 export function wrongCautionReason(
   caution: string,
-  productName: string
+  productName: string,
+  context?: CautionContext
 ): string | undefined {
   const hit = EXCLUSIVE_TERMS.find(
     ({ marks, products }) => marks.test(caution) && !products.test(productName)
   );
-  return hit ? `${hit.what}에만 해당하는 내용` : undefined;
+  if (hit) return `${hit.what}에만 해당하는 내용`;
+  return contradictsPriceOrBrand(caution, productName, context);
 }

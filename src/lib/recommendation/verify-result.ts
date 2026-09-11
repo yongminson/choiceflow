@@ -74,7 +74,14 @@ export function verifyRecommendations(
     개수와 무관하게 최저가인지만 본다.
   */
   if (value?.price !== undefined && priced.length >= 2) {
-    const lowest = Math.min(...priced.map((item) => item.price));
+    /*
+      최저가가 종합 1위라 이미 "가장 추천"이 된 때가 있다. 그때는 가성비가
+      두 번째로 싼 것이 되는 것이 맞으므로 가장 추천을 빼고 견준다.
+      그 카드에는 "후보 중 가장 저렴함" 표시가 따로 붙어 값이 가려지지 않는다.
+    */
+    const others = priced.filter((item) => item.selectionType !== "best");
+    const pool = others.length > 0 ? others : priced;
+    const lowest = Math.min(...pool.map((item) => item.price));
     if (value.price > lowest) {
       violations.push({
         rule: "가성비 선택이 최저가가 아님",
@@ -223,22 +230,21 @@ export function verifyRecommendations(
   }
 
   /*
-    4) "가장 추천"은 최저가·최고가 자리를 뺀 나머지 중 종합 1위여야 한다.
-    카드는 라벨 순서로 세우므로 배열 순서와 종합 순위는 다를 수 있다.
-    확인할 것은 배열 순서가 아니라 라벨이 제자리에 붙었는지다.
+    4) "가장 추천"은 후보 전체의 종합 1위여야 한다.
+
+    전에는 최저가·최고가를 뺀 나머지 중 1위였다. 그래서 최고가가 종합
+    1위면 그 자리를 얻지 못했고, 맨 위 카드와 딱지가 서로 다른 후보를
+    가리켰다. 화면이 "1위"라고 적는 자리와 같아야 한다.
   */
-  const best = items.find((item) => item.selectionType === "best");
-  const rest = items.filter(
-    (item) => item.selectionType !== "value" && item.selectionType !== "premium"
-  );
-  if (best && rest.length > 1) {
-    const top = rest.reduce((max, item) =>
+  const bestItem = items.find((item) => item.selectionType === "best");
+  if (bestItem && items.length >= 2) {
+    const top = items.reduce((max, item) =>
       (item.overall ?? 0) > (max.overall ?? 0) ? item : max
     );
-    if (top !== best) {
+    if ((bestItem.overall ?? 0) !== (top.overall ?? 0)) {
       violations.push({
-        rule: "가장 추천이 나머지 중 종합 1위가 아님",
-        detail: { best: best.overall, top: top.overall, topName: top.name },
+        rule: "가장 추천이 종합 1위가 아님",
+        detail: { best: bestItem.overall, top: top.overall, topName: top.name },
       });
     }
   }

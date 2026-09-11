@@ -119,9 +119,20 @@ test("케이스 A — 선물 / 부모님 감사 / 편리함 / 10만원 이하", 
     100000
   );
 
-  // 라벨은 가격이 정한다.
+  /*
+    가장 추천은 종합 1위다. 여기서는 과일 선물상자가 종합 1위라
+    최고가이면서 가장 추천이 된다. 예전에는 최고가라는 이유로 "한 단계
+    위"가 붙었는데, 그러면 맨 위 카드(종합 1위)와 딱지가 어긋났다.
+    나머지 자리는 가격이 정한다.
+  */
+  assert.equal(labelOf(ranked, "프리미엄 과일 선물상자"), "가장 추천");
   assert.equal(labelOf(ranked, "자동 온도 유지 티포트"), "가성비 선택");
-  assert.equal(labelOf(ranked, "프리미엄 과일 선물상자"), "한 단계 위");
+  assert.equal(labelOf(ranked, "자동 회전 안마 쿠션"), "한 단계 위");
+  // 가성비는 여전히 후보 전체의 최저가다.
+  assert.equal(
+    ranked.find((item) => item.selectionType === "value")?.price,
+    35600
+  );
 
   const violations = verifyRecommendations(ranked, {
     categoryId: "gift",

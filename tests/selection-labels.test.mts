@@ -46,10 +46,14 @@ function cheapest(items: QuickRecommendation[]) {
 }
 
 /*
-  실제로 나갔던 화면이다. 후보가 셋으로 줄면서 "가성비 선택"이 최고가에,
-  "가장 추천"이 최저가에 붙었다. 값은 사용자가 보낸 재현 조건 그대로다.
+  실제로 나갔던 화면이다. 후보가 셋으로 줄면서 "가성비 선택"이 최고가에
+  붙었다. 값은 사용자가 보낸 재현 조건 그대로다.
+
+  최저가가 종합 1위이기도 하면 그 카드는 "가장 추천"이 된다. 가성비는
+  그다음 싼 것으로 내려간다. 최저가 카드에는 "후보 중 가장 저렴함"
+  표시가 따로 붙으므로 값이 가려지지는 않는다.
 */
-test("후보가 셋이어도 가성비 선택은 최저가에 붙는다", () => {
+test("최고가에 가성비가 붙지 않는다", () => {
   const items = [
     item("A", 158_270, 88, "best"),
     item("B", 189_980, 71, "value"),
@@ -58,11 +62,11 @@ test("후보가 셋이어도 가성비 선택은 최저가에 붙는다", () => 
 
   const result = assignSelectionLabels(items, labelFor);
 
-  assert.equal(typeOf(result, "A"), "value");
-  assert.equal(
-    result.find((entry) => entry.selectionType === "value")?.price,
-    158_270
-  );
+  // A 가 최저가이면서 종합 1위라 가장 추천이 된다.
+  assert.equal(typeOf(result, "A"), "best");
+  // 가성비는 최고가(B)가 아니라 그다음 싼 C 로 간다.
+  assert.equal(typeOf(result, "C"), "value");
+  assert.notEqual(typeOf(result, "B"), "value");
 });
 
 test("후보가 셋이면 한 단계 위는 쓰지 않는다", () => {
@@ -80,18 +84,35 @@ test("후보가 셋이면 한 단계 위는 쓰지 않는다", () => {
   assert.deepEqual([...types].sort(), ["best", "reliable", "value"]);
 });
 
-test("후보가 둘이면 가장 추천과 가성비 선택만 쓴다", () => {
+test("후보가 둘이면 가장 추천과 가성비 선택을 쓴다", () => {
+  // 비싼 쪽이 종합 1위라 가장 추천, 싼 쪽이 가성비가 된다.
   const items = [item("A", 120_000, 70), item("B", 150_000, 90)];
 
   const result = assignSelectionLabels(items, labelFor);
-  const types = result.map((entry) => entry.selectionType);
 
-  assert.deepEqual([...types].sort(), ["best", "value"]);
+  assert.deepEqual(
+    [...result.map((entry) => entry.selectionType)].sort(),
+    ["best", "value"]
+  );
   assert.equal(typeOf(result, "A"), "value");
   assert.equal(typeOf(result, "B"), "best");
 });
 
-test("후보가 넷이면 한 단계 위가 최고가에 붙는다", () => {
+test("둘 중 싼 쪽이 가장 추천이면 가성비 자리는 비운다", () => {
+  // 비싼 쪽에 가성비를 붙이면 "가장 비쌈" 표시와 나란히 서게 된다.
+  const items = [item("A", 120_000, 95), item("B", 150_000, 70)];
+
+  const result = assignSelectionLabels(items, labelFor);
+
+  assert.equal(typeOf(result, "A"), "best");
+  assert.equal(typeOf(result, "B"), "reliable");
+  assert.equal(
+    result.some((entry) => entry.selectionType === "value"),
+    false
+  );
+});
+
+test("후보가 넷이면 네 자리를 모두 쓴다", () => {
   const items = [
     item("A", 100_000, 70),
     item("B", 200_000, 90),
@@ -101,15 +122,23 @@ test("후보가 넷이면 한 단계 위가 최고가에 붙는다", () => {
 
   const result = assignSelectionLabels(items, labelFor);
 
+  // B 가 종합 1위라 최고가여도 가장 추천이 된다.
+  assert.equal(typeOf(result, "B"), "best");
+  // 한 단계 위는 남은 것 중 최고가.
+  assert.equal(typeOf(result, "D"), "premium");
+  // 가성비는 후보 전체의 최저가.
   assert.equal(typeOf(result, "A"), "value");
-  assert.equal(typeOf(result, "B"), "premium");
   assert.deepEqual(
     [...result.map((entry) => entry.selectionType)].sort(),
     ["best", "premium", "reliable", "value"]
   );
 });
 
-test("가장 추천은 남은 후보 중 종합 적합도 1위다", () => {
+/*
+  맨 위 카드는 종합 1위이고 화면은 거기에 "가장 추천"이라고 적는다.
+  딱지가 다른 카드에 붙으면 한 화면이 서로 다른 것을 가리킨다.
+*/
+test("가장 추천은 후보 전체의 종합 적합도 1위다", () => {
   const items = [
     item("A", 100_000, 70),
     item("B", 200_000, 99),
@@ -117,8 +146,7 @@ test("가장 추천은 남은 후보 중 종합 적합도 1위다", () => {
     item("D", 180_000, 60),
   ];
 
-  // B 는 최고가라 한 단계 위로 빠진다. 남은 것 중 1위는 C 다.
-  assert.equal(typeOf(assignSelectionLabels(items, labelFor), "C"), "best");
+  assert.equal(typeOf(assignSelectionLabels(items, labelFor), "B"), "best");
 });
 
 test("라벨 문구가 배정된 자리와 함께 바뀐다", () => {
@@ -155,8 +183,9 @@ test("가격을 모르는 후보는 최저가로 보지 않는다", () => {
 /*
   개수가 몇이든 이것 하나는 반드시 지켜져야 한다.
   화면에서 "가성비 선택" 옆에 "후보 중 가장 비쌈"이 붙는 일을 막는 규칙이다.
+  최저가가 이미 가장 추천이 된 때는 그다음 싼 것이 가성비가 된다.
 */
-test("후보 수가 둘에서 여섯까지 어떻든 가성비 선택은 최저가다", () => {
+test("후보 수가 둘에서 여섯까지 어떻든 가성비는 남은 것 중 최저가다", () => {
   const pool = [
     item("A", 158_270, 88),
     item("B", 189_980, 71),
@@ -170,11 +199,20 @@ test("후보 수가 둘에서 여섯까지 어떻든 가성비 선택은 최저�
     const items = pool.slice(0, count);
     const result = assignSelectionLabels(items, labelFor);
     const value = result.find((entry) => entry.selectionType === "value");
-    assert.equal(
-      value?.price,
-      cheapest(items).price,
-      `후보 ${count}개에서 가성비 선택이 최저가가 아니다`
-    );
+    // 가성비 카드가 최고가인 일은 없어야 한다. 붙일 곳이 없으면 비운다.
+    if (value) {
+      const others = result.filter((entry) => entry.selectionType !== "best");
+      assert.equal(
+        value.price,
+        cheapest(others).price,
+        `후보 ${count}개에서 가성비가 남은 것 중 최저가가 아니다`
+      );
+      assert.notEqual(
+        value.price,
+        Math.max(...items.map((entry) => entry.price ?? 0)),
+        `후보 ${count}개에서 가성비가 최고가다`
+      );
+    }
   }
 });
 
