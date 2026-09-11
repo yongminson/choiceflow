@@ -56,17 +56,28 @@ function run(
   maxBudget: number
 ) {
   const order = ["best", "value", "reliable", "premium"];
+  const labels = {
+    best: "가장 추천",
+    value: "가성비 선택",
+    reliable: "검증 우선",
+    premium: "한 단계 위",
+  } as const;
   return assignSelectionLabels(
     applyPriorityWeighting(
       applyPriceBurdenScores(items, maxBudget),
       categoryId,
       priorityId
-    )
+    ),
+    (type) => labels[type]
   )
+    // route.ts 와 같은 순서로 세운다. 맨 위가 종합 적합도 1위여야 한다.
     .sort(
       (a, b) =>
+        (b.overall ?? 0) - (a.overall ?? 0) ||
         order.indexOf(a.selectionType || "best") -
-        order.indexOf(b.selectionType || "best")
+          order.indexOf(b.selectionType || "best") ||
+        (a.price ?? Number.MAX_SAFE_INTEGER) -
+          (b.price ?? Number.MAX_SAFE_INTEGER)
     )
     .map((item, index) => ({ ...item, rank: index + 1 }));
 }

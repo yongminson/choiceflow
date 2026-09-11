@@ -496,7 +496,12 @@ export function QuickRecommendationResult({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/80 pb-4">
           <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-1 text-xs font-black text-white shadow-sm">
             <Trophy className="size-3.5" />
-            <span>AI 추천 1위 · 종결 선택지</span>
+            {/*
+              "1위"라고 적으려면 같은 화면의 종합 적합도 1위와 같아야 한다.
+              서버가 종합 적합도 순으로 내려주므로 맨 위가 곧 1위다.
+              무엇을 기준으로 1위인지 적어 두면 아래 그래프와 맞춰 읽힌다.
+            */}
+            <span>종합 적합도 1위 · AI 추천</span>
           </div>
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <span className="inline-flex items-center gap-1 font-bold text-emerald-600">

@@ -247,3 +247,29 @@ test("같은 라벨이 두 번 나오면 걸린다", () => {
   const rules = verifyRecommendations(broken, CONTEXT).map((v) => v.rule);
   assert.equal(rules.includes("같은 관점 라벨이 여러 후보에 붙음"), true);
 });
+
+/*
+  히어로(맨 위 카드)와 종합 적합도 1위가 어긋나는 것을 막는 규칙.
+  82점짜리가 "AI 추천 1위"로 서고 94점짜리가 그래프 1위로 나간 적이 있다.
+*/
+test("맨 위가 종합 1위가 아니면 걸린다", () => {
+  const broken = [
+    item("전기요", 27_990, 82, "best"),
+    item("온수매트", 157_000, 94, "premium"),
+    item("기타", 90_000, 88, "value"),
+  ];
+
+  const rules = verifyRecommendations(broken, CONTEXT).map((v) => v.rule);
+  assert.equal(rules.includes("맨 위 카드가 종합 적합도 1위가 아님"), true);
+});
+
+test("종합 적합도 순으로 세우면 걸리지 않는다", () => {
+  const sorted = [
+    item("온수매트", 157_000, 94, "premium"),
+    item("기타", 90_000, 88, "value"),
+    item("전기요", 27_990, 82, "best"),
+  ];
+
+  const rules = verifyRecommendations(sorted, CONTEXT).map((v) => v.rule);
+  assert.equal(rules.includes("맨 위 카드가 종합 적합도 1위가 아님"), false);
+});

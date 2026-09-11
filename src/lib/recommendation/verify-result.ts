@@ -138,6 +138,30 @@ export function verifyRecommendations(
     }
   });
 
+  /*
+    1-5) 맨 위 카드는 종합 적합도 1위여야 한다.
+
+    화면은 첫 후보를 히어로로 크게 세우고 "AI 추천 1위"라고 적는다.
+    그 아래 그래프는 종합 적합도 순으로 다시 세운다. 둘이 어긋나면
+    같은 화면에서 "1위"와 "3위"가 같은 제품을 가리키게 된다.
+    실제로 82점짜리가 히어로에 서고 94점짜리가 그래프 1위로 나갔다.
+  */
+  const scoredItems = items.filter((item) => typeof item.overall === "number");
+  if (scoredItems.length === items.length && items.length >= 2) {
+    const highest = Math.max(...items.map((item) => item.overall as number));
+    if ((items[0].overall as number) !== highest) {
+      violations.push({
+        rule: "맨 위 카드가 종합 적합도 1위가 아님",
+        detail: {
+          heroName: items[0].name,
+          heroOverall: items[0].overall,
+          highest,
+          topName: items.find((item) => item.overall === highest)?.name,
+        },
+      });
+    }
+  }
+
   // 2) 가격이 오를수록 가격 축 점수는 내려가야 한다.
   const priceAxis = findPriceAxis(items);
   if (priceAxis && priced.length >= 2) {

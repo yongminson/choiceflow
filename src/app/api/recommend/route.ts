@@ -1829,12 +1829,26 @@ export async function POST(request: Request) {
       */
       (selectionType) => selectionLabel(rawCategory, selectionType)
     )
-      // 카드는 라벨 순서로 세운다. 히어로가 "가장 추천"이 되어야 하고,
-      // 종합 적합도 그래프는 화면에서 따로 점수순으로 정렬한다.
+      /*
+        카드는 종합 적합도 순으로 세운다.
+
+        전에는 라벨 순서로 세웠다. 그런데 "가장 추천"은 최저가·최고가를
+        뺀 나머지 중 1위라, 최고가가 종합 1위면 그 자리를 얻지 못한다.
+        그래서 맨 위 카드에 "AI 추천 1위"라고 적힌 제품이 같은 화면의
+        종합 적합도 그래프에서는 3위로 나오는 일이 생겼다. 한 화면이
+        서로 다른 말을 하면 어느 쪽도 믿기 어려워진다.
+
+        맨 위는 종합 적합도가 가장 높은 후보다. 그래프의 1위와 언제나
+        같은 것이 된다. 라벨은 그 후보가 어떤 자리인지 따로 알려 준다.
+        점수가 같으면 라벨 순서로, 그것도 같으면 싼 쪽을 앞에 둔다.
+      */
       .sort(
         (a, b) =>
+          (b.overall ?? 0) - (a.overall ?? 0) ||
           SELECTION_ORDER.indexOf(a.selectionType || "best") -
-          SELECTION_ORDER.indexOf(b.selectionType || "best")
+            SELECTION_ORDER.indexOf(b.selectionType || "best") ||
+          (a.price ?? Number.MAX_SAFE_INTEGER) -
+            (b.price ?? Number.MAX_SAFE_INTEGER)
       )
       .map((item, index) => ({ ...item, rank: index + 1 }));
 
