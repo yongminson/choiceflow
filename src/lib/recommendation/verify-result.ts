@@ -14,6 +14,7 @@ import { productBrandKey } from "../monetization/brand-verify.ts";
 import { isWrongOccasion, type Occasion } from "./occasion.ts";
 import { isWrongCaution } from "./caution-match.ts";
 import { isWrongCleaning, type CleaningNeed } from "./cleaning-match.ts";
+import { looksLikeAccessory } from "./accessory-match.ts";
 
 /**
  * 화면에 내보내기 직전에 규칙을 어긴 곳이 없는지 본다.
@@ -283,6 +284,27 @@ export function verifyRecommendations(
         },
       });
     }
+  }
+
+  /*
+    4-3) 본체 자리에 부속품이 서면 안 된다.
+    로봇청소기를 바꾸겠다는 요청에 호환 물걸레 패드가 11,990원으로
+    후보에 올랐다. 설명은 본체 이야기 그대로라 값싼 상품에
+    "브랜드 프리미엄으로 가격이 높다"는 단점이 붙었다.
+  */
+  const accessories = items.filter(
+    (item) => item.productName && looksLikeAccessory(item.productName)
+  );
+  if (accessories.length > 0) {
+    violations.push({
+      rule: "본체가 아닌 부속품이 후보에 있음",
+      detail: {
+        products: accessories.map((item) => ({
+          productName: item.productName,
+          price: item.price,
+        })),
+      },
+    });
   }
 
   // 5) 같은 상품이 두 자리를 차지하면 안 된다.

@@ -9,6 +9,7 @@ import {
   type TargetItem,
 } from "../recommendation/item-match.ts";
 import { productBrandKey } from "./brand-verify.ts";
+import { looksLikeAccessory } from "../recommendation/accessory-match.ts";
 import {
   isWrongCleaning,
   type CleaningNeed,
@@ -499,6 +500,14 @@ export async function searchCoupangProduct(
       로봇도 상품명에 청소기가 들어가 품목 필터를 그대로 통과했다.
       바닥을 닦겠다는 사람에게 창문 닦는 기계가 올라간 적이 있다.
     */
+    /*
+      본체 자리에 부속품이 올라온 적이 있다. 로봇청소기를 바꾸겠다는
+      요청에 호환 물걸레 패드가 11,990원으로 후보가 되었다.
+      여기서 걸러야 같은 검색어로 다음 상품을 고를 수 있다.
+    */
+    const isAccessory = (item: (typeof items)[number]) =>
+      looksLikeAccessory(String(item.productName ?? ""));
+
     const isWrongCleaningItem = (item: (typeof items)[number]) =>
       isWrongCleaning(
         String(item.productName ?? ""),
@@ -525,6 +534,7 @@ export async function searchCoupangProduct(
       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
       !isWrongItem(item) &&
       !isWrongCleaningItem(item) &&
+      !isAccessory(item) &&
       !isWrongGender(item) &&
       !isWrongTime(item) &&
       !isCappedBrand(item) &&

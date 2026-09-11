@@ -21,6 +21,7 @@ import {
   readFitChecks,
   readCaution,
 } from "@/lib/recommendation/fit-checks";
+import { dropAccessories } from "@/lib/recommendation/accessory-match";
 import { replaceWrongCautions } from "@/lib/recommendation/caution-match";
 import {
   detectCleaningNeed,
@@ -1846,6 +1847,14 @@ export async function POST(request: Request) {
       번거롭다"는 온수매트 단점이 붙어 나갔다. 상품이 정해진 지금이
       견줘 볼 수 있는 첫 시점이다.
     */
+    /*
+      이름만으로 못 걸러진 부속품을 여기서 한 번 더 본다. 값 비교는
+      다른 후보가 있어야 되므로 상품이 다 붙은 지금이 볼 수 있는 때다.
+      수가 줄어도 그대로 둔다. 부속품으로 자리를 채우면 "관점이 다른
+      선택지"라는 구성 자체가 무너진다.
+    */
+    priced.recommendations = dropAccessories(priced.recommendations);
+
     replaceWrongCautions(
       priced.recommendations,
       "연결된 판매처에서 사양과 사용 조건을 한 번 더 확인해 주세요."
