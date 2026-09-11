@@ -1820,7 +1820,14 @@ export async function POST(request: Request) {
         applyPriceBurdenScores(priced.recommendations, budget.maxWon),
         rawCategory,
         priority.id
-      )
+      ),
+      /*
+        문구는 후보에서 주워 쓰지 않고 여기서 넘긴다. 후보가 넷일 때는
+        네 문구가 다 딸려 와서 주워 써도 됐지만, 셋으로 줄자 한 자리가
+        비어 배정 자체가 건너뛰어졌다. 카테고리를 아는 쪽에서 넘기면
+        후보가 몇 개든 같은 문구가 나온다.
+      */
+      (selectionType) => selectionLabel(rawCategory, selectionType)
     )
       // 카드는 라벨 순서로 세운다. 히어로가 "가장 추천"이 되어야 하고,
       // 종합 적합도 그래프는 화면에서 따로 점수순으로 정렬한다.

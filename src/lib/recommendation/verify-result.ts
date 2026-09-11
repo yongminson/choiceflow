@@ -61,6 +61,83 @@ export function verifyRecommendations(
     });
   }
 
+  /*
+    1-1) "가성비 선택"은 최저가 후보에만 붙는다.
+
+    후보가 넷에서 셋으로 줄었을 때 배정이 통째로 건너뛰어져 최고가에
+    가성비 라벨이 붙어 나갔다. 1) 은 가성비와 한 단계 위를 견주는데,
+    한 단계 위가 없는 화면에서는 아무것도 걸리지 않았다.
+    개수와 무관하게 최저가인지만 본다.
+  */
+  if (value?.price !== undefined && priced.length >= 2) {
+    const lowest = Math.min(...priced.map((item) => item.price));
+    if (value.price > lowest) {
+      violations.push({
+        rule: "가성비 선택이 최저가가 아님",
+        detail: {
+          name: value.name,
+          price: value.price,
+          lowest,
+          total: items.length,
+        },
+      });
+    }
+  }
+
+  /*
+    1-2) 한 카드 안에서 라벨과 배지가 서로 반대말을 하면 안 된다.
+
+    "가성비 선택" 아래에 "후보 중 가장 비쌈"이 붙은 화면이 실제로
+    나갔다. 둘 다 서버가 붙인 것이라 어느 쪽이 틀렸는지는 화면만 봐서는
+    알 수 없다. 규칙으로 박아 두면 다음에 어긋날 때 바로 드러난다.
+  */
+  const contradicting = items.filter(
+    (item) =>
+      item.selectionType === "value" &&
+      (item.fitChecks ?? []).some((check) => check.text.includes("가장 비쌈"))
+  );
+  if (contradicting.length > 0) {
+    violations.push({
+      rule: "가성비 선택에 가장 비쌈 표시가 함께 붙음",
+      detail: { products: contradicting.map((item) => item.name) },
+    });
+  }
+
+  /*
+    1-3) 후보 수에 따라 쓰는 자리가 정해져 있다.
+    셋 이하에서 "한 단계 위"가 나오면 배정 규칙이 어긋난 것이다.
+  */
+  if (items.length < 4 && items.some((item) => item.selectionType === "premium")) {
+    violations.push({
+      rule: "후보가 넷 미만인데 한 단계 위가 쓰임",
+      detail: {
+        total: items.length,
+        types: items.map((item) => item.selectionType),
+      },
+    });
+  }
+
+  /*
+    1-4) 같은 자리가 두 번 나오면 안 된다.
+    배정이 건너뛰어지면 AI 가 붙인 라벨이 그대로 남아 겹칠 수 있다.
+  */
+  const typeCounts = new Map<string, number>();
+  for (const item of items) {
+    if (!item.selectionType) continue;
+    typeCounts.set(
+      item.selectionType,
+      (typeCounts.get(item.selectionType) ?? 0) + 1
+    );
+  }
+  typeCounts.forEach((count, type) => {
+    if (count > 1) {
+      violations.push({
+        rule: "같은 관점 라벨이 여러 후보에 붙음",
+        detail: { type, count },
+      });
+    }
+  });
+
   // 2) 가격이 오를수록 가격 축 점수는 내려가야 한다.
   const priceAxis = findPriceAxis(items);
   if (priceAxis && priced.length >= 2) {

@@ -10,17 +10,27 @@ import type { QuickRecommendation } from "@/lib/types/analyze";
  *
  * 그래서 AI 가 뭐라고 했든 무시하고 여기서 새로 배정한다.
  *   가성비 선택 = 가장 싼 후보
- *   한 단계 위  = 가장 비싼 후보
+ *   한 단계 위  = 가장 비싼 후보 (후보가 넷 이상일 때만)
  *   가장 추천   = 남은 후보 중 종합 적합도가 가장 높은 것
  *   검증 우선   = 마지막 하나
  *
  * 가격을 모르는 후보(검색 실패)는 최저가로도 최고가로도 보지 않는다.
  * 모르는 것을 가장 싸다고 할 수는 없다.
+ *
+ * 개수에 따라 쓰는 라벨이 달라진다.
+ *   넷 이상 — 가장 추천 / 가성비 선택 / 검증 우선 / 한 단계 위
+ *   셋     — 가장 추천 / 가성비 선택 / 검증 우선
+ *   둘     — 가장 추천 / 가성비 선택
+ *
+ * 후보가 셋일 때 최고가를 "한 단계 위"로 빼면 남는 자리가 하나뿐이라
+ * 가장 추천과 검증 우선 중 하나가 사라진다. 결론을 하나 보여주는 것이
+ * 이 화면의 역할이므로 없어질 자리는 한 단계 위 쪽이다.
+ *
+ * 개수가 몇이든 가성비 선택은 최저가에만 붙는다. 이것이 깨지면 같은
+ * 카드에 "가성비 선택"과 "후보 중 가장 비쌈"이 나란히 붙는다.
  */
 
 type SelectionType = NonNullable<QuickRecommendation["selectionType"]>;
-
-const SELECTION_TYPES: SelectionType[] = ["best", "value", "reliable", "premium"];
 
 type PricedRecommendation = QuickRecommendation & { price: number };
 
@@ -29,8 +39,15 @@ function hasPrice(item: QuickRecommendation): item is PricedRecommendation {
 }
 
 /**
- * 카테고리별 문구는 후보에 이미 붙어 있으므로 거기서 모아 쓴다.
- * 넷 다 있어야 자리를 바꿔 붙일 수 있다.
+ * 후보에 이미 붙어 있는 문구를 모은다.
+ *
+ * 예전에는 이것만 썼다. 네 자리가 다 있어야 바꿔 붙일 수 있으니
+ * 넷이 안 모이면 아예 손을 떼게 해 두었는데, 후보가 셋으로 줄자
+ * 그 조건이 영영 참이 되지 않아 배정이 통째로 건너뛰어졌다.
+ * AI 가 붙인 라벨이 그대로 나가 최고가에 "가성비 선택"이 붙었다.
+ *
+ * 그래서 문구는 호출하는 쪽에서 받는 것을 우선으로 하고, 여기서 모으는
+ * 것은 그때 쓸 수 없을 때를 위한 대비로만 남긴다.
  */
 function labelsByType(
   items: QuickRecommendation[]
@@ -44,13 +61,22 @@ function labelsByType(
   return labels;
 }
 
+/** 한 단계 위 자리를 쓰려면 후보가 이만큼은 있어야 한다. */
+const PREMIUM_MIN_ITEMS = 4;
+
 export function assignSelectionLabels(
-  items: QuickRecommendation[]
+  items: QuickRecommendation[],
+  /**
+   * 자리별 문구를 돌려준다. 카테고리마다 문구가 다르므로 값을 아는
+   * 쪽에서 넘긴다. 넘기지 않으면 후보에 붙어 있던 문구를 쓴다.
+   */
+  labelFor?: (type: SelectionType) => string | undefined
 ): QuickRecommendation[] {
   if (items.length < 2) return items;
 
-  const labels = labelsByType(items);
-  if (labels.size < SELECTION_TYPES.length) return items;
+  const harvested = labelsByType(items);
+  const resolveLabel = (type: SelectionType) =>
+    labelFor?.(type) ?? harvested.get(type);
 
   const priced = items.filter(hasPrice);
   if (priced.length < 2) return items;
@@ -59,8 +85,15 @@ export function assignSelectionLabels(
   const assigned = new Map<QuickRecommendation, SelectionType>();
 
   assigned.set(byPrice[0], "value");
-  const priciest = byPrice[byPrice.length - 1];
-  if (!assigned.has(priciest)) assigned.set(priciest, "premium");
+
+  /*
+    한 단계 위는 후보가 넷 이상일 때만 쓴다. 셋에서 최고가를 여기로
+    빼면 가장 추천이나 검증 우선 중 하나가 자리를 잃는다.
+  */
+  if (items.length >= PREMIUM_MIN_ITEMS) {
+    const priciest = byPrice[byPrice.length - 1];
+    if (!assigned.has(priciest)) assigned.set(priciest, "premium");
+  }
 
   /*
     가장 추천은 남은 후보 중 종합 적합도가 가장 높은 것이다.
@@ -75,6 +108,16 @@ export function assignSelectionLabels(
   );
   if (best) assigned.set(best, "best");
 
+  /*
+    남은 자리는 검증 우선이다.
+
+    자리가 넷뿐이라 후보가 다섯 이상이면 검증 우선이 여러 장 생긴다.
+    지금 파이프라인은 넷을 만들고 화면도 넷에서 자르므로 그런 일은
+    없지만, 개수가 늘면 조용히 겹친다. 이번에 넷에서 셋으로 줄었을 때
+    배정이 통째로 건너뛰어진 것도 개수가 바뀐 것을 아무도 몰랐기
+    때문이다. 검증 함수에 "같은 라벨이 여러 후보에 붙음"을 넣어 두어
+    다음에 개수가 바뀌면 로그로 바로 드러나게 했다.
+  */
   for (const item of items) {
     if (!assigned.has(item)) assigned.set(item, "reliable");
   }
@@ -85,7 +128,7 @@ export function assignSelectionLabels(
     return {
       ...item,
       selectionType: type,
-      selectionLabel: labels.get(type) ?? item.selectionLabel,
+      selectionLabel: resolveLabel(type) ?? item.selectionLabel,
     };
   });
 }
