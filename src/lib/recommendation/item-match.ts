@@ -54,7 +54,33 @@ const ITEM_GROUPS: string[][] = [
   ["제습기"],
   ["공기청정기"],
   ["안마기", "마사지기", "안마의자"],
-  ["전기장판", "온수매트", "전기요"],
+  /*
+    전기로 데우는 것과 물을 순환시키는 것은 다른 물건이다.
+
+    한 묶음으로 두었더니 전기요를 찾는 사람에게 온수매트가 올라왔고,
+    "동절기 물 빠짐이 번거롭다"는 온수매트 단점이 전기요 카드에 붙었다.
+    쓰는 방식도 관리도 값도 달라서 같은 자리에 놓을 물건이 아니다.
+  */
+  ["전기요", "전기장판", "전기매트", "온열매트"],
+  ["온수매트", "온수요", "워터매트"],
+  // 방석은 앉는 것이다. 누워 쓰는 요·매트와 같은 자리에 두지 않는다.
+  ["전기방석", "온열방석", "방석"],
+];
+
+/**
+ * 한 상품에 같이 있으면 안 되는 품목끼리 묶는다.
+ *
+ * "전기방석 카본 온열 소파 전기요"가 전기요를 찾는 사람에게 올라왔다.
+ * 이름에 전기요가 들어 있어 걸러지지 않았지만 실제로는 소파에 까는
+ * 방석이고, 침대에서 아이와 쓰겠다는 요청과는 맞지 않는다.
+ *
+ * 이름에 두 품목이 함께 있으면 어느 쪽인지 알 수 없다. 그럴 때는
+ * 후보에서 뺀다. 여기 적힌 짝끼리만 본다. 품목 이름이 겹치는 것은
+ * 흔한 일이라 아무 데나 적용하면 멀쩡한 상품까지 사라진다.
+ * "니트 원피스"처럼 둘 다 맞는 이름도 있기 때문이다.
+ */
+const CONFLICTING_GROUPS: string[][] = [
+  ["전기요", "온수매트", "전기방석"],
 ];
 
 export type TargetItem = {
@@ -62,6 +88,8 @@ export type TargetItem = {
   name: string;
   /** 상품명이 이 품목인지 보는 조건. */
   pattern: RegExp;
+  /** 이것이 함께 있으면 다른 품목이다. */
+  conflict?: RegExp;
 };
 
 function escape(value: string): string {
@@ -84,9 +112,26 @@ export function detectTargetItem(...texts: string[]): TargetItem | undefined {
   if (hits.length !== 1) return undefined;
 
   const group = hits[0];
+
+  /*
+    이 품목과 헷갈리면 안 되는 말을 모은다. 같은 짝에 묶인 다른 품목의
+    낱말이 상품명에 함께 있으면 어느 쪽인지 알 수 없다.
+  */
+  const rivals = CONFLICTING_GROUPS.filter((pair) =>
+    pair.includes(group[0])
+  ).flatMap((pair) =>
+    ITEM_GROUPS.filter(
+      (other) => other !== group && pair.includes(other[0])
+    ).flat()
+  );
+
   return {
     name: group[0],
     pattern: new RegExp(group.map(escape).join("|"), "i"),
+    conflict:
+      rivals.length > 0
+        ? new RegExp(rivals.map(escape).join("|"), "i")
+        : undefined,
   };
 }
 
@@ -96,5 +141,7 @@ export function matchesTargetItem(
   target: TargetItem | undefined
 ): boolean {
   if (!target) return true;
-  return target.pattern.test(productName);
+  if (!target.pattern.test(productName)) return false;
+  // 이름에 다른 품목까지 함께 적혀 있으면 어느 쪽인지 알 수 없다.
+  return !target.conflict?.test(productName);
 }

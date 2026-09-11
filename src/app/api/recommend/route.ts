@@ -21,6 +21,7 @@ import {
   readFitChecks,
   readCaution,
 } from "@/lib/recommendation/fit-checks";
+import { replaceWrongCautions } from "@/lib/recommendation/caution-match";
 import {
   assignSelectionLabels,
   dropUnmatchedWhenOthersMatched,
@@ -1815,6 +1816,19 @@ export async function POST(request: Request) {
       순위를 매기고, 매겨진 순위 위에 라벨을 붙인다. 라벨이 순위보다
       먼저 붙으면 "가장 추천"이 1위가 아닌 자리에 남는다.
     */
+    /*
+      단점이 실제로 붙은 상품 이야기인지 여기서 본다.
+
+      AI 는 이름만 지어 놓고 단점까지 쓰는데, 실제 상품은 그 뒤에
+      쿠팡에서 찾아 붙인다. 그래서 전기요 카드에 "동절기 물 빠짐이
+      번거롭다"는 온수매트 단점이 붙어 나갔다. 상품이 정해진 지금이
+      견줘 볼 수 있는 첫 시점이다.
+    */
+    replaceWrongCautions(
+      priced.recommendations,
+      "연결된 판매처에서 사양과 사용 조건을 한 번 더 확인해 주세요."
+    );
+
     const finalized = assignSelectionLabels(
       applyPriorityWeighting(
         applyPriceBurdenScores(priced.recommendations, budget.maxWon),

@@ -12,6 +12,7 @@ import { isWrongAudience, type DetectedAudience } from "./gender.ts";
 import { matchesTargetItem, type TargetItem } from "./item-match.ts";
 import { productBrandKey } from "../monetization/brand-verify.ts";
 import { isWrongOccasion, type Occasion } from "./occasion.ts";
+import { isWrongCaution } from "./caution-match.ts";
 
 /**
  * 화면에 내보내기 직전에 규칙을 어긴 곳이 없는지 본다.
@@ -237,6 +238,26 @@ export function verifyRecommendations(
         detail: { best: best.overall, top: top.overall, topName: top.name },
       });
     }
+  }
+
+  /*
+    4-1) 감수할 점이 실제로 붙은 상품 이야기여야 한다.
+    전기요 카드에 "동절기 물 빠짐이 번거롭다"는 온수매트 단점이
+    붙어 나갔다. 단점은 이 화면의 성격 자체라 틀린 채로 두면 안 된다.
+  */
+  const offCaution = items.filter((item) =>
+    isWrongCaution(item.caution, item.productName)
+  );
+  if (offCaution.length > 0) {
+    violations.push({
+      rule: "상품과 맞지 않는 단점이 붙음",
+      detail: {
+        items: offCaution.map((item) => ({
+          productName: item.productName,
+          caution: item.caution,
+        })),
+      },
+    });
   }
 
   // 5) 같은 상품이 두 자리를 차지하면 안 된다.
