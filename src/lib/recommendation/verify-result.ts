@@ -401,6 +401,53 @@ export function verifyRecommendations(
     });
   }
 
+  /*
+    4-6) 예산을 넘긴 상품은 후보에 없어야 한다.
+
+    50만원 이하로 고른 화면에 131만원짜리 업소용 식기세척기가 올라왔다.
+    예산은 사용자가 직접 고른 조건이므로 넘긴 것을 보여줄 이유가 없다.
+  */
+  if (context.maxBudgetWon) {
+    const overBudget = priced.filter(
+      (item) => item.price > (context.maxBudgetWon as number)
+    );
+    if (overBudget.length > 0) {
+      violations.push({
+        rule: "예산을 넘긴 상품이 후보에 있음",
+        detail: {
+          maxBudgetWon: context.maxBudgetWon,
+          items: overBudget.map((item) => ({
+            name: item.name,
+            price: item.price,
+          })),
+        },
+      });
+    }
+  }
+
+  /*
+    4-7) 조건 판단 문구가 값 표시와 반대말을 하면 안 된다.
+
+    같은 카드에 "예산을 810,000원 넘음"과 "예산 범위 50만 원 이하임"이
+    나란히 선 적이 있다. 앞은 값에서 나온 사실이고 뒤는 AI 가 상품을 보기
+    전에 쓴 문장이다. 둘을 함께 두면 어느 쪽을 믿어야 하는지 알 수 없다.
+  */
+  const budgetContradiction = items.filter((item) => {
+    const checks = item.fitChecks ?? [];
+    const over = checks.some((check) => check.text.includes("예산을"));
+    const within = checks.some(
+      (check) =>
+        check.ok && /예산[^,]{0,12}(이하|이내|범위|안에|충족|맞)/.test(check.text)
+    );
+    return over && within;
+  });
+  if (budgetContradiction.length > 0) {
+    violations.push({
+      rule: "한 카드에 예산 초과와 예산 충족이 함께 적힘",
+      detail: { products: budgetContradiction.map((item) => item.name) },
+    });
+  }
+
   // 5) 같은 상품이 두 자리를 차지하면 안 된다.
   const seen = new Set<string>();
   for (const item of items) {

@@ -75,7 +75,38 @@ export function derivedFitChecks(
   context: FitCheckContext = {}
 ): RecommendationFitCheck[] | undefined {
   const verified = verifiedChecksFor(item, maxBudgetWon, context);
-  const guides = item.fitChecks?.filter((check) => check.source !== "verified") ?? [];
+
+  /*
+    AI 가 쓴 항목이 조회로 확인된 사실과 반대말을 하면 뺀다.
+
+    131만원짜리 상품에 "예산을 810,000원 넘음"과 "예산 범위 50만 원
+    이하임"이 나란히 선 화면이 나갔다. 앞의 것은 값에서 나온 사실이고
+    뒤의 것은 AI 가 조건을 보고 쓴 문장이다. 상품이 정해지기 전에 쓴
+    글이라 실제 값을 모른다.
+
+    값으로 확인되는 이야기는 확인된 쪽만 남긴다. 둘 다 두면 어느 쪽을
+    믿어야 하는지 알 수 없다.
+  */
+  /*
+    예산을 지켰다고 말하는 항목만 본다. "이 가격대는 자동비움이 빠지기도
+    함"처럼 값을 설명하는 문장은 그대로 둔다. 그것은 예산 충족 주장이
+    아니라 그 값대에서 무엇이 빠지는지를 알려 주는 말이다.
+  */
+  const BUDGET_FIT_CLAIM =
+    /예산[^,]{0,12}(이하|이내|범위|안에|충족|맞)|\d+\s*만\s*원\s*(이하|이내)/;
+
+  const guides = (item.fitChecks ?? []).filter((check) => {
+    if (check.source === "verified") return false;
+    /*
+      예산을 지켰는지는 서버가 실제 값으로 이미 적었다. AI 는 상품이
+      정해지기 전에 글을 쓰므로 값을 모른다. 131만원짜리에 "예산 범위
+      50만 원 이하임"이 붙어 나간 적이 있다.
+    */
+    if (typeof item.price === "number" && BUDGET_FIT_CLAIM.test(check.text)) {
+      return false;
+    }
+    return true;
+  });
 
   /*
     감수해야 하는 항목은 목록 끝에 오는데, 그대로 자르면 그것부터 잘려 나간다.

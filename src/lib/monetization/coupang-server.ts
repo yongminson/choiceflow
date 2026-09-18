@@ -546,8 +546,19 @@ export async function searchCoupangProduct(
       if (!Number.isFinite(price) || price <= 0) return false;
       return !maxPriceWon || price <= maxPriceWon;
     });
-    // 예산을 넘더라도 아예 없는 것보다는 대표 상품 하나를 보여준다.
-    const chosen = picked ?? items.find(isUsable);
+    /*
+      예산을 넘는 상품은 쓰지 않는다.
+
+      전에는 "아예 없는 것보다 낫다"며 예산을 넘겨도 하나 골랐다. 그랬더니
+      50만원 이하로 고른 화면에 131만원짜리 업소용 식기세척기가 올라왔다.
+      같은 카드에 "예산은 810,000원 넘음"과 "예산 범위 50만 원 이하임"이
+      나란히 섰다.
+
+      예산은 사용자가 직접 고른 조건이다. 그것을 넘긴 상품은 보여줄 것이
+      아니라 못 찾았다고 하는 편이 맞다. 여기서 비운 자리는 뒤에서
+      후보 수를 줄이는 쪽으로 처리된다.
+    */
+    const chosen = picked ?? null;
     if (!chosen) {
       if (useCache) productCache.set(cacheKey, { product: null, expiresAt: Date.now() + PRODUCT_CACHE_TTL_MS });
       return null;

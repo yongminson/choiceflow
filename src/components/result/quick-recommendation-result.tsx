@@ -631,6 +631,46 @@ export function QuickRecommendationResult({
         }
       />
 
+      {/*
+        조건을 지키는 후보가 둘도 안 되면 비교라는 말이 성립하지 않는다.
+        전에는 예산을 넘긴 상품이라도 하나 끼워 넣어 수를 맞췄는데,
+        50만원으로 고른 화면에 131만원짜리가 올라오는 일이 생겼다.
+        수를 맞추는 대신 왜 적은지 말하고 조건을 넓힐 길을 준다.
+      */}
+      {recommendations.length > 0 && recommendations.length < 2 && (
+        <div className="mt-10 rounded-2xl border border-amber-200 bg-amber-50/70 p-5 sm:mt-14 sm:p-6">
+          <p className="text-[15px] font-bold text-amber-900">
+            조건에 맞는 상품이 충분하지 않습니다
+          </p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-amber-900/80">
+            적어 주신 조건을 모두 지키는 상품을{" "}
+            {recommendations.length}개만 찾았습니다. 예산을 넘기거나 조건에
+            어긋나는 상품으로 자리를 채우지는 않았습니다. 조건을 조금 넓히면
+            견줘 볼 후보가 늘어납니다.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/"
+              className="inline-flex min-h-10 items-center rounded-xl bg-amber-900 px-4 text-[13px] font-bold text-white transition hover:opacity-90"
+            >
+              예산 다시 고르기
+            </Link>
+            {canRefine && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!aiAvailable}
+                onClick={() => setShowAdvanced(true)}
+                className="min-h-10 rounded-xl border-amber-300 text-[13px] font-bold text-amber-900"
+              >
+                조건 다듬기
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mb-4 mt-10 sm:mt-14 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-primary">Candidates</p>

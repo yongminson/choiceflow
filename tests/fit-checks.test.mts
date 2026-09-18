@@ -299,3 +299,61 @@ test("확인된 지도 정보가 하나뿐이면 체크리스트를 만들지 �
   assert.equal(placeFitChecks({ rating: 4.5 }), undefined);
   assert.equal(placeFitChecks({}), undefined);
 });
+
+/*
+  131만원짜리 상품에 "예산을 810,000원 넘음"과 "예산 범위 50만 원 이하임"이
+  나란히 선 화면이 나갔다. 뒤의 것은 AI 가 상품을 보기 전에 쓴 문장이다.
+*/
+test("예산을 지켰다는 AI 문구는 값이 있으면 지운다", () => {
+  const merged = derivedFitChecks(
+    {
+      rank: 1,
+      name: "업소용 식기세척기",
+      reason: "",
+      searchKeyword: "",
+      qualitySummary: "",
+      price: 1_310_000,
+      fitChecks: [
+        { ok: true, text: "주방가전 제품군에 해당함", source: "guide" },
+        { ok: true, text: "예산 범위 50만 원 이하임", source: "guide" },
+      ],
+    },
+    500_000
+  );
+
+  const texts = merged?.map((check) => check.text) ?? [];
+  assert.equal(
+    texts.some((text) => text.includes("50만 원 이하")),
+    false
+  );
+  assert.equal(
+    texts.some((text) => text.includes("예산을")),
+    true
+  );
+  // 예산과 무관한 판단은 그대로 남는다.
+  assert.equal(texts.includes("주방가전 제품군에 해당함"), true);
+});
+
+test("값을 설명하는 문구는 지우지 않는다", () => {
+  const merged = derivedFitChecks(
+    {
+      rank: 1,
+      name: "무선청소기",
+      reason: "",
+      searchKeyword: "",
+      qualitySummary: "",
+      price: 169_000,
+      // 로켓배송이면 "배송이 걸림" 항목이 안 생겨 감수 자리가 비어 있다.
+      isRocket: true,
+      fitChecks: [
+        { ok: false, text: "이 가격대는 자동비움이 빠지기도 함", source: "guide" },
+      ],
+    },
+    200_000
+  );
+
+  assert.equal(
+    merged?.some((check) => check.text.includes("이 가격대는")),
+    true
+  );
+});
