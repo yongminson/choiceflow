@@ -29,6 +29,8 @@ import { orderForDisplay } from "../src/lib/recommendation/display-order.ts";
 import { derivedFitChecks } from "../src/lib/recommendation/fit-checks.ts";
 import { replaceWrongCautions } from "../src/lib/recommendation/caution-match.ts";
 import { verifyRecommendations } from "../src/lib/recommendation/verify-result.ts";
+import { hasServiceableBrand } from "../src/lib/recommendation/senior-care.ts";
+import { productBrandKey } from "../src/lib/monetization/brand-verify.ts";
 import type { QuickRecommendation } from "../src/lib/types/analyze.ts";
 import type { CategoryId } from "../src/lib/types/category.ts";
 
@@ -47,6 +49,10 @@ type Scenario = {
   mustReject: string[];
   /** 반드시 남아야 하는 상품. 하나라도 걸리면 실패다. */
   mustKeep: string[];
+  /** 서비스센터를 찾아갈 수 있는 제조사가 하나는 있어야 하는가. */
+  needsServiceableBrand?: boolean;
+  /** 같은 브랜드가 이만큼을 넘으면 안 된다. */
+  maxSameBrand?: number;
 };
 
 const LABELS = {
@@ -220,6 +226,7 @@ const SCENARIOS: Scenario[] = [
     ],
     mustReject: ["태블릿 강화유리 보호필름 케이스"],
     mustKeep: ["삼성 갤럭시탭 A9+ 11인치", "레노버 태블릿 M11"],
+    needsServiceableBrand: true,
   },
   {
     label: "TV 교체 (남편은 상황 설명)",
@@ -254,6 +261,144 @@ const SCENARIOS: Scenario[] = [
       "wassup 여성은목걸이 순은999 베이직 펜던트",
       "당근맘슬림 여성 미니 카드지갑 한손 지퍼",
     ],
+  },
+  {
+    label: "가을 니트 (팔토시·바지 섞임)",
+    categoryId: "fashion",
+    scenarioLabel: "일상복",
+    priorityId: "performance",
+    maxBudgetWon: 100_000,
+    wish: "작년에 산 여성 니트가 두 번 빨고 보풀 나서 버렸어요, 세탁기에 그냥 돌릴 수 있는 가을 니트",
+    pool: [
+      { name: "해피제이 아이스 아웃도어 UV차단 팔토시 손등형", price: 9_900 },
+      { name: "남성 정장 슬랙스 바지 검정", price: 39_000 },
+      { name: "여성 라운드넥 캐시미어 니트", price: 69_000 },
+      { name: "여성 케이블 꽈배기 스웨터", price: 55_000 },
+    ],
+    mustReject: [
+      "해피제이 아이스 아웃도어 UV차단 팔토시 손등형",
+      "남성 정장 슬랙스 바지 검정",
+    ],
+    mustKeep: ["여성 라운드넥 캐시미어 니트", "여성 케이블 꽈배기 스웨터"],
+  },
+  {
+    label: "밥솥 브랜드 편중",
+    categoryId: "appliance",
+    scenarioLabel: "주방가전",
+    priorityId: "performance",
+    maxBudgetWon: 500_000,
+    wish: "6인용 전기밥솥 추천해 주세요",
+    pool: [
+      { name: "쿠첸 IH압력밥솥 6인용 CRS-A601", price: 219_000 },
+      { name: "쿠첸 브레인 6인용 전기압력밥솥", price: 239_000 },
+      { name: "쿠첸 프리미엄 6인용 밥솥 골드", price: 259_000 },
+      { name: "쿠쿠 트윈프레셔 6인용 전기압력밥솥", price: 289_000 },
+      { name: "리큅 미니 6인용 전기밥솥", price: 129_000 },
+    ],
+    mustReject: [],
+    mustKeep: ["쿠쿠 트윈프레셔 6인용 전기압력밥솥", "리큅 미니 6인용 전기밥솥"],
+    maxSameBrand: 2,
+  },
+  {
+    label: "공기청정기 (필터 소모품 섞임)",
+    categoryId: "appliance",
+    scenarioLabel: "계절·생활",
+    priorityId: "performance",
+    maxBudgetWon: 500_000,
+    wish: "거실에 둘 공기청정기 33평형 찾아요",
+    pool: [
+      { name: "위닉스 타워 프리미엄 공기청정기 33평", price: 359_000 },
+      { name: "삼성 블루스카이 공기청정기 대형", price: 429_000 },
+      { name: "공기청정기 헤파필터 호환 교체용 2매", price: 24_900 },
+      { name: "공기청정기 전용 탈취 필터 리필", price: 18_000 },
+    ],
+    mustReject: [
+      "공기청정기 헤파필터 호환 교체용 2매",
+      "공기청정기 전용 탈취 필터 리필",
+    ],
+    mustKeep: [
+      "위닉스 타워 프리미엄 공기청정기 33평",
+      "삼성 블루스카이 공기청정기 대형",
+    ],
+  },
+  {
+    label: "의류건조기 (식기세척기 아님)",
+    categoryId: "appliance",
+    scenarioLabel: "청소·세탁",
+    priorityId: "convenience",
+    maxBudgetWon: 1_500_000,
+    wish: "빨래 널 곳이 없어서 의류건조기 알아봐요",
+    pool: [
+      { name: "LG 트롬 오브제컬렉션 의류건조기 20kg", price: 1_290_000 },
+      { name: "삼성 그랑데 AI 건조기 17kg", price: 1_190_000 },
+      { name: "쿠쿠 3인용 카운터탑 식기세척기", price: 329_000 },
+      { name: "건조기 전용 향기시트 100매", price: 9_900 },
+    ],
+    mustReject: ["쿠쿠 3인용 카운터탑 식기세척기", "건조기 전용 향기시트 100매"],
+    mustKeep: ["LG 트롬 오브제컬렉션 의류건조기 20kg", "삼성 그랑데 AI 건조기 17kg"],
+  },
+  {
+    label: "70대 어머니 신발 (아는 제조사 필요)",
+    categoryId: "fashion",
+    scenarioLabel: "일상복",
+    priorityId: "convenience",
+    maxBudgetWon: 150_000,
+    wish: "70대 어머니 편하게 신으실 신발 사드리려고요",
+    pool: [
+      { name: "아식스 여성 워킹화 젤 쿠션", price: 119_000 },
+      { name: "프로스펙스 여성 컴포트 워킹화", price: 89_000 },
+      { name: "노브랜드 여성 캐주얼 단화", price: 29_000 },
+      { name: "아동 캐릭터 운동화 170", price: 35_000 },
+    ],
+    mustReject: ["아동 캐릭터 운동화 170"],
+    mustKeep: ["아식스 여성 워킹화 젤 쿠션", "프로스펙스 여성 컴포트 워킹화"],
+  },
+  {
+    label: "가습기 (소모품 섞임)",
+    categoryId: "appliance",
+    scenarioLabel: "계절·생활",
+    priorityId: "convenience",
+    maxBudgetWon: 200_000,
+    wish: "아기 방에 둘 가습기 찾아요",
+    pool: [
+      { name: "미로 무필터 가습기 NR08M", price: 159_000 },
+      { name: "위닉스 초음파 가습기 대용량", price: 89_000 },
+      { name: "가습기 살균제 세정 타블렛 30정", price: 12_900 },
+      { name: "가습기 전용 필터 교체용", price: 9_900 },
+    ],
+    mustReject: ["가습기 살균제 세정 타블렛 30정", "가습기 전용 필터 교체용"],
+    mustKeep: ["미로 무필터 가습기 NR08M", "위닉스 초음파 가습기 대용량"],
+  },
+  {
+    label: "조카 돌선물 (아동용이 맞음)",
+    categoryId: "gift",
+    scenarioLabel: "돌·백일",
+    priorityId: "design",
+    maxBudgetWon: 100_000,
+    wish: "조카 돌선물 뭐가 좋을까요",
+    pool: [
+      { name: "아기 원목 장난감 오감 발달 세트", price: 59_000 },
+      { name: "유아 아동 촉감 놀이 매트", price: 79_000 },
+      { name: "성인 남성 가죽 벨트", price: 49_000 },
+    ],
+    mustReject: ["성인 남성 가죽 벨트"],
+    mustKeep: ["아기 원목 장난감 오감 발달 세트", "유아 아동 촉감 놀이 매트"],
+  },
+  {
+    label: "겨울 패딩 (여름옷 섞임)",
+    categoryId: "fashion",
+    scenarioLabel: "일상복",
+    priorityId: "performance",
+    maxBudgetWon: 300_000,
+    wish: "올겨울 입을 여성 롱패딩 찾아요",
+    pool: [
+      { name: "여성 구스다운 롱패딩 블랙", price: 259_000 },
+      { name: "여성 경량 다운점퍼 숏패딩", price: 159_000 },
+      { name: "여름 냉감 린넨 패딩 조끼", price: 39_000 },
+      { name: "패딩 전용 세탁 세제 중성", price: 8_900 },
+    ],
+    mustReject: ["여름 냉감 린넨 패딩 조끼", "패딩 전용 세탁 세제 중성"],
+    mustKeep: ["여성 구스다운 롱패딩 블랙", "여성 경량 다운점퍼 숏패딩"],
   },
 ];
 
@@ -299,7 +444,23 @@ function runScenario(scenario: Scenario): Failure[] {
   const occasion =
     scenario.categoryId === "fashion" ? detectOccasion(scenario.wish) : undefined;
 
-  // 1) 상품 걸러 내기 — 화면에 나가는 것과 같은 판단을 쓴다.
+  /*
+    1) 상품 걸러 내기 — 화면에 나가는 것과 같은 판단을 쓴다.
+
+    쿠팡 조회는 후보를 하나씩 순서대로 채우면서 이미 자리를 차지한
+    브랜드를 다음 후보에서 건너뛴다. 여기서도 같은 순서로 돌지 않으면
+    브랜드가 쏠리는 것을 못 잡는다.
+  */
+  const MAX_SAME_BRAND = 2;
+  const brandCounts = new Map<string, number>();
+  const cappedBrands = () => {
+    const capped = new Set<string>();
+    brandCounts.forEach((count, brand) => {
+      if (count >= MAX_SAME_BRAND) capped.add(brand);
+    });
+    return capped;
+  };
+
   const kept: Product[] = [];
   for (const product of scenario.pool) {
     const problem = productFitProblem(product.name, product.price, {
@@ -307,8 +468,14 @@ function runScenario(scenario: Scenario): Failure[] {
       targetItem,
       occasion,
       cleaning,
+      excludeBrands: cappedBrands(),
       maxPriceWon: scenario.maxBudgetWon,
     });
+
+    if (!problem) {
+      const brand = productBrandKey(product.name);
+      if (brand) brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
+    }
 
     if (!problem) kept.push(product);
 
@@ -364,7 +531,34 @@ function runScenario(scenario: Scenario): Failure[] {
     )
   );
 
-  // 3) 내보내기 직전 검증을 그대로 돌린다.
+  // 3) 시나리오가 따로 요구한 것을 본다.
+  if (scenario.needsServiceableBrand && !hasServiceableBrand(ordered)) {
+    failures.push({
+      scenario: scenario.label,
+      kind: "서비스센터 있는 제조사가 후보에 없음",
+      detail: ordered.map((item) => item.productName).join(" / "),
+    });
+  }
+
+  if (scenario.maxSameBrand) {
+    const counts = new Map<string, number>();
+    for (const item of ordered) {
+      const brand = item.productName ? productBrandKey(item.productName) : "";
+      if (!brand) continue;
+      counts.set(brand, (counts.get(brand) ?? 0) + 1);
+    }
+    counts.forEach((count, brand) => {
+      if (count > (scenario.maxSameBrand as number)) {
+        failures.push({
+          scenario: scenario.label,
+          kind: "같은 브랜드가 너무 많음",
+          detail: `${brand} ${count}개`,
+        });
+      }
+    });
+  }
+
+  // 4) 내보내기 직전 검증을 그대로 돌린다.
   for (const violation of verifyRecommendations(ordered, {
     categoryId: scenario.categoryId,
     priorityId: scenario.priorityId,
