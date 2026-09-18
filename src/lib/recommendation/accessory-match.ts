@@ -35,7 +35,7 @@ const ACCESSORY_MARKS =
  * 아래 BODY_MARKS 가 함께 있으면 본체로 본다.
  */
 const CONSUMABLE_MARKS =
-  /세제|세정제|세척제|린스|린스젤|헹굼제|타블렛|캡슐\s*세제|파우더|액상\s*세제|정제형|살균\s*티슈|탈취제|방향제|섬유유연제|건조\s*시트|랙\b|바구니|트레이|수저통|홀더|칸막이|보관함|정리함|매트\s*시트|스티커|라벨/;
+  /세제|세정제|세척제|린스|린스젤|헹굼제|타블렛|캡슐\s*세제|파우더|액상\s*세제|정제형|살균\s*티슈|탈취제|방향제|섬유유연제|건조\s*시트|랙\b|바구니|트레이(?!닝)|수저통|홀더|칸막이|보관함|정리함|매트\s*시트|스티커|라벨/;
 
 /**
  * 본체인데도 위 낱말이 들어가는 경우가 있다. "브러시 일체형 청소기"처럼
@@ -73,7 +73,12 @@ export function looksLikeAccessory(productName: string): boolean {
     본체 표시로 먼저 걸러 내면 "올인원 식기세척기세제"가 본체로 빠져나간다.
     세제는 어떤 말이 붙어도 세제다.
   */
-  if (CONSUMABLE_MARKS.test(productName)) return true;
+  /*
+    "세제 자동투입 세탁기"처럼 소모품 낱말이 기능 이름으로 쓰인 본체가
+    있다. 그런 말이 함께 있으면 소모품으로 보지 않는다.
+  */
+  const consumableAsFeature = /자동\s*투입|일체형|내장|디스펜서/.test(productName);
+  if (CONSUMABLE_MARKS.test(productName) && !consumableAsFeature) return true;
   if (BODY_MARKS.test(productName)) return false;
   if (ACCESSORY_MARKS.test(productName)) return true;
   return countModelCodes(productName) >= MODEL_CODE_LIMIT;

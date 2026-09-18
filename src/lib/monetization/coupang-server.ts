@@ -9,7 +9,7 @@ import {
   type TargetItem,
 } from "../recommendation/item-match.ts";
 import { productBrandKey } from "./brand-verify.ts";
-import { looksLikeAccessory } from "../recommendation/accessory-match.ts";
+import { productFitProblem } from "../recommendation/product-fit.ts";
 import {
   isWrongCleaning,
   type CleaningNeed,
@@ -480,64 +480,30 @@ export async function searchCoupangProduct(
       }).some((key) => excluded.has(key));
     };
     /*
-      대상이 다른 상품을 뺀다. "남아 운동화"를 찾는데 분홍색 여아 캐릭터
-      상품이 걸리거나, "여성 니트"를 찾는데 아동복이 걸리는 일을 막는다.
+      상품이 조건에 맞는지는 productFitProblem 한 곳에서 본다.
+      화면에 나가는 판단과 감사 스크립트가 같은 코드를 거쳐야
+      "미리 돌려봤는데 통과했다"는 말이 뜻을 갖는다.
     */
-    const isWrongGender = (item: (typeof items)[number]) =>
-      options.audience
-        ? isWrongAudience(String(item.productName ?? ""), options.audience)
-        : false;
-
-    /*
-      관련성을 중복 제거보다 먼저 본다. 순서가 바뀌면 "서로 다른 상품"을
-      맞추려다 요청과 무관한 품목까지 후보로 올라온다.
-    */
-    const isWrongItem = (item: (typeof items)[number]) =>
-      !matchesTargetItem(String(item.productName ?? ""), options.targetItem);
-
-    /*
-      "청소기"라는 낱말만으로는 같은 물건이 되지 않는다. 유리창 청소
-      로봇도 상품명에 청소기가 들어가 품목 필터를 그대로 통과했다.
-      바닥을 닦겠다는 사람에게 창문 닦는 기계가 올라간 적이 있다.
-    */
-    /*
-      본체 자리에 부속품이 올라온 적이 있다. 로봇청소기를 바꾸겠다는
-      요청에 호환 물걸레 패드가 11,990원으로 후보가 되었다.
-      여기서 걸러야 같은 검색어로 다음 상품을 고를 수 있다.
-    */
-    const isAccessory = (item: (typeof items)[number]) =>
-      looksLikeAccessory(String(item.productName ?? ""));
-
-    const isWrongCleaningItem = (item: (typeof items)[number]) =>
-      isWrongCleaning(
+    const fitProblem = (item: (typeof items)[number]) =>
+      productFitProblem(
         String(item.productName ?? ""),
-        options.cleaning,
-        options.blockOffMethod
+        Number(item.productPrice) || undefined,
+        {
+          audience: options.audience,
+          targetItem: options.targetItem,
+          occasion: options.occasion,
+          cleaning: options.cleaning,
+          blockOffMethod: options.blockOffMethod,
+          excludeBrands: options.excludeBrands,
+          maxPriceWon: maxPriceWon ?? undefined,
+        }
       );
-
-    // 자리를 다 채운 브랜드는 건너뛴다. 품목·대상을 먼저 보고 그다음이다.
-    const isCappedBrand = (item: (typeof items)[number]) => {
-      const brands = options.excludeBrands;
-      if (!brands || brands.size === 0) return false;
-      return brands.has(productBrandKey(String(item.productName ?? "")));
-    };
-
-    // 계절과 자리가 어긋나는 상품도 뺀다. 품목·대상 다음, 브랜드보다 먼저다.
-    const isWrongTime = (item: (typeof items)[number]) =>
-      options.occasion
-        ? isWrongOccasion(String(item.productName ?? ""), options.occasion)
-        : false;
 
     const isUsable = (item: (typeof items)[number]) =>
       Boolean(item.productUrl) &&
       Boolean(item.productName) &&
       isAllowedCoupangRedirectUrl(String(item.productUrl)) &&
-      !isWrongItem(item) &&
-      !isWrongCleaningItem(item) &&
-      !isAccessory(item) &&
-      !isWrongGender(item) &&
-      !isWrongTime(item) &&
-      !isCappedBrand(item) &&
+      fitProblem(item) === undefined &&
       !isExcluded(item);
 
     const picked = items.find((item) => {
