@@ -9,10 +9,14 @@ import type { QuickRecommendation } from "@/lib/types/analyze";
  * 주는데, 라벨은 가격만 알면 정해지는 값이다.
  *
  * 그래서 AI 가 뭐라고 했든 무시하고 여기서 새로 배정한다.
- *   가장 추천   = 종합 적합도 1위
- *   한 단계 위  = 남은 것 중 가장 비싼 후보 (후보가 넷 이상일 때만)
- *   가성비 선택 = 남은 것 중 가장 싼 후보
+ *   가성비 선택 = 가장 싼 후보
+ *   한 단계 위  = 가장 비싼 후보 (후보가 넷 이상일 때만)
+ *   가장 추천   = 남은 후보 중 종합 적합도가 가장 높은 것
  *   검증 우선   = 마지막 하나
+ *
+ * 값이 정하는 자리를 먼저 채운다. 화면의 "후보 중 가장 저렴함",
+ * "후보 중 가장 비쌈" 표시가 같은 값에서 나오므로, 딱지가 그 표시와
+ * 어긋나면 한 카드가 서로 다른 말을 하게 된다.
  *
  * 가격을 모르는 후보(검색 실패)는 최저가로도 최고가로도 보지 않는다.
  * 모르는 것을 가장 싸다고 할 수는 없다.
@@ -26,10 +30,8 @@ import type { QuickRecommendation } from "@/lib/types/analyze";
  * 가성비와 검증 우선 중 하나가 사라진다. 결론을 하나 보여주는 것이
  * 이 화면의 역할이므로 없어질 자리는 한 단계 위 쪽이다.
  *
- * 가성비 선택은 가장 추천을 뺀 나머지 중 최저가에만 붙는다. 최저가가
- * 종합 1위라 이미 가장 추천이 된 때 말고는 후보 전체의 최저가와 같다.
- * 이것이 깨지면 같은 카드에 "가성비 선택"과 "후보 중 가장 비쌈"이
- * 나란히 붙는다.
+ * 개수가 몇이든 가성비 선택은 최저가에만 붙는다. 이것이 깨지면 같은
+ * 카드에 "가성비 선택"과 "후보 중 가장 비쌈"이 나란히 붙는다.
  */
 
 type SelectionType = NonNullable<QuickRecommendation["selectionType"]>;
@@ -87,51 +89,43 @@ export function assignSelectionLabels(
   const assigned = new Map<QuickRecommendation, SelectionType>();
 
   /*
-    가장 추천을 먼저 정한다. 종합 적합도 1위다.
+    값으로 정해지는 자리를 먼저 채운다.
 
-    전에는 최저가·최고가를 뺀 나머지 중 1위였다. 그래서 최고가가 종합
-    1위면 그 자리를 얻지 못했고, 맨 위에 선 카드(종합 1위)와 "가장 추천"
-    딱지가 서로 다른 후보에 붙었다. 화면은 종합 적합도 순으로 세우므로
-    맨 앞 카드가 "한 단계 위"로 나오는 일이 생겼다.
+    가성비는 후보 전체의 최저가, 한 단계 위는 후보 전체의 최고가다.
+    이 둘은 화면의 "후보 중 가장 저렴함", "후보 중 가장 비쌈" 표시와
+    같은 값에서 나온다. 딱지와 표시가 어긋나면 한 카드가 서로 다른
+    말을 하게 되므로, 값이 정하는 자리를 먼저 못박는다.
 
-    종합 적합도 1위가 곧 가장 추천이다. 그래야 맨 위 카드와 딱지가
-    언제나 같은 것을 가리킨다.
+    한때 가장 추천을 먼저 정해 봤다. 맨 위 카드와 딱지를 맞추려던
+    것인데, 최고가가 종합 1위면 그 자리를 가져가 버려 "한 단계 위"가
+    두 번째로 비싼 후보에 붙었다. 최고가 카드에는 "후보 중 가장 비쌈"이
+    그대로 붙어 있어 화면이 앞뒤가 맞지 않았다.
+
+    맨 위 카드가 종합 1위라는 것은 히어로 배지가 따로 적는다.
+    딱지는 그 후보가 어떤 자리인지를 말할 뿐이라 둘은 부딪히지 않는다.
   */
-  const best = items.reduce((top, item) =>
-    (item.overall ?? 0) > (top.overall ?? 0) ? item : top
-  );
-  assigned.set(best, "best");
+  assigned.set(byPrice[0], "value");
 
   /*
     한 단계 위는 후보가 넷 이상일 때만 쓴다. 셋에서 최고가를 여기로
-    빼면 가성비나 검증 우선 중 하나가 자리를 잃는다.
+    빼면 가장 추천이나 검증 우선 중 하나가 자리를 잃는다.
   */
   if (items.length >= PREMIUM_MIN_ITEMS) {
-    const priciest = [...byPrice]
-      .reverse()
-      .find((item) => !assigned.has(item));
-    if (priciest) assigned.set(priciest, "premium");
+    const priciest = byPrice[byPrice.length - 1];
+    if (!assigned.has(priciest)) assigned.set(priciest, "premium");
   }
 
   /*
-    가성비는 남은 것 중 가장 싼 후보다.
-
-    보통은 후보 전체의 최저가와 같다. 최저가가 종합 1위라서 이미 가장
-    추천이 된 때만 두 번째로 싼 것이 된다. 그때는 그 카드에 "후보 중
-    가장 저렴함" 표시가 따로 붙으므로 값이 가려지지 않는다.
+    가장 추천은 남은 후보 중 종합 적합도가 가장 높은 것이다.
+    값으로 정해지는 두 자리를 뺀 나머지에서 고른다.
   */
-  const cheapestLeft = byPrice.find((item) => !assigned.has(item));
-  const priciest = byPrice[byPrice.length - 1];
-  const pricesDiffer = byPrice[0].price !== priciest.price;
-  /*
-    남은 것이 후보 중 최고가뿐이면 가성비 자리를 비운다. 후보가 둘인데
-    싼 쪽이 종합 1위라 가장 추천이 되면 비싼 쪽만 남는데, 거기에 가성비를
-    붙이면 같은 카드에 "가성비 선택"과 "후보 중 가장 비쌈"이 나란히 선다.
-    붙일 것이 없으면 검증 우선으로 둔다.
-  */
-  if (cheapestLeft && !(pricesDiffer && cheapestLeft === priciest)) {
-    assigned.set(cheapestLeft, "value");
-  }
+  const rest = items.filter((item) => !assigned.has(item));
+  const best = rest.reduce<QuickRecommendation | undefined>(
+    (top, item) =>
+      !top || (item.overall ?? 0) > (top.overall ?? 0) ? item : top,
+    undefined
+  );
+  if (best) assigned.set(best, "best");
 
   /*
     남은 자리는 검증 우선이다.

@@ -120,18 +120,19 @@ test("케이스 A — 선물 / 부모님 감사 / 편리함 / 10만원 이하", 
   );
 
   /*
-    가장 추천은 종합 1위다. 여기서는 과일 선물상자가 종합 1위라
-    최고가이면서 가장 추천이 된다. 예전에는 최고가라는 이유로 "한 단계
-    위"가 붙었는데, 그러면 맨 위 카드(종합 1위)와 딱지가 어긋났다.
-    나머지 자리는 가격이 정한다.
+    값이 정하는 두 자리가 먼저다. 화면의 "가장 저렴함"·"가장 비쌈"
+    표시가 같은 값에서 나오므로 딱지가 그 표시와 같은 카드에 있어야 한다.
+    가장 추천은 남은 것 중 종합 1위다.
   */
-  assert.equal(labelOf(ranked, "프리미엄 과일 선물상자"), "가장 추천");
   assert.equal(labelOf(ranked, "자동 온도 유지 티포트"), "가성비 선택");
-  assert.equal(labelOf(ranked, "자동 회전 안마 쿠션"), "한 단계 위");
-  // 가성비는 여전히 후보 전체의 최저가다.
+  assert.equal(labelOf(ranked, "프리미엄 과일 선물상자"), "한 단계 위");
   assert.equal(
     ranked.find((item) => item.selectionType === "value")?.price,
     35600
+  );
+  assert.equal(
+    ranked.find((item) => item.selectionType === "premium")?.price,
+    79700
   );
 
   const violations = verifyRecommendations(ranked, {

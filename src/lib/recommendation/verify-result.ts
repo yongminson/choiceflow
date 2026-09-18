@@ -74,14 +74,7 @@ export function verifyRecommendations(
     개수와 무관하게 최저가인지만 본다.
   */
   if (value?.price !== undefined && priced.length >= 2) {
-    /*
-      최저가가 종합 1위라 이미 "가장 추천"이 된 때가 있다. 그때는 가성비가
-      두 번째로 싼 것이 되는 것이 맞으므로 가장 추천을 빼고 견준다.
-      그 카드에는 "후보 중 가장 저렴함" 표시가 따로 붙어 값이 가려지지 않는다.
-    */
-    const others = priced.filter((item) => item.selectionType !== "best");
-    const pool = others.length > 0 ? others : priced;
-    const lowest = Math.min(...pool.map((item) => item.price));
+    const lowest = Math.min(...priced.map((item) => item.price));
     if (value.price > lowest) {
       violations.push({
         rule: "가성비 선택이 최저가가 아님",
@@ -230,23 +223,73 @@ export function verifyRecommendations(
   }
 
   /*
-    4) "가장 추천"은 후보 전체의 종합 1위여야 한다.
+    4) "가장 추천"은 값으로 정해지는 두 자리를 뺀 나머지 중 종합 1위다.
 
-    전에는 최저가·최고가를 뺀 나머지 중 1위였다. 그래서 최고가가 종합
-    1위면 그 자리를 얻지 못했고, 맨 위 카드와 딱지가 서로 다른 후보를
-    가리켰다. 화면이 "1위"라고 적는 자리와 같아야 한다.
+    최저가·최고가는 화면의 "가장 저렴함"·"가장 비쌈" 표시와 같은 값에서
+    나오므로 그 자리가 먼저다. 맨 위 카드가 종합 1위라는 것은 히어로
+    배지가 따로 적으므로, 딱지가 맨 위 카드와 달라도 어긋난 것이 아니다.
   */
   const bestItem = items.find((item) => item.selectionType === "best");
-  if (bestItem && items.length >= 2) {
-    const top = items.reduce((max, item) =>
+  const restItems = items.filter(
+    (item) => item.selectionType !== "value" && item.selectionType !== "premium"
+  );
+  if (bestItem && restItems.length > 1) {
+    const top = restItems.reduce((max, item) =>
       (item.overall ?? 0) > (max.overall ?? 0) ? item : max
     );
-    if ((bestItem.overall ?? 0) !== (top.overall ?? 0)) {
+    if (top !== bestItem) {
       violations.push({
-        rule: "가장 추천이 종합 1위가 아님",
+        rule: "가장 추천이 나머지 중 종합 1위가 아님",
         detail: { best: bestItem.overall, top: top.overall, topName: top.name },
       });
     }
+  }
+
+  /*
+    4-0) 값 표시와 딱지가 같은 카드를 가리켜야 한다.
+
+    "후보 중 가장 비쌈"이 붙은 카드에 "가장 추천"이, "한 단계 위"는 두
+    번째로 비싼 카드에 붙어 나갔다. 둘 다 서버가 붙인 것이라 화면만
+    봐서는 어느 쪽이 틀렸는지 알 수 없다.
+
+    자리를 쓰지 않는 화면(후보가 셋 이하면 한 단계 위가 없다)에서는
+    견줄 것이 없으므로 그 자리가 실제로 쓰였을 때만 본다.
+  */
+  const hasBadge = (item: QuickRecommendation, text: string) =>
+    (item.fitChecks ?? []).some((check) => check.text.includes(text));
+
+  const priciestBadged = items.filter((item) => hasBadge(item, "가장 비쌈"));
+  if (
+    items.some((item) => item.selectionType === "premium") &&
+    priciestBadged.some((item) => item.selectionType !== "premium")
+  ) {
+    violations.push({
+      rule: "가장 비쌈 표시와 한 단계 위 딱지가 다른 카드에 있음",
+      detail: {
+        badged: priciestBadged.map((item) => ({
+          name: item.name,
+          type: item.selectionType,
+          price: item.price,
+        })),
+      },
+    });
+  }
+
+  const cheapestBadged = items.filter((item) => hasBadge(item, "가장 저렴함"));
+  if (
+    items.some((item) => item.selectionType === "value") &&
+    cheapestBadged.some((item) => item.selectionType !== "value")
+  ) {
+    violations.push({
+      rule: "가장 저렴함 표시와 가성비 선택 딱지가 다른 카드에 있음",
+      detail: {
+        badged: cheapestBadged.map((item) => ({
+          name: item.name,
+          type: item.selectionType,
+          price: item.price,
+        })),
+      },
+    });
   }
 
   /*
