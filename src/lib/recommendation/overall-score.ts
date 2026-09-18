@@ -94,23 +94,33 @@ export function chosenAxisFor(
  * 계산할 때와 나중에 검증할 때가 같은 비중을 써야 한다. 두 곳에 따로
  * 적어 두면 한쪽만 고쳐졌을 때 어긋나고, 그것을 잡을 방법이 없어진다.
  */
+/**
+ * 나이 든 분이 쓸 물건이면 더 크게 보는 축.
+ *
+ * 고장 났을 때 들고 갈 곳이 있는지가 값보다 큰 차이를 만든다.
+ * 고른 조건을 뒤집지는 않고, 남는 몫 안에서만 이쪽을 키운다.
+ */
+const SENIOR_AXIS = "A/S 안심도";
+
 export function overallWeights(
   items: QuickRecommendation[],
   categoryId: CategoryId,
-  priorityId: string
+  priorityId: string,
+  seniorCare = false
 ): Map<string, number> | undefined {
   if (items.length < 2) return undefined;
   const axes = commonAxes(items);
   if (axes.length < 2) return undefined;
-  return weightsFor(axes, chosenAxisFor(categoryId, priorityId));
+  return weightsFor(axes, chosenAxisFor(categoryId, priorityId), seniorCare);
 }
 
 export function applyPriorityWeighting<T extends QuickRecommendation>(
   items: T[],
   categoryId: CategoryId,
-  priorityId: string
+  priorityId: string,
+  seniorCare = false
 ): T[] {
-  const weights = overallWeights(items, categoryId, priorityId);
+  const weights = overallWeights(items, categoryId, priorityId, seniorCare);
   if (!weights) return items;
 
   const scored = items.map((item) => ({
@@ -154,7 +164,11 @@ function commonAxes(items: QuickRecommendation[]): string[] {
     );
 }
 
-function weightsFor(axes: string[], chosenAxis?: string): Map<string, number> {
+function weightsFor(
+  axes: string[],
+  chosenAxis?: string,
+  seniorCare = false
+): Map<string, number> {
   const weights = new Map<string, number>();
   const hasChosen = chosenAxis !== undefined && axes.includes(chosenAxis);
 
@@ -172,7 +186,29 @@ function weightsFor(axes: string[], chosenAxis?: string): Map<string, number> {
     return weights;
   }
 
-  const rest = (1 - CHOSEN_WEIGHT) / (axes.length - 1);
+  const remainder = 1 - CHOSEN_WEIGHT;
+  const others = axes.filter((axis) => axis !== chosenAxis);
+
+  /*
+    나이 든 분이 쓸 물건이면 남는 몫의 절반을 A/S 쪽에 준다.
+    고른 조건은 그대로 두고, 나머지 안에서만 무게를 옮긴다.
+    후보 넷이 전부 이름 모를 브랜드로 채워진 화면을 겪고 넣은 규칙이다.
+  */
+  const boosted =
+    seniorCare && others.includes(SENIOR_AXIS) ? SENIOR_AXIS : undefined;
+
+  if (boosted && others.length > 1) {
+    const share = remainder / 2;
+    const rest = share / (others.length - 1);
+    for (const axis of axes) {
+      if (axis === chosenAxis) weights.set(axis, CHOSEN_WEIGHT);
+      else if (axis === boosted) weights.set(axis, share);
+      else weights.set(axis, rest);
+    }
+    return weights;
+  }
+
+  const rest = remainder / (axes.length - 1);
   for (const axis of axes) {
     weights.set(axis, axis === chosenAxis ? CHOSEN_WEIGHT : rest);
   }

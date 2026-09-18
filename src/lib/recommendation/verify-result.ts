@@ -41,6 +41,7 @@ export function verifyRecommendations(
     maxBudgetWon?: number;
     occasion?: Occasion;
     cleaning?: CleaningNeed;
+    seniorCare?: boolean;
   }
 ): Violation[] {
   const violations: Violation[] = [];
@@ -437,7 +438,12 @@ export function verifyRecommendations(
     없다. 스크린샷을 손으로 대조하는 것 말고는 확인할 방법이 없었다.
     그래서 내보내기 직전에 같은 식으로 다시 계산해 맞춰 본다.
   */
-  const weights = overallWeights(items, context.categoryId, context.priorityId);
+  const weights = overallWeights(
+    items,
+    context.categoryId,
+    context.priorityId,
+    context.seniorCare
+  );
   if (weights) {
     const drifted = items
       .filter((item) => typeof item.overall === "number")

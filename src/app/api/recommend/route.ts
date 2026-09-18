@@ -23,6 +23,11 @@ import {
 } from "@/lib/recommendation/fit-checks";
 import { dropAccessories } from "@/lib/recommendation/accessory-match";
 import {
+  isServiceableBrand,
+  needsSeniorCare,
+  seniorFriendlyKeyword,
+} from "@/lib/recommendation/senior-care";
+import {
   SELECTION_ORDER,
   orderForDisplay,
 } from "@/lib/recommendation/display-order";
@@ -827,6 +832,18 @@ caution: 이 후보를 골랐을 때 감수해야 하는 점을 정확히 한 �
       "이 가격대는 자동 먼지비움이 빠지는 경우가 많습니다"
 - 4개 후보의 caution 이 서로 달라야 한다. 같은 문장을 돌려쓰지 않는다.
 - 30~50자, "~합니다" 로 끝나는 한 문장.
+${
+  userWish
+    ? `- 이 사람에게 실제로 불리하게 작용할 점만 쓴다. 적어 준 요청은 "${userWish}" 이다.
+  쓰려는 단점이 이 요청의 쓰임새 밖이면 그 사람에게는 단점이 아니므로 쓰지 않는다.
+  예를 들어 유튜브와 영상통화만 하겠다고 적었으면 "고사양 3D 게임에서 느릴 수 있습니다"는
+  겪지 않을 일이라 단점이 못 된다. 대신 그 쓰임새 안에서 아쉬울 점을 찾는다.
+  글씨 크기, 익숙하지 않은 조작, 무게, 충전 주기, 가까운 서비스센터처럼
+  적어 준 상황에서 실제로 부딪히는 것을 쓴다.
+- 장점 설명에 적은 대상과 쓰임새를 단점에도 똑같이 적용한다. 장점만 맞춤으로 쓰고
+  단점은 일반 사양 이야기로 돌아가면 같은 카드가 서로 다른 사람을 말하게 된다.`
+    : ""
+}
 - 사양을 단정하지 않는다는 아래 규칙은 caution 에도 그대로 적용된다.
 
 [fitChecks 와 caution 에 쓰면 안 되는 것 — 중요]
@@ -964,7 +981,9 @@ async function enrichProductPrices(
   audience?: DetectedAudience,
   targetItem?: TargetItem,
   cleaning?: CleaningNeed,
-  occasion?: Occasion
+  occasion?: Occasion,
+  /** 나이 든 분이 쓸 물건이면 아는 제조사 하나를 후보에 둔다. */
+  seniorCare = false
 ): Promise<{ recommendations: QuickRecommendation[]; live: boolean }> {
   /*
     후보마다 따로 검색하면 서로 다른 검색어가 같은 상품을 물어 오는 일이 생긴다.
@@ -989,6 +1008,12 @@ async function enrichProductPrices(
   */
   let offMethodCount = 0;
   const OFF_METHOD_LIMIT = 1;
+  /*
+    나이 든 분이 쓸 물건이면 서비스센터를 찾아갈 수 있는 제조사 하나는
+    화면에 둔다. 마지막 자리까지 하나도 없으면 그 자리에서 한 번 더
+    찾아본다. 고르라는 뜻이 아니라 견줄 대상을 두자는 것이다.
+  */
+  let serviceableFound = false;
   const items: QuickRecommendation[] = [];
 
   for (let index = 0; index < candidates.length; index += 1) {
@@ -1003,6 +1028,13 @@ async function enrichProductPrices(
       normalizeProductSearchKeyword(candidate.searchKeyword, candidate.name),
       audience
     );
+
+    /*
+      마지막 자리인데 아직 아는 제조사가 하나도 없으면 그쪽으로 한 번
+      더 찾는다. 앞자리에서 바꾸면 후보가 한쪽으로 쏠린다.
+    */
+    const needsServiceable =
+      seniorCare && !serviceableFound && index === candidates.length - 1;
 
     let product: Awaited<ReturnType<typeof searchCoupangProduct>> = null;
     try {
@@ -1021,12 +1053,40 @@ async function enrichProductPrices(
       product = null;
     }
 
+    if (needsServiceable && (!product || !isServiceableBrand(product.productName))) {
+      try {
+        const alternative = await searchCoupangProduct(
+          seniorFriendlyKeyword(searchKeyword),
+          maxBudgetWon,
+          {
+            excludeKeys: usedProductKeys,
+            audience,
+            targetItem,
+            excludeBrands: cappedBrands(brandCounts),
+            occasion,
+            cleaning,
+            blockOffMethod: offMethodCount >= OFF_METHOD_LIMIT,
+          }
+        );
+        if (alternative && isServiceableBrand(alternative.productName)) {
+          console.warn("[recommend] 서비스센터가 있는 제조사로 한 자리를 채웁니다.", {
+            before: product?.productName,
+            after: alternative.productName,
+          });
+          product = alternative;
+        }
+      } catch {
+        // 못 찾으면 원래 상품을 그대로 쓴다. 자리를 비우지는 않는다.
+      }
+    }
+
     if (product) {
       // 주소 하나만 담으면 추적 파라미터가 다른 같은 상품을 못 걸러낸다.
       productDedupKeys(product).forEach((key) => usedProductKeys.add(key));
       const brand = productBrandKey(product.productName);
       if (brand) brandCounts.set(brand, (brandCounts.get(brand) ?? 0) + 1);
       if (isOffMethod(product.productName, cleaning)) offMethodCount += 1;
+      if (isServiceableBrand(product.productName)) serviceableFound = true;
       items.push({
         rank: index + 1,
         ...candidate,
@@ -1827,6 +1887,11 @@ export async function POST(request: Request) {
     */
     const cleaning = detectCleaningNeed(userWish, scenario.label);
     /*
+      나이 든 분이 쓸 물건인지 본다. 값만 보면 저가 제품이 맞지만,
+      고장 났을 때 들고 갈 곳이 있는지가 그분들에게는 더 큰 차이다.
+    */
+    const seniorCare = needsSeniorCare(userWish);
+    /*
       계절과 자리는 옷에서만 따진다. 밥솥에 "여름"이 붙었다고 뺄 이유가 없다.
     */
     const occasion = rawCategory === "fashion" ? detectOccasion(userWish) : undefined;
@@ -1837,7 +1902,8 @@ export async function POST(request: Request) {
           audience,
           targetItem,
           cleaning,
-          occasion
+          occasion,
+          seniorCare
         )
       : {
           recommendations: resultCandidates.map((item, index) => ({
@@ -1891,7 +1957,8 @@ export async function POST(request: Request) {
       applyPriorityWeighting(
         applyPriceBurdenScores(priced.recommendations, budget.maxWon),
         rawCategory,
-        priority.id
+        priority.id,
+        seniorCare
       ),
       /*
         문구는 후보에서 주워 쓰지 않고 여기서 넘긴다. 후보가 넷일 때는
@@ -1912,6 +1979,7 @@ export async function POST(request: Request) {
       targetItem,
       occasion,
       cleaning,
+      seniorCare,
       maxBudgetWon: budget.maxWon,
     });
 
