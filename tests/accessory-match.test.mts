@@ -78,3 +78,49 @@ test("상품이 안 붙은 후보는 건드리지 않는다", () => {
   ]);
   assert.equal(kept.length, 2);
 });
+
+/*
+  식기세척기를 찾는 요청에 세제 셋과 바구니가 후보로 올라왔다.
+  상품명에 품목 이름이 그대로 들어 있어 품목 필터도 통과했다.
+*/
+test("품목 이름이 붙은 소모품을 걸러 낸다", () => {
+  for (const name of [
+    "베리크린 올인원 가정용 식기세척기세제",
+    "공간케어 대용량 업소용 프리미엄 식기세척기 세제",
+    "올인원 식기세척기 타블렛 세제 식세기세제 3 in 1",
+    "식기세척기 바구니 수저통",
+    "로봇청소기 전용 물걸레 패드 10매 리필",
+    "밥솥 고무패킹 실리콘 링 호환 부품",
+    "전기압력밥솥 세척솔 청소솔",
+  ]) {
+    assert.equal(looksLikeAccessory(name), true, name);
+  }
+});
+
+test("본체는 소모품으로 보지 않는다", () => {
+  for (const name of [
+    "nuvia 누비아 식기세척기 NDW-NI6W 6인용 무설치",
+    "쿠쿠 3인용 카운터탑 식기세척기 CDW-A0310FW",
+    "SK매직 터치 3인용 식기세척기 무설치",
+    "쿠쿠 전기압력밥솥 10인용 CRP-QS1010FW",
+    "에브리봇 AI 클린케어 올인원 로봇청소기",
+  ]) {
+    assert.equal(looksLikeAccessory(name), false, name);
+  }
+});
+
+test("값이 열 배 넘게 싸면 이름을 몰라도 뺀다", () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  const kept = dropAccessories([
+    { name: "본체", productName: "쿠쿠 3인용 카운터탑 식기세척기", price: 329_000 },
+    { name: "본체2", productName: "SK매직 3인용 식기세척기 무설치", price: 398_000 },
+    { name: "수상", productName: "식기세척기 전용 소분 용기", price: 9_900 },
+  ]);
+  console.warn = warn;
+  assert.equal(kept.length, 2);
+  assert.equal(
+    kept.some((item) => item.price === 9_900),
+    false
+  );
+});

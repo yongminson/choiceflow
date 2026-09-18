@@ -357,6 +357,50 @@ export function verifyRecommendations(
     });
   }
 
+  /*
+    4-4) 본체가 하나뿐이면 비교가 되지 않는다.
+
+    식기세척기를 찾는 요청에 세제 셋과 본체 하나가 올라온 적이 있다.
+    소모품을 걸러 내고 나면 견줄 것이 남지 않는다. 그런 화면은 후보를
+    늘릴 것이 아니라 왜 못 찾았는지 남겨야 다음에 고칠 수 있다.
+  */
+  const bodies = items.filter(
+    (item) => item.productName && !looksLikeAccessory(item.productName)
+  );
+  if (items.some((item) => item.productName) && bodies.length < 2) {
+    violations.push({
+      rule: "본체로 볼 수 있는 후보가 둘 미만",
+      detail: {
+        total: items.length,
+        bodies: bodies.map((item) => item.productName),
+      },
+    });
+  }
+
+  /*
+    4-5) 기기가 하는 일을 적어 놓고 소모품을 붙이면 안 된다.
+
+    11,900원짜리 식기세척기 세제에 "강력한 고온 살균과 다양한 세척
+    코스를 제공하여"가 붙어 나갔다. 세제에는 세척 코스가 없다.
+    설명과 상품이 서로 다른 물건을 가리킨 것이다.
+  */
+  const MACHINE_FUNCTIONS =
+    /세척\s*코스|건조\s*기능|살균\s*모드|자동\s*모드|흡입력|주행|탈수|예약\s*취사|화면|배터리\s*사용\s*시간/;
+  const machineTalk = items.filter(
+    (item) =>
+      item.productName &&
+      looksLikeAccessory(item.productName) &&
+      MACHINE_FUNCTIONS.test(`${item.reason ?? ""} ${item.qualitySummary ?? ""}`)
+  );
+  if (machineTalk.length > 0) {
+    violations.push({
+      rule: "소모품에 기기 기능 설명이 붙음",
+      detail: {
+        products: machineTalk.map((item) => item.productName),
+      },
+    });
+  }
+
   // 5) 같은 상품이 두 자리를 차지하면 안 된다.
   const seen = new Set<string>();
   for (const item of items) {

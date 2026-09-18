@@ -48,6 +48,16 @@ const ITEM_GROUPS: string[][] = [
   ["장갑", "gloves"],
   // 자주 찾는 생활가전
   ["에어프라이어", "에어프라이기"],
+  // 주방가전은 이름이 서로 비슷해 섞이기 쉽다. "식기세척기"를 찾는데
+  // 의류건조기가 후보로 올라온 적이 있다.
+  ["식기세척기", "식세기", "식기건조기"],
+  ["전기밥솥", "압력밥솥", "밥솥"],
+  ["전자레인지", "전자렌지"],
+  ["인덕션", "전기레인지", "하이라이트"],
+  ["의류건조기", "건조기"],
+  ["세탁기", "드럼세탁기", "통돌이"],
+  ["냉장고", "김치냉장고"],
+  ["커피머신", "에스프레소머신", "캡슐커피"],
   ["청소기", "클리너"],
   ["전기포트", "커피포트", "티포트", "주전자"],
   ["가습기"],
@@ -106,12 +116,39 @@ export function detectTargetItem(...texts: string[]): TargetItem | undefined {
   const haystack = texts.filter(Boolean).join(" ").toLowerCase();
   if (!haystack.trim()) return undefined;
 
-  const hits = ITEM_GROUPS.filter((group) =>
-    group.some((word) => haystack.includes(word.toLowerCase()))
-  );
-  if (hits.length !== 1) return undefined;
+  const countIn = (group: string[]) =>
+    group.reduce((total, word) => {
+      const needle = word.toLowerCase();
+      let from = 0;
+      let seen = 0;
+      for (;;) {
+        const at = haystack.indexOf(needle, from);
+        if (at === -1) break;
+        seen += 1;
+        from = at + needle.length;
+      }
+      return total + seen;
+    }, 0);
 
-  const group = hits[0];
+  const hits = ITEM_GROUPS.map((group) => ({ group, count: countIn(group) }))
+    .filter((entry) => entry.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  if (hits.length === 0) return undefined;
+
+  /*
+    여러 품목이 나오면 더 자주 적은 쪽을 찾는 물건으로 본다.
+
+    "세탁기에 그냥 돌릴 수 있는 가을 니트"에서 세탁기는 빠는 방법이지
+    사려는 물건이 아니다. 니트는 두 번 적혔고 세탁기는 한 번 적혔다.
+    찾는 물건은 문장에서 여러 번 나오는 편이다.
+
+    횟수가 같으면 정하지 않는다. "니트랑 바지"처럼 둘 다 사려는 것일 수
+    있고, 그때 한쪽만 남기면 나머지 절반을 버리는 셈이다.
+  */
+  if (hits.length > 1 && hits[0].count === hits[1].count) return undefined;
+
+  const group = hits[0].group;
 
   /*
     이 품목과 헷갈리면 안 되는 말을 모은다. 같은 짝에 묶인 다른 품목의
