@@ -11,6 +11,7 @@ import { BillingProvider } from "@/components/payment/billing-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { PlatformRuntimeMarker } from "@/components/platform-runtime-marker";
+import { TossLinkBridge } from "@/components/toss-link-bridge";
 
 // 🔥 [추가됨] Next.js 스크립트 컴포넌트 및 구글 애널리틱스
 import Script from 'next/script';
@@ -56,6 +57,7 @@ export default function RootLayout({
     <html lang="ko" className={cn(display.variable, notoSansKr.variable)}>
       <body className="min-h-screen bg-[--surface] antialiased">
         <PlatformRuntimeMarker />
+        <TossLinkBridge />
         <VisitorTracker />
         <AdminFloatingWidget />
         <CreditsRefreshProvider>

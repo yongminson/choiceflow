@@ -428,7 +428,17 @@ export async function searchCoupangProduct(
     return null;
   }
 
-  const query = `keyword=${encodeURIComponent(normalizedKeyword)}&limit=10`;
+  /*
+    채널 아이디(subId)를 함께 보낸다.
+
+    딥링크를 만드는 쪽은 subId 를 넘기고 있었는데 상품 검색 쪽은 빠져
+    있었다. 결과 카드의 쿠팡 링크는 거의 전부 검색에서 나오므로, 그 링크로
+    들어간 클릭이 "choiceflow" 채널이 아니라 채널 없음으로 잡혔다.
+    파트너스 리포트를 채널로 거르면 클릭이 0 으로 보이는 이유 중 하나다.
+
+    서명에 쓰는 문자열과 실제 요청 문자열이 같아야 하므로 query 에 넣는다.
+  */
+  const query = `keyword=${encodeURIComponent(normalizedKeyword)}&limit=10&subId=${encodeURIComponent(config.subId)}`;
   const authorization = createCoupangAuthorization({
     method: "GET",
     path: COUPANG_SEARCH_PATH,
