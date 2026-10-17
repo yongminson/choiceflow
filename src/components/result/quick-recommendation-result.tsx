@@ -16,6 +16,7 @@ import {
   Sparkles,
   Star,
   Trophy,
+  X,
 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -467,7 +468,7 @@ export function QuickRecommendationResult({
     <main className="relative isolate mx-auto min-h-[calc(100dvh-4rem)] w-full max-w-[1120px] px-4 pb-20 pt-3 sm:px-6 sm:pt-6">
       {/* 상단 네비게이션 & 빠른 액션 */}
       <div className="mb-4 flex items-center justify-between">
-        <Link
+        <Link data-toss-hide
           href="/"
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition"
         >
@@ -1021,7 +1022,7 @@ export function QuickRecommendationResult({
                 aria-label="정밀 추천 닫기"
                 onClick={() => setShowAdvanced(false)}
               >
-                <ArrowLeft className="size-4" />
+                <X className="size-4" />
               </button>
               <span className="text-xs font-bold text-muted-foreground">
                 정밀 질문 {questionIndex + 1} / {advancedQuestions.length}

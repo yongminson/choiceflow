@@ -14,7 +14,7 @@ const EFFECTIVE_DATE = "2026년 8월 10일";
 export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-20 sm:py-32">
-      <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+      <Link data-toss-hide href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
         <ChevronLeft className="size-4" />
         홈으로 돌아가기
       </Link>

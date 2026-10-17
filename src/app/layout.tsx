@@ -48,13 +48,32 @@ export const metadata: Metadata = {
   },
 };
 
+// 토스 iframe 안에서는 저장소가 막혀 있을 수 있다. 표시를 먼저 붙이고 저장은 나중에 시도한다.
+const PLATFORM_BOOT_SCRIPT = `(function(){var k="choiceflow_platform",ok=function(v){return v==="android"||v==="apps-in-toss"},p=null;try{p=new URLSearchParams(location.search).get("platform")}catch(e){}if(!ok(p)&&/ChoiceFlowAndroid/i.test(navigator.userAgent))p="android";if(!ok(p)){try{p=sessionStorage.getItem(k)}catch(e){}}if(!ok(p))return;document.documentElement.setAttribute("data-choiceflow-platform",p);try{sessionStorage.setItem(k,p)}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className={cn(display.variable, notoSansKr.variable)}>
+    /*
+      아래 스크립트가 화면을 읽기 전에 html 에 플랫폼 표시를 붙이므로,
+      서버가 보낸 html 과 달라진다는 경고를 끈다.
+    */
+    <html
+      lang="ko"
+      className={cn(display.variable, notoSansKr.variable)}
+      suppressHydrationWarning
+    >
+      <head>
+        {/*
+          토스 미니앱이면 화면을 그리기 전에 표시를 붙인다. React 가 뜬 뒤에
+          붙이면 감춰야 할 헤더와 뒤로가기가 잠깐 보였다 사라진다.
+          판단 규칙은 lib/platform/runtime.ts 와 같다.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: PLATFORM_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-screen bg-[--surface] antialiased">
         <PlatformRuntimeMarker />
         <TossLinkBridge />

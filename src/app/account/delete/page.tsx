@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function DeleteAccountPage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-20 sm:py-28">
-      <Link
+      <Link data-toss-hide
         href="/"
         className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >

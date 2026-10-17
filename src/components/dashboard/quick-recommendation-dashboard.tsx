@@ -416,7 +416,7 @@ export function QuickRecommendationDashboard() {
         <div className="editorial-enter mb-6">
           {/* 상단 슬림 네비게이션 헤더 */}
           <div className="flex items-center justify-between">
-            <button
+            <button data-toss-hide
               type="button"
               onClick={() => resetToStep(step - 1)}
               className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition hover:bg-muted active:scale-95"
@@ -971,6 +971,22 @@ export function QuickRecommendationDashboard() {
             })}
           </div>
         </details>
+      )}
+
+      {/*
+        토스 미니앱에서는 위쪽 화살표 버튼을 감춘다. 토스 내비게이션 바의
+        뒤로가기와 겹쳐 보여 심사에서 반려됐다. 앞 질문으로 돌아갈 길은
+        남겨야 하므로 토스에서만 아래쪽에 글자 버튼을 둔다.
+      */}
+      {step > 1 && categoryId && (
+        <button
+          type="button"
+          data-toss-only
+          onClick={() => resetToStep(step - 1)}
+          className="mt-8 self-center rounded-full border border-border bg-white px-4 py-2 text-[13px] font-semibold text-muted-foreground transition hover:text-foreground"
+        >
+          이전 질문 다시 고르기
+        </button>
       )}
 
       <a

@@ -11,7 +11,13 @@ export function AppNavbar() {
   const isEditorialPage = pathname === "/" || pathname === "/result";
 
   return (
+    /*
+      토스 미니앱에서는 토스가 위쪽 내비게이션 바(앱 이름, 뒤로가기)를 그려 준다.
+      여기서 헤더를 또 그리면 헤더가 두 겹이 되어 심사에서 반려된다.
+      data-toss-hide 가 붙은 것은 토스 안에서만 감춘다(globals.css).
+    */
     <header
+      data-toss-hide
       className={cn(
         "relative z-50 w-full transition-all",
         isEditorialPage

@@ -84,7 +84,7 @@ export function CompareView() {
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-3.5rem)] w-full max-w-xl px-5 pb-16 pt-8">
-      <Link
+      <Link data-toss-hide
         href="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-neutral-900 dark:hover:text-white"
       >
         <ArrowLeft className="size-4" />

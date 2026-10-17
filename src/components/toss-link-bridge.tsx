@@ -32,7 +32,15 @@ export function TossLinkBridge() {
       // 감싸고 있는 껍데기가 보낸 것만 믿는다.
       if (event.source !== window.parent) return;
       if (!isBridgeMessage(event.data)) return;
-      if (event.data.type === BRIDGE_READY) parentOrigin = event.origin;
+      if (event.data.type === BRIDGE_READY) {
+        parentOrigin = event.origin;
+        /*
+          토스 껍데기가 답했다면 토스 안이다. 주소에 platform 이 빠지고
+          저장소도 막혀 표시를 못 붙였을 때를 위해 여기서도 붙인다.
+          토스 내비게이션 바와 겹치는 헤더·뒤로가기를 감추는 데 쓴다.
+        */
+        document.documentElement.dataset.choiceflowPlatform = "apps-in-toss";
+      }
     };
 
     const onClick = (event: MouseEvent) => {

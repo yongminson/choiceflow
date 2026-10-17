@@ -43,7 +43,7 @@ export default async function BlogPostPage({ params }: Props) {
 
   return (
     <article className="mx-auto w-full max-w-[760px] px-5 py-16 sm:px-8 sm:py-24">
-      <Link
+      <Link data-toss-hide
         href="/blog"
         className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
       >

@@ -225,7 +225,7 @@ export function StartPageView() {
       />
       
       <div className="mx-auto w-full max-w-4xl">
-        <Link
+        <Link data-toss-hide
           href="/"
           className={cn(
             buttonVariants({ variant: "ghost", size: "sm" }),

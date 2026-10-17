@@ -17,6 +17,21 @@
   }
 }
 
+/*
+ * 토스 미니앱 안에서만 감추거나 보이는 것.
+ *
+ * 토스는 위쪽 내비게이션 바(앱 이름, 뒤로가기)를 직접 그린다. 우리 헤더와
+ * "← 홈" 같은 뒤로가기 링크가 함께 보이면 뒤로가기가 두 개가 되어 심사에서
+ * 반려된다. html 의 data-choiceflow-platform 은 layout.tsx 의 첫 스크립트가
+ * 화면을 그리기 전에 정한다.
+ */
+html[data-choiceflow-platform="apps-in-toss"] [data-toss-hide] {
+  display: none !important;
+}
+html:not([data-choiceflow-platform="apps-in-toss"]) [data-toss-only] {
+  display: none !important;
+}
+
 @layer base {
   .theme {
     --font-heading: var(--font-sans);
