@@ -5,6 +5,7 @@ import {
   CoupangApiError,
   createCoupangDeepLink,
   normalizeCoupangKeyword,
+  searchCoupangProduct,
 } from "@/lib/monetization/coupang-server";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export const fetchCache = "force-no-store";
 
 function redirectWithoutCache(
   url: string,
-  mode: "api" | "fallback",
+  mode: "api" | "search" | "fallback",
   reason?: string
 ) {
   const response = NextResponse.redirect(url, 302);
@@ -51,6 +52,24 @@ export async function GET(request: Request) {
       error instanceof CoupangApiError
         ? { code: error.code, status: error.status, message: error.message }
         : { code: "UNEXPECTED_ERROR", message: String(error) };
+    const reason = `${details.code}${details.status ? `:${details.status}` : ""}`;
+
+    /*
+      딥링크가 안 되면 바로 일반 쿠팡 검색으로 보내지 않는다. 그 주소에는
+      추적 표시가 없어 눌러도 수수료가 0 이다. 상품 검색은 딥링크와 다른
+      창구라 따로 살아 있을 수 있고, 검색이 돌려주는 상품 주소에는 추적
+      표시와 채널이 붙어 있다. 그것으로 한 번 더 시도한다.
+    */
+    try {
+      const product = await searchCoupangProduct(keyword);
+      if (product?.productUrl) {
+        console.warn("[coupang] Deep-link failed; sent to tracked product link instead.", details);
+        return redirectWithoutCache(product.productUrl, "search", reason);
+      }
+    } catch (searchError) {
+      console.error("[coupang] Product search fallback also failed.", String(searchError));
+    }
+
     console.error(
       "[coupang] Deep-link generation failed; affiliate tracking is LOST for this click.",
       details
@@ -58,7 +77,7 @@ export async function GET(request: Request) {
     return redirectWithoutCache(
       fallbackUrl,
       "fallback",
-      `${details.code}${details.status ? `:${details.status}` : ""}`
+      reason
     );
   }
 }

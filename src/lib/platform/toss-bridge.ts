@@ -32,7 +32,7 @@ export type BridgeMessage =
   | { type: typeof BRIDGE_HELLO }
   | { type: typeof OPEN_URL; url: string };
 
-/** 껍데기에 넘겨 열어도 되는 주소인지. https 외부 주소만 넘긴다. */
+/** 껍데기에 넘겨 열어도 되는 주소인지. https 외부 주소와, 우리 서버를 거쳐 쿠팡으로 넘어가는 주소를 넘긴다. */
 export function isBridgeableUrl(href: string, currentOrigin: string): boolean {
   let url: URL;
   try {
@@ -41,9 +41,25 @@ export function isBridgeableUrl(href: string, currentOrigin: string): boolean {
     return false;
   }
   if (url.protocol !== "https:") return false;
-  // 같은 사이트 안의 이동은 iframe 안에서 그대로 하면 된다.
-  return url.origin !== currentOrigin;
+
+  /*
+    우리 서버를 거쳐 쿠팡으로 넘어가는 주소도 껍데기로 넘긴다.
+
+    상품을 못 찾은 카드와 관련 상품 링크는 /api/coupang?q=... 로 먼저 온 뒤
+    서버가 딥링크를 만들어 쿠팡으로 보낸다. 주소는 우리 사이트지만 결국
+    쿠팡으로 나가는 링크다. 처음에는 바깥 주소만 넘기게 해서 이 링크들은
+    토스에서 여전히 열리지 않았다. iframe 안에서 열면 쿠팡이 다른 사이트
+    안에 끼워 보여지는 것을 막아 빈 화면이 된다.
+  */
+  if (url.origin === currentOrigin) {
+    return OUTBOUND_PATHS.some((path) => url.pathname.startsWith(path));
+  }
+
+  return true;
 }
+
+/** 우리 사이트 주소지만 바깥으로 넘겨 보내는 길. */
+const OUTBOUND_PATHS = ["/api/coupang"];
 
 export function isBridgeMessage(value: unknown): value is BridgeMessage {
   if (!value || typeof value !== "object") return false;

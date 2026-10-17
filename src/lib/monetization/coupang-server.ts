@@ -214,6 +214,23 @@ export async function createCoupangDeepLink(
     });
   }
 
+  const { shortenUrl } = await requestCoupangDeepLink(normalizedKeyword);
+  deepLinkCache.set(normalizedKeyword, {
+    url: shortenUrl,
+    expiresAt: Date.now() + DEEPLINK_CACHE_TTL_MS,
+  });
+  return shortenUrl;
+}
+
+/**
+ * 쿠팡에 딥링크를 실제로 요청한다. 캐시를 거치지 않는다.
+ *
+ * 짧은 주소(shortenUrl)만으로는 그 안에 채널 아이디가 들어 있는지 알 수
+ * 없다. 진단에서는 펼친 주소(landingUrl)까지 봐야 하므로 둘 다 돌려준다.
+ */
+export async function requestCoupangDeepLink(
+  normalizedKeyword: string
+): Promise<{ shortenUrl: string; landingUrl?: string }> {
   const config = getCoupangConfig();
   const method = "POST";
   const authorization = createCoupangAuthorization({
@@ -302,11 +319,12 @@ export async function createCoupangDeepLink(
     );
   }
 
-  deepLinkCache.set(normalizedKeyword, {
-    url: shortenUrl,
-    expiresAt: Date.now() + DEEPLINK_CACHE_TTL_MS,
-  });
-  return shortenUrl;
+  return { shortenUrl, landingUrl: payload.data?.[0]?.landingUrl };
+}
+
+/** 지금 쓰는 채널 아이디. 진단에서 링크에 이 값이 붙었는지 본다. */
+export function currentCoupangSubId(): string {
+  return process.env.COUPANG_SUB_ID?.trim().slice(0, 40) || DEFAULT_SUB_ID;
 }
 
 export const COUPANG_SEARCH_PATH =

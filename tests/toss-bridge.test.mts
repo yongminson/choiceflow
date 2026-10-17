@@ -26,6 +26,16 @@ test("사이트 안의 이동은 넘기지 않는다", () => {
   assert.equal(isBridgeableUrl(`${SITE}/blog/x`, SITE), false);
 });
 
+/*
+  상품을 못 찾은 카드와 관련 상품 링크는 /api/coupang 을 거쳐 쿠팡으로 간다.
+  처음에는 이 주소가 우리 사이트라는 이유로 넘기지 않아 토스에서 계속
+  열리지 않았다.
+*/
+test("우리 서버를 거쳐 쿠팡으로 가는 주소도 넘긴다", () => {
+  assert.equal(isBridgeableUrl("/api/coupang?q=%EB%AC%B4%EC%84%A0", SITE), true);
+  assert.equal(isBridgeableUrl(`${SITE}/api/coupang?q=x`, SITE), true);
+});
+
 test("https 가 아닌 주소는 넘기지 않는다", () => {
   assert.equal(isBridgeableUrl("http://example.com", SITE), false);
   assert.equal(isBridgeableUrl("javascript:alert(1)", SITE), false);
